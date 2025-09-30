@@ -1,0 +1,7 @@
+.env
+vendor/
+db_data/
+*.log
+*.pid
+ssl/server.crt
+ssl/server.key
