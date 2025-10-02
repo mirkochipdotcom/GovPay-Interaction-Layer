@@ -15,12 +15,15 @@ services:
       - /var/www/html/vendor
       - /var/www/html/public
       
+
       - ./docker-setup.sh:/usr/local/bin/docker-setup.sh # Monta lo script nell'entrypoint PATH
 
     environment:
       - APACHE_SERVER_NAME=${APACHE_SERVER_NAME}
       # Dice a Composer di installare 'vendor' qui, indipendentemente da dove viene eseguito.
       - COMPOSER_VENDOR_DIR=/var/www/html/vendor 
+    env_file:
+      - .env # Assicura il caricamento di ENTE_TITOLO e delle URL
     depends_on:
       - db
     entrypoint: ["/usr/local/bin/docker-setup.sh"] # Esegue prima lo script di setup

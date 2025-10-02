@@ -5,7 +5,7 @@
 if ($mysqli->connect_error) {
     die("Database connection failed: " . $mysqli->connect_error);
 }*/
-
+echo  getenv('ENTE_TITOLO');
 
 // Carica l'autoloader di Composer, che si trova in /var/www/html/vendor/autoload.php
 require __DIR__ . '/vendor/autoload.php';
