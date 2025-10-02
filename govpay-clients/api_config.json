@@ -1,0 +1,71 @@
+[
+    {
+        "name": "pagamenti",
+        "version": "v3",
+        "base_url": "https://raw.githubusercontent.com/link-it/govpay/master/wars/api-pagamento/src/main/webapp/v3",
+        "main_file": "govpay-api-pagamento.yaml",
+        "client_dir": "pagamenti-client",
+        "client_namespace": "GovPay\\Pagamenti",
+        "support_files": [
+            "govpay-api-responses.yaml",
+            "govpay-api-errors.yaml",
+            "govpay-api-schemas.yaml",
+            "govpay-api-parameters.yaml",
+            "govpay-api-examples.yaml"
+        ],
+        "corrections": []
+    },
+    {
+        "name": "ragioneria",
+        "version": "v3",
+        "base_url": "https://raw.githubusercontent.com/link-it/govpay/master/wars/api-ragioneria/src/main/webapp/v3",
+        "main_file": "govpay-api-ragioneria.yaml",
+        "client_dir": "ragioneria-client",
+        "client_namespace": "GovPay\\Ragioneria",
+        "support_files": [
+            "govpay-api-responses.yaml",
+            "govpay-api-errors.yaml",
+            "govpay-api-schemas.yaml",
+            "govpay-api-parameters.yaml",
+            "govpay-api-examples.yaml"
+        ],
+        "hidden_dependencies": [
+            "https://raw.githubusercontent.com/link-it/govpay/master/wars/api-user/src/main/webapp/v1/govpay-api-user-v1.yaml",
+            "https://raw.githubusercontent.com/link-it/govpay/master/wars/api-user/src/main/webapp/v1/govpay-api-schemas-v1.yaml"
+        ],
+        "corrections": [
+            "s|govpay-api-responses.yaml#/responses/|govpay-api-responses.yaml#/components/responses/|g",
+            "s|govpay-api-schemas.yaml#/schemas/|govpay-api-schemas.yaml#/components/schemas/|g"
+        ]
+    },
+    {
+        "name": "pendenze",
+        "version": "v2",
+        "base_url": "https://raw.githubusercontent.com/link-it/govpay/master/wars/api-pendenze/src/main/webapp/v2",
+        "main_file": "govpay-api-pendenze-v2.yaml",
+        "client_dir": "pendenze-client",
+        "client_namespace": "GovPay\\Pendenze",
+        "support_files": [
+            "govpay-api-responses-v2.yaml",
+            "govpay-api-errors-v2.yaml",
+            "govpay-api-schemas-v2.yaml",
+            "govpay-api-parameters-v2.yaml"
+        ],
+        "corrections": []
+    },
+    {
+        "name": "backoffice",
+        "version": "v1",
+        "base_url": "https://raw.githubusercontent.com/link-it/govpay/master/wars/api-backoffice/src/main/webapp/v1",
+        "main_file": "govpay-api-backoffice-v1.yaml",
+        "client_dir": "backoffice-client",
+        "client_namespace": "GovPay\\Backoffice",
+        "support_files": [
+            "govpay-api-responses-v1.yaml",
+            "govpay-api-errors-v1.yaml",
+            "govpay-api-schemas-v1.yaml",
+            "govpay-api-parameters-v1.yaml"
+        ],
+        "corrections": []
+    }
+]
