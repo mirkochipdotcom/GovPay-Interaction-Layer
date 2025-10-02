@@ -1,55 +1,84 @@
 # ----------------------------------------------------------------------
 # FASE 1: Asset Builder (Compilazione Asset Front-End)
 # ----------------------------------------------------------------------
-FROM node:20 as asset_builder
+FROM node:20 AS asset_builder
 
-# Installa Git per la clonazione (git) e coreutils in un unico passaggio.
+# Installa dipendenze necessarie per la fase di build (Git, Wget, Unzip)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    git ca-certificates coreutils && \
+    git ca-certificates coreutils unzip wget && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Variabile per il tag di Bootstrap Italia
-ENV BOOTSTRAP_TAG="v2.16.2"
+# ----------------------------------------------------------------------
+# VARIABILI GLOBALI DI CONFIGURAZIONE
+# ----------------------------------------------------------------------
 
-# 1. Clona il repository, checkout, installa e compila
+# Variabile per il tag di Bootstrap Italia
+ARG BOOTSTRAP_TAG="v2.16.2"
+
+# Variabili per Font Awesome
+ARG FA_VERSION="7.1.0"
+ENV FA_URL=https://github.com/FortAwesome/Font-Awesome/releases/download/${FA_VERSION}/fontawesome-free-${FA_VERSION}-web.zip
+ENV FA_DIR="fontawesome-free-${FA_VERSION}-web"
+
+# 1. Clona il repository, checkout, installa e compila Bootstrap Italia
 RUN git clone https://github.com/italia/bootstrap-italia.git . && \
     git checkout ${BOOTSTRAP_TAG} && \
+    echo "Scarico e compilo Bootstap-italia versione ${BOOTSTRAP_TAG}..." && \
     npm install && \
     npm run build
+    
+# 2. Scarica Font Awesome in questa fase per usarlo come asset copiabile nella Fase 2
+RUN mkdir -p /tmp/fa_download && \
+    cd /tmp/fa_download && \
+    echo "Scarico Font Awesome ${FA_VERSION}..." && \
+    wget -q -O fa.zip ${FA_URL} && \
+    unzip -q fa.zip && \
+    mv ${FA_DIR} /app/fontawesome-dist && \
+    rm -rf /tmp/fa_download
 
-# Il risultato della compilazione si trova in /app/dist
+# Il risultato della compilazione di Bootstrap Italia è in /app/dist
+# Il risultato del download di Font Awesome è in /app/fontawesome-dist
 
 # ----------------------------------------------------------------------
 # FASE 2: Finale (Immagine Apache e Servizio PHP)
 # ----------------------------------------------------------------------
 FROM php:8.3-apache
 
-# Installazione delle dipendenze di sistema e PHP
+# Installazione delle dipendenze di sistema e PHP (inclusi unzip e wget)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libicu-dev libonig-dev libzip-dev openssl curl ca-certificates coreutils && \
+    libicu-dev libonig-dev libzip-dev openssl curl ca-certificates coreutils unzip wget && \
     docker-php-ext-install intl mbstring pdo_mysql zip \
     && a2enmod ssl rewrite \
     && echo "ServerName localhost" >> /etc/apache2/apache2.conf \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# 2. Installa Composer separatamente (con il metodo corretto)
-# Questo è il modo più pulito e affidabile:
+# 2. Installa Composer separatamente
 COPY --from=composer:latest /usr/bin/composer /usr/local/bin/composer
 
 # Imposta la directory di lavoro
 WORKDIR /var/www/html
 
-# Crea la cartella di destinazione
-RUN mkdir -p public/assets/bootstrap-italia
+# ----------------------------------------------------------------------
+# COPIA ASSET FRONT-END
+# ----------------------------------------------------------------------
 
-# Copia CRITICA: Copia i file COMPILATI da /app/dist nella destinazione finale.
+# 1. Copia Bootstrap Italia (Asset compilati dalla Fase 1)
+RUN mkdir -p public/assets/bootstrap-italia
 COPY --from=asset_builder /app/dist/ /var/www/html/public/assets/bootstrap-italia
 
-# Imposta i permessi
-RUN chmod -R 755 public/assets/bootstrap-italia
+# 2. Copia Font Awesome (Asset scaricati dalla Fase 1)
+ENV FA_DEST="/var/www/html/public/assets/fontawesome"
+RUN mkdir -p ${FA_DEST}
+# Copia le sottocartelle essenziali dalla cartella rinominata
+COPY --from=asset_builder /app/fontawesome-dist/css ${FA_DEST}/css/
+COPY --from=asset_builder /app/fontawesome-dist/js ${FA_DEST}/js/
+COPY --from=asset_builder /app/fontawesome-dist/webfonts ${FA_DEST}/webfonts/
+
+# Imposta i permessi per gli asset copiati
+RUN chmod -R 755 public/assets
 
 # Copia Composer (solo dipendenze PHP)
 COPY composer.json composer.lock* /var/www/html/
@@ -73,6 +102,6 @@ COPY src/ /var/www/html/
 # Imposta i permessi finali
 RUN chown -R www-data:www-data /var/www/html
 
-EXPOSE 80 443
+EXPOSE 443
 
 CMD ["apache2-foreground"]
