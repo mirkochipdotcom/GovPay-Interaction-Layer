@@ -1,0 +1,288 @@
+<?php					
+	if( session_status() !== PHP_SESSION_ACTIVE )
+		session_start();
+
+?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="it-it" lang="it-it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="description" content="Portale dei Servizi al cittadino">
+<meta name="author" content="Comune di Montesilvano">
+<title>Portale dei Servizi al cittadino</title>
+<link href="/public/assets/bootstrap-italia/css/bootstrap-italia.min.css" rel="stylesheet">
+
+
+<link href="/layout/fontawesome/css/all.css" rel="stylesheet">
+
+<link href="/modules/OSM/open_layers/ol.css" rel="stylesheet">
+<link rel="stylesheet" type="text/css" href="/layout/datatables_2/datatables.min.css"/>
+<link rel="stylesheet" type="text/css" href="/layout/agid_template/agid.css"/>
+<link rel="stylesheet" type="text/css" href="/pagopa/css/pagopa.css"/>
+<link rel="stylesheet" type="text/css" href="/layout/chat/chat.css" type="text/css" />
+<script>window.__PUBLIC_PATH__ = "/layout/bootstrap_italia/fonts"</script>
+<script src="/layout/bootstrap_italia/js/bootstrap-italia.bundle.min.js?{{ buildTime }}"></script>
+<script src="/layout/fontawesome/js/all.js"></script>
+
+<script type="text/javascript" src="/layout/datatables_2/datatables.min.js"></script>
+<script type="text/javascript" src="/spid/button/js/spid-sp-access-button.min.js"></script>
+<script type="text/javascript" src="/layout/charts/charts.js"></script>
+<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.10.3/jquery-ui.min.js"></script>
+<script type="text/javascript" src="https://ajax.aspnetcdn.com/ajax/knockout/knockout-2.2.1.js"></script>
+<script type="text/javascript" src="/layout/sevenSeg/sevenSeg.js"></script>
+<script type="text/javascript" src="/layout/chartjs/chart.umd.js"></script>
+<!-- Matomo -->
+<script type="text/javascript">
+  var _paq = window._paq = window._paq || [];
+  /* tracker methods like "setCustomDimension" should be called before "trackPageView" */
+  _paq.push(['trackPageView']);
+  _paq.push(['enableLinkTracking']);
+  (function() {
+    var u="https://ingestion.webanalytics.italia.it/";
+    _paq.push(['setTrackerUrl', u+'matomo.php']);
+    _paq.push(['setSiteId', 'eO35kxmqon']);
+    var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
+    g.type='text/javascript'; g.async=true; g.src=u+'matomo.js'; s.parentNode.insertBefore(g,s);
+  })();
+</script>
+<!-- End Matomo Code -->
+</head>
+<body>
+
+<header class="it-header-wrapper">
+  <div class="it-header-slim-wrapper">
+    <div class="container">
+      <div class="row">
+        <div class="col-12">
+          <div class="it-header-slim-wrapper-content">
+            <a class="d-lg-block navbar-brand" href="#">Regione Abruzzo</a>
+            <div class="it-header-slim-right-zone">
+              <div class="nav-item dropdown">
+                <a aria-expanded="false" class="nav-link dropdown-toggle"
+                   data-toggle="dropdown" href="#">
+                  <span>ITA</span>
+                  <svg class="icon icon-white d-none d-lg-block">
+                    <use xlink:href="/layout/bootstrap_italia/svg/sprite.svg#it-expand"></use>
+                  </svg>
+                </a>
+                <div class="dropdown-menu">
+                  <div class="row">
+                    <div class="col-12">
+                      <div class="link-list-wrapper">
+                        <ul class="link-list">
+                          <li>
+                            <a class="list-item" href="#"><span>ITA</span></a>
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="it-user-wrapper nav-item dropdown show">
+                <a aria-expanded="false" class="btn btn-primary btn-icon btn-full" data-toggle="dropdown" href="#">
+                <span class="fal"><i class="fas fa-circle-user fa-xl" aria-hidden="true"></i></span>
+                  <span class="d-none d-lg-block"><?php 
+                                if( isset( $DATI_UTENTE ) && array_key_exists("nome_esteso", $DATI_UTENTE ))
+                                    echo $DATI_UTENTE["nome_esteso"];
+                                else {
+                                    if( isset( $DATI_UTENTE ) && array_key_exists("ragione_sociale", $DATI_UTENTE ))
+                                        echo $DATI_UTENTE["ragione_sociale"];
+                                    else
+                                        echo "Accedi all'area personale";
+                                }
+                                    
+                            ?></span>
+                  <svg class="icon icon-white d-none d-lg-block">
+                    <use xlink:href="/layout/bootstrap_italia/svg/sprite.svg#it-expand"></use>
+                  </svg>
+                </a>
+                <div class="dropdown-menu" x-placement="bottom-start" style="position: absolute; will-change: transform; top: 0px; left: 0px; transform: translate3d(0px, 48px, 0px);">
+                  <div class="row">
+                    <div class="col-20">
+                      <div class="link-list-wrapper">
+                        <ul class="link-list">
+
+                        <?php
+                                    if( array_key_exists( "PORTALE_USER_CF_GESTIONE", $_SESSION ) && $_SESSION["PORTALE_USER_CF_GESTIONE"] != "" ) {
+                                        if( isset($DATI_UTENTE) ) {
+                                          if( isset($DATI_UTENTE["amministratore"]) && $DATI_UTENTE["amministratore"] == 1 ){
+
+                                            echo '<li>
+                                                    <a class="list-item left-icon" href="https://servizi.comune.montesilvano.pe.it/admin/" title="Admin">
+                                                    <span class="fal"><i class="fas fa-user-gear fa-lg" aria-hidden="true"></i></span>
+                                                    <span class="font-weight-bold">Admin</span></a>
+                                                </li>';
+                                          }
+                                        }
+                                        if ($_SESSION["PORTALE_USER_CF_GESTIONE"] == $_SESSION["PORTALE_USER_CODICE_FISCALE"] )
+                                          echo '<li>
+                                                <a class="list-item left-icon" href="https://servizi.comune.montesilvano.pe.it/profilo_utente.php" title="Profilo utente">
+                                                <span class="fal"><i class="fas fa-address-card fa-lg" aria-hidden="true"></i></span>
+                                                <span class="font-weight-bold">Dati utente</span></a>
+                                              </li>';
+                                        
+                                        echo '<li>
+                                        <div class="container-fluid">
+                                                <span class="divider"></span>
+                                                </div>
+                                              </li>';
+
+                                        echo '<li>
+                                                <a class="list-item left-icon" href="https://servizi.comune.montesilvano.pe.it/logout.php">
+                                                <span class="fal"><i class="fas fa-arrow-right-from-bracket fa-lg" aria-hidden="true"></i></span>
+                                                <span class="font-weight-bold">Esci</span></a>
+                                              </li>';
+                                   
+                                    }else{
+
+
+                                    echo '<li>
+                                            <a class="list-item left-icon" href="https://servizi.comune.montesilvano.pe.it/login.php" title="Login">
+                                            <span class="fal"><i class="fas fa-arrow-right-to-bracket fa-lg" aria-hidden="true"></i></span>
+                                            <span class="font-weight-bold">Accedi</span></a>
+                                          </li>';
+                                    }
+                                    ?>
+                          
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+     </div>
+  </div>
+  </div>
+
+  <div class="it-nav-wrapper">
+    <div class="it-header-center-wrapper">
+      <div class="container">
+        <div class="row">
+          <div class="col-12">
+            <div class="it-header-center-content-wrapper">
+              <div class="it-brand-wrapper">
+                <a href="http://www.comune.montesilvano.pe.it/">
+                  <svg class="icon">
+                    <use
+                      xlink:href="/layout/bootstrap_italia/svg/sprite.svg#it-pa"></use>
+                  </svg>
+                  <div class="it-brand-text">
+                    <h2 class="no_toc">Comune di Montesilvano</h2>
+                    <h3 class="no_toc d-none d-md-block">
+                      Provincia di Pescara
+                    </h3>
+                  </div>
+                </a>
+              </div>
+              <div class="it-right-zone">
+                <div class="it-brand-wrapper">
+<?php  
+		if( isset($_SESSION["sess_HEADER_MESSAGE"]) && $_SESSION["sess_HEADER_MESSAGE"]!='')
+	   		echo $_SESSION["sess_HEADER_MESSAGE"];   
+?>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="it-header-navbar-wrapper">
+      <div class="container">
+        <div class="row">
+          <div class="col-12">
+            <nav class="navbar navbar-expand-lg has-megamenu">
+              <button aria-controls="nav10" aria-expanded="false"
+                      aria-label="Toggle navigation" class="custom-navbar-toggler"
+                      data-target="#nav10" type="button">
+                <svg class="icon">
+                  <use
+                    xlink:href="/layout/bootstrap_italia/svg/sprite.svg#it-burger"></use>
+                </svg>
+              </button>
+              <div class="navbar-collapsable" id="nav10">
+                <div class="overlay"></div>
+                <div class="close-div sr-only">
+                  <button class="btn close-menu" type="button">
+                    <span class="it-close"></span>close
+                  </button>
+                </div>
+                <div class="menu-wrapper">
+                  <ul class="navbar-nav">
+<?php
+
+				global $TEMPLATE_MENU;
+				if( !is_array($TEMPLATE_MENU) || !array_key_exists( "CUSTOM", $TEMPLATE_MENU ) ) {			
+					$TEMPLATE_MENU = array( "Home"    => "https://servizi.comune.montesilvano.pe.it/",
+											"Tributi" => array( "Valori Aree ai fini IMU"      => "https://servizi.comune.montesilvano.pe.it/valori_aree.php"),
+											"Servizi" => array( /*"Prenotazione Appuntamenti"    => "https://servizi.comune.montesilvano.pe.it/sportello.php",*/
+																          "Risultati elettorali" => "https://servizi.comune.montesilvano.pe.it/elezioni/risultati/" ),
+											"Pagamenti (PagoPA)" => "https://servizi.comune.montesilvano.pe.it/pagopa/" );
+					
+				
+				} else unset( $TEMPLATE_MENU["CUSTOM"] );
+				
+				
+				if( array_key_exists( "AGID_SECTION", $_SESSION ))
+					$SEZIONE = $_SESSION["AGID_SECTION"];
+				else
+					$SEZIONE = "";
+				
+				foreach( $TEMPLATE_MENU as $nome => $voce ) {
+					echo '<li class="nav-item';
+					if( $SEZIONE == base64_encode( $nome ) )
+						echo ' active';
+					
+					if( is_array( $voce ) ) {
+						// Secondo livello...
+						echo ' dropdown">'; 
+						echo '<a class="nav-link dropdown-toggle" href="#" data-toggle="dropdown" aria-expanded="false"><span>'.$nome.'</span>';
+						echo '<svg class="icon icon-xs"><use xlink:href="/layout/bootstrap_italia/svg/sprite.svg#it-expand"></use></svg></a>';
+						echo '<div class="dropdown-menu"><div class="link-list-wrapper">';
+						echo '<ul class="link-list">';
+						foreach( $voce as $descrizione => $link ) {
+							echo '<li>';
+							echo '<a class="list-item" href="'.$link.'"><span class="text-nowrap">'.$descrizione.'</span></a>';
+							echo '</li>';
+						}
+						echo '</ul></div></div></li>';
+					} else {
+						echo '"><a class="nav-link" href="'.$voce.'"><span>'.$nome.'</span></a>';
+						if( $SEZIONE == base64_encode( $nome ) )
+							echo '<span class="sr-only">menu selezionato</span>';
+					}
+					echo '</li>';
+				}
+
+          //CURRENT $url
+        if( (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') || (isset($_SERVER["HTTP_X_FORWARDED_PROTO"]) && $_SERVER["HTTP_X_FORWARDED_PROTO"]==="https"))   
+          $URL = "https://";   
+        else  
+          $URL = "http://";   
+          // Append the host(domain name, ip) to the URL.   
+        $URL.= $_SERVER['HTTP_HOST'];   
+
+          // Append the requested resource location to the URL   
+        $URL.= $_SERVER['REQUEST_URI'];    
+
+?>
+              
+                  </ul>
+
+                </div>
+              </div>
+            </nav>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+<main style="padding-top:0px">
+	<div class="container my-4" style="padding-bottom:100px">
