@@ -1,0 +1,10 @@
+# # TipoRiferimentoRiconciliazione
+
+## Properties
+
+Name | Type | Description | Notes
+------------ | ------------- | ------------- | -------------
+**iuv** | **string** |  |
+**id_flusso_rendicontazione** | **string** |  |
+
+[[Back to Model list]](../../README.md#models) [[Back to API list]](../../README.md#endpoints) [[Back to README]](../../README.md)
