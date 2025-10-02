@@ -118,35 +118,33 @@ for i in $(seq 0 $((NUM_APIS - 1))); do
         --invoker-package "$CLIENT_NAMESPACE" \
         --additional-properties packageName="$CLIENT_NAMESPACE" # Usa il namespace per coerenza
 
-    # 7. CORREZIONE FINALE: Aggiunta del campo 'name' E INIEZIONE PSR-4 con jq
+     # 7. CORREZIONE FINALE: Aggiunta del campo 'name' E INIEZIONE PSR-4 con jq
     COMPOSER_FILE="$WORKING_DIR/$CLIENT_DIR/composer.json"
     
     if [ -f "$COMPOSER_FILE" ]; then
         echo "   > 🔨 CORREZIONE FINALE: Iniezione del campo \"name\" e \"autoload\""
         
-        # 1. Definisci il namespace (es: GovPay\Pagamenti\) e il percorso (es: lib/)
-        NAMESPACE_KEY="${CLIENT_NAMESPACE}\\\\" # Il namespace finisce con doppio slash
-        VENDOR_PATH="lib/"                     # La cartella che contiene il codice generato
-        
-        # 2. Crea l'oggetto JSON per l'autoloading
-        AUTOLOAD_JSON=$(cat <<EOF
-        {
-          "autoload": {
-            "psr-4": {
-              "$NAMESPACE_KEY": "$VENDOR_PATH"
-            }
-          }
-        }
-EOF
-        )
-        
-        # 3. Usa jq per unire l'oggetto autoload e il campo name nel file
-        # Il flag -s serve a leggere la stringa JSON creata
-        jq --arg name "$PACKAGE_NAME" \
-           --slurpfile autoload <(echo "$AUTOLOAD_JSON") \
-           '. + {name: $name} + .autoload' \
-           "$COMPOSER_FILE" > temp.json && \
+        # 1. PASSO CRUCIALE: INIEZIONE DEL CAMPO "NAME"
+        # Usiamo jq --arg per iniettare il campo 'name' nella root del JSON.
+        # Questo garantisce che il nome sia presente e valido.
+        jq --arg name "$PACKAGE_NAME" '. + {name: $name}' "$COMPOSER_FILE" > temp.json && \
         mv temp.json "$COMPOSER_FILE"
+        
+        echo "      -> Nome iniettato: $PACKAGE_NAME"
+        
+        # 2. SECONDO PASSO: INIEZIONE DELLA MAPPATURA PSR-4
+        NAMESPACE_KEY="${CLIENT_NAMESPACE}\\\\"
+        VENDOR_PATH="lib/"
+        
+        # Usiamo jq per manipolare direttamente l'oggetto 'autoload' e 'psr-4'
+        # Questo è più robusto dell'unione dei blocchi di testo JSON.
+        jq_autoload_command=".autoload.psr-4 += {\"$NAMESPACE_KEY\": \"$VENDOR_PATH\"}"
+        
+        # Eseguiamo il comando jq:
+        jq "$jq_autoload_command" "$COMPOSER_FILE" > temp.json && \
+        mv temp.json "$COMPOSER_FILE"
+        
+        echo "      -> Autoload iniettato: $CLIENT_NAMESPACE"
     else
         echo "   > ATTENZIONE: File composer.json non trovato in $COMPOSER_FILE"
     fi
