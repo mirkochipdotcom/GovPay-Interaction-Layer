@@ -9,10 +9,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <meta name="description" content="Portale dei Servizi al cittadino">
-<meta name="author" content="Comune di Montesilvano">
+<meta name="author" content="<?php getenv('GOVPAY_PENDENZE_BASE_URL') ?>">
 <title>Portale dei Servizi al cittadino</title>
 <link href="/public/assets/bootstrap-italia/css/bootstrap-italia.min.css" rel="stylesheet">
-
+<link rel="stylesheet" href="/public/assets/fontawesome/css/all.min.css">
 
 <link href="/layout/fontawesome/css/all.css" rel="stylesheet">
 
@@ -56,7 +56,7 @@
       <div class="row">
         <div class="col-12">
           <div class="it-header-slim-wrapper-content">
-            <a class="d-lg-block navbar-brand" href="#">Regione Abruzzo</a>
+            <a class="d-lg-block navbar-brand" href="#"><?php echo getenv('ENTE_TITOLO') ?></a>
             <div class="it-header-slim-right-zone">
               <div class="nav-item dropdown">
                 <a aria-expanded="false" class="nav-link dropdown-toggle"
