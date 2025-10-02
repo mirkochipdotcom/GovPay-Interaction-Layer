@@ -3,16 +3,29 @@ services:
     build: .
     container_name: php-apache
     ports:
-      - "8080:80"
+      # Rimuoviamo la porta 80 per eliminare l'errore 400
       - "8443:443"
     volumes:
+      # 1. Mount del codice sorgente completo (INCLUSO public/ dell'host)
       - ./src:/var/www/html
-      - ./ssl:/ssl
+      # 2. PROTEZIONE ANONIMA: Queste due righe hanno la precedenza sul mount di sviluppo.
+      #    Mantengono i file 'vendor' e 'public' generati da Docker, se i file dell'host mancano.
+      #    PERFETTO per gli asset generati!
+      - /var/www/html/vendor
+      - /var/www/html/public
+ 
+      # *** NOTA IMPORTANTE SUL VOLUME PUBLIC: ***
+      # Se la cartella ./src/public/ sul tuo host NON ESISTE, questa configurazione va bene.
+      # Se la cartella ./src/public/ sul tuo host ESISTE, il mount la userà, sovrascrivendo gli asset generati in FASE 3.
+      # SE VUOI ASSOLUTAMENTE ESCLUDERE public/ DAL MOUNT, DEVI MONTARE SELETTIVAMENTE:
+      # - ./src/file1:/var/www/html/file1
+      # - ./src/file2:/var/www/html/file2
+      # ... il che non è pratico per lo sviluppo.
+
     environment:
       - APACHE_SERVER_NAME=${APACHE_SERVER_NAME}
     depends_on:
       - db
-
   db:
     image: mariadb:11
     container_name: mariadb
@@ -27,3 +40,4 @@ services:
 
 volumes:
   db_data:
+

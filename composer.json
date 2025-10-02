@@ -1,0 +1,18 @@
+{
+  "name": "mirkochipdotcom/govpay-backend",
+  "description": "Backend PHP per GovPay con Bootstrap Italia",
+  "version": "2025.10.0-alpha",
+  "type": "project",
+  "license": "proprietary",
+  "require": {
+    "php": "^8.3"
+  },
+  "config": {
+    "sort-packages": true,
+    "allow-plugins": {
+      "php-http/discovery": true
+    }
+  },
+  "minimum-stability": "dev",
+  "prefer-stable": true
+}
