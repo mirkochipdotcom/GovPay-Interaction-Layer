@@ -1,18 +1,44 @@
 {
-  "name": "mirkochipdotcom/govpay-backend",
-  "description": "Backend PHP per GovPay con Bootstrap Italia",
-  "version": "2025.10.0-alpha",
-  "type": "project",
-  "license": "proprietary",
-  "require": {
-    "php": "^8.3"
-  },
-  "config": {
-    "sort-packages": true,
-    "allow-plugins": {
-      "php-http/discovery": true
-    }
-  },
-  "minimum-stability": "dev",
-  "prefer-stable": true
+    "name": "mirkochipdotcom/govpay-interaction-layer",
+    "description": "Piattaforma Completa per l'Inizializzazione dei Pagamenti (Cittadino) e la Gestione Amministrativa (Ufficio) delle Transazioni PagoPA.",
+    "version": "2025.10.0-alpha",
+    "type": "project",
+    "license": "proprietary",
+    "require": {
+        "php": "^8.3",
+        "govpay/pagamenti-client": "dev-main",
+        "govpay/ragioneria-client": "dev-main",
+        "govpay/pendenze-client": "dev-main",
+        "govpay/backoffice-client": "dev-main"
+    },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "/app/govpay-clients/generated-clients/pagamenti-v3/pagamenti-client",
+            "options": { "symlink": false }
+        },
+        {
+            "type": "path",
+            "url": "/app/govpay-clients/generated-clients/ragioneria-v3/ragioneria-client",
+            "options": { "symlink": false }
+        },
+        {
+            "type": "path",
+            "url": "/app/govpay-clients/generated-clients/pendenze-v2/pendenze-client",
+            "options": { "symlink": false }
+        },
+        {
+            "type": "path",
+            "url": "/app/govpay-clients/generated-clients/backoffice-v1/backoffice-client",
+            "options": { "symlink": false }
+        }
+    ],
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "php-http/discovery": true
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
 }
