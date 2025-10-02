@@ -3,29 +3,49 @@ services:
     build: .
     container_name: php-apache
     ports:
-      # Rimuoviamo la porta 80 per eliminare l'errore 400
       - "8443:443"
     volumes:
-      # 1. Mount del codice sorgente completo (INCLUSO public/ dell'host)
+      # 1. Mount del codice sorgente principale (la tua applicazione)
       - ./src:/var/www/html
-      # 2. PROTEZIONE ANONIMA: Queste due righe hanno la precedenza sul mount di sviluppo.
-      #    Mantengono i file 'vendor' e 'public' generati da Docker, se i file dell'host mancano.
-      #    PERFETTO per gli asset generati!
+      
+      # 2. Mount ISOLATO dei client generati (PER COMPOSER)
+      - .:/app  
+      
+      # 3. Volumi anonimi per Composer (vendor) e asset pubblici
       - /var/www/html/vendor
       - /var/www/html/public
- 
-      # *** NOTA IMPORTANTE SUL VOLUME PUBLIC: ***
-      # Se la cartella ./src/public/ sul tuo host NON ESISTE, questa configurazione va bene.
-      # Se la cartella ./src/public/ sul tuo host ESISTE, il mount la userà, sovrascrivendo gli asset generati in FASE 3.
-      # SE VUOI ASSOLUTAMENTE ESCLUDERE public/ DAL MOUNT, DEVI MONTARE SELETTIVAMENTE:
-      # - ./src/file1:/var/www/html/file1
-      # - ./src/file2:/var/www/html/file2
-      # ... il che non è pratico per lo sviluppo.
-
+    
     environment:
       - APACHE_SERVER_NAME=${APACHE_SERVER_NAME}
+      # Dice a Composer di installare 'vendor' qui, indipendentemente da dove viene eseguito.
+      - COMPOSER_VENDOR_DIR=/var/www/html/vendor 
     depends_on:
       - db
+    command: >
+      /bin/sh -c "
+        # 1. Entra nella directory di Composer (/app)
+        cd /app &&
+        
+        # 2. Il resto del codice Composer può usare la chiamata 'composer'
+        # COMPOSER_VENDOR_DIR gestirà dove va la cartella 'vendor'.
+        
+        if [ ! -d /var/www/html/vendor ]; then 
+          echo 'Eseguo: composer install per la prima volta...' &&
+          composer install --no-dev --optimize-autoloader; 
+        
+        # Le altre clausole (come dump-autoload) devono usare il percorso corretto
+        elif [ /var/www/html/vendor/composer/installed.json -ot composer.json ]; then
+          echo 'Eseguo: composer update (file modficiati)...' &&
+          composer update --no-dev --optimize-autoloader;
+        
+        else 
+          echo 'Eseguo: composer dump-autoload (solo autoloading)...' &&
+          composer dump-autoload;
+        fi && 
+        
+        # Avvia Apache
+        /usr/local/bin/docker-php-entrypoint apache2-foreground
+      "
   db:
     image: mariadb:11
     container_name: mariadb
@@ -40,4 +60,3 @@ services:
 
 volumes:
   db_data:
-

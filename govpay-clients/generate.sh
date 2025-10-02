@@ -19,6 +19,7 @@ then
 fi
 
 # Variabile per il flag -i di sed (necessario per macOS vs Linux)
+# (Non lo usiamo per la correzione composer.json, ma lo lasciamo per le correzioni YAML)
 SED_INPLACE=""
 if [[ "$OSTYPE" == "darwin"* ]]; then
     SED_INPLACE="''"
@@ -28,12 +29,14 @@ fi
 NUM_APIS=$(jq length "$CONFIG_FILE")
 
 for i in $(seq 0 $((NUM_APIS - 1))); do
+    # Estrazione di tutti i campi
     API_NAME=$(jq -r ".[$i].name" "$CONFIG_FILE")
     API_VERSION=$(jq -r ".[$i].version" "$CONFIG_FILE")
     BASE_URL=$(jq -r ".[$i].base_url" "$CONFIG_FILE")
     MAIN_FILE=$(jq -r ".[$i].main_file" "$CONFIG_FILE")
     CLIENT_DIR=$(jq -r ".[$i].client_dir" "$CONFIG_FILE")
     CLIENT_NAMESPACE=$(jq -r ".[$i].client_namespace" "$CONFIG_FILE")
+    PACKAGE_NAME=$(jq -r ".[$i].package_name" "$CONFIG_FILE") # <--- NUOVO CAMPO!
     SUPPORT_FILES=$(jq -r ".[$i].support_files | @sh" "$CONFIG_FILE")
     HIDDEN_DEPS=$(jq -r ".[$i].hidden_dependencies | .[]?" "$CONFIG_FILE")
 
@@ -41,8 +44,10 @@ for i in $(seq 0 $((NUM_APIS - 1))); do
     BUNDLED_FILE="$API_NAME.bundled.yaml"
 
     echo "====================================================================="
-    echo "🏁 INIZIO PROCESSO: $API_NAME ($API_VERSION)"
+    echo "🏁 INIZIO PROCESSO: $API_NAME ($API_VERSION) - Pacchetto: $PACKAGE_NAME"
     echo "====================================================================="
+    
+    # ... (le fasi 1, 2, 3, 4 e 5 rimangono invariate) ...
     
     # 1. Creazione e navigazione nella cartella isolata
     mkdir -p "$WORKING_DIR"
@@ -84,11 +89,9 @@ for i in $(seq 0 $((NUM_APIS - 1))); do
             for correction in $CORRECTIONS; do
                 echo "     - Applica: $correction"
                 
-                # Sostituiamo i pipe | con un carattere che non confonda Bash, poi eseguiamo.
-                # Questa è la sintassi più robusta per gestire i percorsi YAML con sed.
                 ESCAPED_CORRECTION=$(echo "$correction" | sed 's|#|\\#|g')
                 
-                # Eseguiamo il comando sed: usiamo il pipe come delimitatore.
+                # Eseguiamo il comando sed
                 eval "sed -i $SED_INPLACE '$ESCAPED_CORRECTION' $MAIN_FILE"
             done
         )
@@ -101,7 +104,7 @@ for i in $(seq 0 $((NUM_APIS - 1))); do
         redocly/cli:latest bundle \
         "/data/$MAIN_FILE" \
         --output "/data/$BUNDLED_FILE" \
-        $FORCE_FLAG # <--- AGGIUNTO QUI!
+        $FORCE_FLAG
 
     # 6. Generazione del Client PHP
     echo "   > Generazione Client PHP ($CLIENT_DIR)..."
@@ -112,11 +115,45 @@ for i in $(seq 0 $((NUM_APIS - 1))); do
         -i "/local/$BUNDLED_FILE" \
         -g php \
         -o "/local/$CLIENT_DIR" \
-        --invoker-package "$CLIENT_NAMESPACE"
+        --invoker-package "$CLIENT_NAMESPACE" \
+        --additional-properties packageName="$CLIENT_NAMESPACE" # Usa il namespace per coerenza
 
-    echo "✅ CLIENT $API_NAME GENERATO CON SUCCESSO in $WORKING_DIR/$CLIENT_DIR"
+    # 7. CORREZIONE FINALE: Aggiunta del campo 'name' E INIEZIONE PSR-4 con jq
+    COMPOSER_FILE="$WORKING_DIR/$CLIENT_DIR/composer.json"
+    
+    if [ -f "$COMPOSER_FILE" ]; then
+        echo "   > 🔨 CORREZIONE FINALE: Iniezione del campo \"name\" e \"autoload\""
+        
+        # 1. Definisci il namespace (es: GovPay\Pagamenti\) e il percorso (es: lib/)
+        NAMESPACE_KEY="${CLIENT_NAMESPACE}\\\\" # Il namespace finisce con doppio slash
+        VENDOR_PATH="lib/"                     # La cartella che contiene il codice generato
+        
+        # 2. Crea l'oggetto JSON per l'autoloading
+        AUTOLOAD_JSON=$(cat <<EOF
+        {
+          "autoload": {
+            "psr-4": {
+              "$NAMESPACE_KEY": "$VENDOR_PATH"
+            }
+          }
+        }
+EOF
+        )
+        
+        # 3. Usa jq per unire l'oggetto autoload e il campo name nel file
+        # Il flag -s serve a leggere la stringa JSON creata
+        jq --arg name "$PACKAGE_NAME" \
+           --slurpfile autoload <(echo "$AUTOLOAD_JSON") \
+           '. + {name: $name} + .autoload' \
+           "$COMPOSER_FILE" > temp.json && \
+        mv temp.json "$COMPOSER_FILE"
+    else
+        echo "   > ATTENZIONE: File composer.json non trovato in $COMPOSER_FILE"
+    fi
+
+    echo "✅ CLIENT $API_NAME GENERATO E CORRETTO CON SUCCESSO in $WORKING_DIR/$CLIENT_DIR"
 done
 
 echo "====================================================================="
-echo "🎉 TUTTI I CLIENT SONO STATI GENERATI"
+echo "🎉 TUTTI I CLIENT SONO STATI GENERATI E I FILE composer.json CORRETTI"
 echo "====================================================================="

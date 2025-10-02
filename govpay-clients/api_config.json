@@ -2,6 +2,7 @@
     {
         "name": "pagamenti",
         "version": "v3",
+        "package_name": "govpay/pagamenti-client",
         "base_url": "https://raw.githubusercontent.com/link-it/govpay/master/wars/api-pagamento/src/main/webapp/v3",
         "main_file": "govpay-api-pagamento.yaml",
         "client_dir": "pagamenti-client",
@@ -18,6 +19,7 @@
     {
         "name": "ragioneria",
         "version": "v3",
+        "package_name": "govpay/ragioneria-client",
         "base_url": "https://raw.githubusercontent.com/link-it/govpay/master/wars/api-ragioneria/src/main/webapp/v3",
         "main_file": "govpay-api-ragioneria.yaml",
         "client_dir": "ragioneria-client",
@@ -41,6 +43,7 @@
     {
         "name": "pendenze",
         "version": "v2",
+        "package_name": "govpay/pendenze-client",
         "base_url": "https://raw.githubusercontent.com/link-it/govpay/master/wars/api-pendenze/src/main/webapp/v2",
         "main_file": "govpay-api-pendenze-v2.yaml",
         "client_dir": "pendenze-client",
@@ -56,6 +59,7 @@
     {
         "name": "backoffice",
         "version": "v1",
+        "package_name": "govpay/backoffice-client",
         "base_url": "https://raw.githubusercontent.com/link-it/govpay/master/wars/api-backoffice/src/main/webapp/v1",
         "main_file": "govpay-api-backoffice-v1.yaml",
         "client_dir": "backoffice-client",

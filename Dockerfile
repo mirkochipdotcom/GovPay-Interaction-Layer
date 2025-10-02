@@ -35,6 +35,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && echo "ServerName localhost" >> /etc/apache2/apache2.conf \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# 2. Installa Composer separatamente (con il metodo corretto)
+# Questo è il modo più pulito e affidabile:
+COPY --from=composer:latest /usr/bin/composer /usr/local/bin/composer
+
 # Imposta la directory di lavoro
 WORKDIR /var/www/html
 
@@ -47,10 +51,8 @@ COPY --from=asset_builder /app/dist/ /var/www/html/public/assets/bootstrap-itali
 # Imposta i permessi
 RUN chmod -R 755 public/assets/bootstrap-italia
 
-# Copia e installa Composer (solo dipendenze PHP)
+# Copia Composer (solo dipendenze PHP)
 COPY composer.json composer.lock* /var/www/html/
-RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer \
-    && composer install --no-dev --optimize-autoloader
 
 # ----------------------------------------------------------------------
 # Configurazione Finale
