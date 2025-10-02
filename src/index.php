@@ -14,27 +14,33 @@ require __DIR__ . '/vendor/autoload.php';
 // Per convenzione, il generatore OpenAPI crea un'API chiamata [NomeAPI]Api.
 $api_class = 'GovPay\Pendenze\Api\PendenzeApi'; 
 
-echo "--- Verifica del Client GovPay/Pagamenti ---\n";
+echo "--- Verifica del Client GovPay/Pendenze ---\n";
 
 if (class_exists($api_class)) {
     echo "✅ SUCCESSO: La classe API è stata trovata.\n";
     echo "Namespace: $api_class\n";
     
-    // Puoi anche provare a instanziare l'oggetto per un test più completo
+    // 1. TENTA DI ISTANZIARE GUZZLE SEPARATAMENTE
     try {
+        $guzzle_client = new GuzzleHttp\Client();
+        echo "✅ GuzzleHttp\\Client istanziato con successo.\n";
+
+        // 2. TENTA DI ISTANZIARE L'API (se Guzzle ha funzionato)
         $client = new $api_class(
-            new GuzzleHttp\Client(), // Richiede Guzzle (dovrebbe essere in require del client)
-            new GovPay\Pagamenti\Configuration() // Classe di configurazione standard generata
+            $guzzle_client,
+            new GovPay\Pendenze\Configuration()
         );
-        echo "✅ Istanza creata con successo.\n";
-    } catch (\Throwable $e) {
-        echo "⚠️ ATTENZIONE: La classe esiste, ma l'istanziazione ha generato un errore.\n";
+        echo "✅ Istanza API creata con successo.\n";
+
+    } catch (\Error $e) {
+        // Cattura gli errori di classe non trovata (più comuni)
+        echo "❌ ERRORE FATALE (Guzzle?): " . $e->getMessage() . "\n";
         echo "Controlla le dipendenze di Guzzle nel vendor.\n";
+    } catch (\Throwable $e) {
+        // Cattura altri errori generici o di dipendenza
+        echo "⚠️ ATTENZIONE (Istanziazione API fallita): " . $e->getMessage() . "\n";
+        echo "L'errore non è un'eccezione, ma un problema di autoloading/ambiente.\n";
     }
-    
-} else {
-    echo "❌ FALLIMENTO: La classe $api_class NON è stata trovata.\n";
-    echo "Controlla i percorsi PSR-4 nei composer.json dei client generati.\n";
 }
 
 echo "------------------------------------------------\n";
