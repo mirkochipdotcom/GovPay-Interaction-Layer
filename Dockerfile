@@ -96,6 +96,9 @@ RUN rm /etc/apache2/sites-enabled/000-default.conf
 COPY apache/000-default-ssl.conf /etc/apache2/sites-available/000-default.conf
 RUN a2ensite 000-default.conf
 
+# Copia la cartella 'img' dall'Host alla destinazione finale nel Container.
+COPY img /var/www/html/public/img
+
 # Copia il codice sorgente del progetto
 COPY src/ /var/www/html/
 

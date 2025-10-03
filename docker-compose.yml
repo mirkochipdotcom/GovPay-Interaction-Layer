@@ -14,10 +14,7 @@ services:
       # 3. Volumi anonimi per Composer (vendor) e asset pubblici
       - /var/www/html/vendor
       - /var/www/html/public
-      
-
       - ./docker-setup.sh:/usr/local/bin/docker-setup.sh # Monta lo script nell'entrypoint PATH
-
     environment:
       - APACHE_SERVER_NAME=${APACHE_SERVER_NAME}
       # Dice a Composer di installare 'vendor' qui, indipendentemente da dove viene eseguito.
@@ -27,6 +24,7 @@ services:
     depends_on:
       - db
     entrypoint: ["/usr/local/bin/docker-setup.sh"] # Esegue prima lo script di setup
+    restart: unless-stopped
     command: >
       /bin/sh -c "
         # 1. Entra nella directory di Composer (/app)
