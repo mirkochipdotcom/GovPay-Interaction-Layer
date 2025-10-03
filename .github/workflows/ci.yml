@@ -15,7 +15,7 @@ jobs:
           MYSQL_ROOT_PASSWORD: rootsecret
           MYSQL_DATABASE: appdb
           MYSQL_USER: appuser
-          MYSQL_PASSWORD=apppass
+          MYSQL_PASSWORD: apppass
         options: >-
           --health-cmd="mysqladmin ping -h localhost -uappuser -papppass"
           --health-interval=10s
