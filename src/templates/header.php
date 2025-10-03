@@ -8,23 +8,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<meta name="description" content="Portale dei Servizi al cittadino">
-<meta name="author" content="<?php getenv('GOVPAY_PENDENZE_BASE_URL') ?>">
-<title>Portale dei Servizi al cittadino</title>
+<meta name="description" content="PagoPa GIL">
+<meta name="author" content="github\mirkochipdotcom">
+<title>PagoPA - <?php echo getenv('ENTE_TITOLO') ?></title>
 <link href="/public/assets/bootstrap-italia/css/bootstrap-italia.min.css" rel="stylesheet">
 <link rel="stylesheet" href="/public/assets/fontawesome/css/all.min.css">
-
-<link href="/layout/fontawesome/css/all.css" rel="stylesheet">
-
 <link href="/modules/OSM/open_layers/ol.css" rel="stylesheet">
 <link rel="stylesheet" type="text/css" href="/layout/datatables_2/datatables.min.css"/>
 <link rel="stylesheet" type="text/css" href="/layout/agid_template/agid.css"/>
 <link rel="stylesheet" type="text/css" href="/pagopa/css/pagopa.css"/>
 <link rel="stylesheet" type="text/css" href="/layout/chat/chat.css" type="text/css" />
-<script>window.__PUBLIC_PATH__ = "/layout/bootstrap_italia/fonts"</script>
-<script src="/layout/bootstrap_italia/js/bootstrap-italia.bundle.min.js?{{ buildTime }}"></script>
-<script src="/layout/fontawesome/js/all.js"></script>
-
+<script>window.__PUBLIC_PATH__ = "/public/assets/bootstrap-italia/fonts"</script>
+<script src="/public/assets/bootstrap-italia/js/bootstrap-italia.bundle.min.js?{{ buildTime }}"></script>
+<script src="/public/assets/fontawesome/js/all.js"></script>
 <script type="text/javascript" src="/layout/datatables_2/datatables.min.js"></script>
 <script type="text/javascript" src="/spid/button/js/spid-sp-access-button.min.js"></script>
 <script type="text/javascript" src="/layout/charts/charts.js"></script>
@@ -56,14 +52,14 @@
       <div class="row">
         <div class="col-12">
           <div class="it-header-slim-wrapper-content">
-            <a class="d-lg-block navbar-brand" href="#"><?php echo getenv('ENTE_TITOLO') ?></a>
+            <a class="d-lg-block navbar-brand" href="#"><?php echo getenv('ENTE_REGIONE') ?></a>
             <div class="it-header-slim-right-zone">
               <div class="nav-item dropdown">
                 <a aria-expanded="false" class="nav-link dropdown-toggle"
                    data-toggle="dropdown" href="#">
                   <span>ITA</span>
                   <svg class="icon icon-white d-none d-lg-block">
-                    <use xlink:href="/layout/bootstrap_italia/svg/sprite.svg#it-expand"></use>
+                    <use xlink:href="/public/assets/bootstrap-italia/svg/sprite.svg#it-expand"></use>
                   </svg>
                 </a>
                 <div class="dropdown-menu">
@@ -81,23 +77,6 @@
                 </div>
               </div>
               <div class="it-user-wrapper nav-item dropdown show">
-                <a aria-expanded="false" class="btn btn-primary btn-icon btn-full" data-toggle="dropdown" href="#">
-                <span class="fal"><i class="fas fa-circle-user fa-xl" aria-hidden="true"></i></span>
-                  <span class="d-none d-lg-block"><?php 
-                                if( isset( $DATI_UTENTE ) && array_key_exists("nome_esteso", $DATI_UTENTE ))
-                                    echo $DATI_UTENTE["nome_esteso"];
-                                else {
-                                    if( isset( $DATI_UTENTE ) && array_key_exists("ragione_sociale", $DATI_UTENTE ))
-                                        echo $DATI_UTENTE["ragione_sociale"];
-                                    else
-                                        echo "Accedi all'area personale";
-                                }
-                                    
-                            ?></span>
-                  <svg class="icon icon-white d-none d-lg-block">
-                    <use xlink:href="/layout/bootstrap_italia/svg/sprite.svg#it-expand"></use>
-                  </svg>
-                </a>
                 <div class="dropdown-menu" x-placement="bottom-start" style="position: absolute; will-change: transform; top: 0px; left: 0px; transform: translate3d(0px, 48px, 0px);">
                   <div class="row">
                     <div class="col-20">
@@ -110,7 +89,7 @@
                                           if( isset($DATI_UTENTE["amministratore"]) && $DATI_UTENTE["amministratore"] == 1 ){
 
                                             echo '<li>
-                                                    <a class="list-item left-icon" href="https://servizi.comune.montesilvano.pe.it/admin/" title="Admin">
+                                                    <a class="list-item left-icon" href="/admin/" title="Admin">
                                                     <span class="fal"><i class="fas fa-user-gear fa-lg" aria-hidden="true"></i></span>
                                                     <span class="font-weight-bold">Admin</span></a>
                                                 </li>';
@@ -170,7 +149,7 @@
                 <a href="http://www.comune.montesilvano.pe.it/">
                   <svg class="icon">
                     <use
-                      xlink:href="/layout/bootstrap_italia/svg/sprite.svg#it-pa"></use>
+                      xlink:href="/public/assets/bootstrap-italia/svg/sprite.svg#it-pa"></use>
                   </svg>
                   <div class="it-brand-text">
                     <h2 class="no_toc">Comune di Montesilvano</h2>
@@ -203,7 +182,7 @@
                       data-target="#nav10" type="button">
                 <svg class="icon">
                   <use
-                    xlink:href="/layout/bootstrap_italia/svg/sprite.svg#it-burger"></use>
+                    xlink:href="/public/assets/bootstrap-italia/svg/sprite.svg#it-burger"></use>
                 </svg>
               </button>
               <div class="navbar-collapsable" id="nav10">
@@ -243,7 +222,7 @@
 						// Secondo livello...
 						echo ' dropdown">'; 
 						echo '<a class="nav-link dropdown-toggle" href="#" data-toggle="dropdown" aria-expanded="false"><span>'.$nome.'</span>';
-						echo '<svg class="icon icon-xs"><use xlink:href="/layout/bootstrap_italia/svg/sprite.svg#it-expand"></use></svg></a>';
+						echo '<svg class="icon icon-xs"><use xlink:href="/public/assets/bootstrap-italia/svg/sprite.svg#it-expand"></use></svg></a>';
 						echo '<div class="dropdown-menu"><div class="link-list-wrapper">';
 						echo '<ul class="link-list">';
 						foreach( $voce as $descrizione => $link ) {
