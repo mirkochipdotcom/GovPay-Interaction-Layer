@@ -4,4 +4,5 @@
 ssl/server.crt
 ssl/server.key
 certificate/
+!certificate/README.md
 src/test.php
