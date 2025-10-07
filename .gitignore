@@ -5,4 +5,8 @@ ssl/
 certificate/
 !certificate/README.md
 !ssl/README.md
+
+# Ignore debug artifacts (debug UI, temp testers)
+public/debug/
 src/test.php
+
