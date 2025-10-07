@@ -1,4 +1,19 @@
-# Certificate Directory - GovPay API Integration
+# Certifi## 🔑 Utilizzo con GovPay
+
+Posiziona in questa directory i certificati e le chiavi private forniti da GovPay/PagoPA:
+
+- **Certificato client**: `certificate.cer` (o `.crt`, `.pem`)
+- **Chiave privata**: `private_key.key` (o `.pem`)
+
+### 📋 Provenienza dei certificati
+
+I certificati per l'autenticazione con GovPay vengono tipicamente:
+
+- **Forniti dall'amministratore** dell'istanza GovPay
+- **Generati tramite interfaccia GovPay** (sezione configurazione/certificati)
+- **Creati dal gestore** dell'infrastruttura PagoPA/GovPay
+
+**Non generare certificati self-signed per la produzione** - usa solo quelli ufficiali forniti dall'istanza GovPay.irectory - GovPay API Integration
 
 Questa directory è destinata a contenere i certificati e le chiavi private necessari per l'autenticazione con le API GovPay.
 
