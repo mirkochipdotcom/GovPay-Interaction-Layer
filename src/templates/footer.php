@@ -6,8 +6,7 @@
 		<div class="row">
 			<div class="py-2 col-12 col-md-6 text-left">Comune di Montesilvano - Servizi ai cittadini</div>
 			<div class="py-2 col col-md-6 text-right d-none d-lg-block">
-				<img src="/layout/img/pagopa.png" style="height:30px"/>
-				<img src="/spid/images/spid-agid-logo-bb.png" style="height:30px"/>
+				<!-- images removed: /layout/img/pagopa.png and /spid/images/spid-agid-logo-bb.png not present locally -->
 			</div>
 		</div>
 	  </div>
@@ -49,7 +48,7 @@ $(document).ready( function() {
 			   "paging"		   : paging,
 			   "info"		   : paging,
 			   "searching"	   : search,
-			   "language"      : { "url"   : "/layout/datatables/traduzione/italian.json" },
+			   // language file removed because /layout/datatables/traduzione/italian.json is not present in the repository
 			   select		   : { style : select_style }
 			 });
 			 
@@ -78,7 +77,7 @@ $(document).ready( function() {
 			   "paging"		   : paging,
 			   "info"		   : paging,
 			   "searching"	   : search,
-			   "language"      : { "url" : "/layout/datatables/traduzione/italian.json" }
+			   // language file removed because /layout/datatables/traduzione/italian.json is not present in the repository
 			 });
 		 }
 		 

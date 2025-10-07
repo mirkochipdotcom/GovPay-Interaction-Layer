@@ -14,19 +14,12 @@
 <link href="/public/assets/bootstrap-italia/css/bootstrap-italia.min.css" rel="stylesheet">
 <link rel="stylesheet" href="/public/assets/fontawesome/css/all.min.css">
 <link href="/modules/OSM/open_layers/ol.css" rel="stylesheet">
-<link rel="stylesheet" type="text/css" href="/layout/datatables_2/datatables.min.css"/>
-<link rel="stylesheet" type="text/css" href="/layout/agid_template/agid.css"/>
+<!-- Removed includes for /layout/* and /spid/* resources that are not present in this repository -->
 <link rel="stylesheet" type="text/css" href="/pagopa/css/pagopa.css"/>
-<link rel="stylesheet" type="text/css" href="/layout/chat/chat.css" type="text/css" />
 <script>window.__PUBLIC_PATH__ = "/public/assets/bootstrap-italia/fonts"</script>
 <script src="/public/assets/bootstrap-italia/js/bootstrap-italia.bundle.min.js?{{ buildTime }}"></script>
 <script src="/public/assets/fontawesome/js/all.js"></script>
-<script type="text/javascript" src="/layout/datatables_2/datatables.min.js"></script>
-<script type="text/javascript" src="/spid/button/js/spid-sp-access-button.min.js"></script>
-<script type="text/javascript" src="/layout/charts/charts.js"></script>
-<!-- External CDN scripts removed: jquery-ui and knockout from remote CDNs -->
-<script type="text/javascript" src="/layout/sevenSeg/sevenSeg.js"></script>
-<script type="text/javascript" src="/layout/chartjs/chart.umd.js"></script>
+<!-- Removed script includes for /layout/* and /spid/* that are not present in the repo -->
 <!-- Matomo removed: no external analytics tracking configured in this instance -->
 </head>
 <body>
