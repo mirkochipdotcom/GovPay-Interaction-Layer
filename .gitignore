@@ -11,3 +11,6 @@ public/debug/
 !public/debug/README.md
 src/test.php
 
+# Ignore composer vendor directory
+vendor/
+
