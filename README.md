@@ -68,15 +68,48 @@ Copia `.env.example` in `.env` e configura le variabili per il tuo ambiente:
 cp .env.example .env
 ```
 
-Le principali variabili da configurare:
-- `GOVPAY_PENDENZE_URL`: URL dell'API GovPay
-- `AUTHENTICATION_GOVPAY`: Metodo di autenticazione
-- `DB_*`: Configurazione database MariaDB
+### Configurazione GovPay
+Per l'integrazione con GovPay, configura le seguenti variabili nel file `.env`:
 
-### Certificati SSL personalizzati
-Per usare certificati personalizzati, posiziona i file nella cartella `ssl/`:
-- `ssl/server.key` - Chiave privata
-- `ssl/server.crt` - Certificato
+```bash
+# URL dell'istanza GovPay
+GOVPAY_PENDENZE_URL=https://your-govpay-instance.example.com
+
+# Metodo di autenticazione (tipicamente 'sslheader' per certificati client)
+AUTHENTICATION_GOVPAY=sslheader
+
+# Percorsi certificati GovPay (all'interno del container)
+GOVPAY_TLS_CERT=/var/www/certificate/certificate.cer
+GOVPAY_TLS_KEY=/var/www/certificate/private_key.key
+
+# Password della chiave privata (se richiesta)
+GOVPAY_TLS_KEY_PASSWORD=your_key_password
+```
+
+### Certificati GovPay
+I certificati per l'autenticazione con le API GovPay devono essere posizionati nella directory `certificate/`:
+
+1. **Ottieni i certificati** dall'amministratore dell'istanza GovPay o generali tramite l'interfaccia GovPay
+2. **Posiziona i file** in `certificate/`:
+   - `certificate.cer` - Certificato client GovPay
+   - `private_key.key` - Chiave privata
+3. **Configura le variabili** nel file `.env` (vedi sezione sopra)
+4. **Riavvia il container**: `docker compose restart`
+
+📝 **Nota**: Consulta `certificate/README.md` per istruzioni dettagliate.
+
+### Altre configurazioni
+- `DB_*`: Configurazione database MariaDB
+- `APACHE_SERVER_NAME`: Nome server Apache
+
+### Certificati SSL per HTTPS (opzionale)
+Per certificati SSL personalizzati del server web, posiziona i file nella cartella `ssl/`:
+- `ssl/server.key` - Chiave privata del server
+- `ssl/server.crt` - Certificato del server
+
+⚠️ **Distingui tra**:
+- **Certificati `ssl/`**: Per HTTPS del server web (connessioni browser → applicazione)
+- **Certificati `certificate/`**: Per autenticazione client con API GovPay (applicazione → GovPay)
 
 ## 🎯 Testing e Debug
 
