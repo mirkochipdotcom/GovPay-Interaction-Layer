@@ -11,7 +11,7 @@ use App\Controllers\PendenzeController;
 $app = AppFactory::create();
 $app->setBasePath('');
 
-$twig = Twig::create(__DIR__ . '/../templates', ['cache' => false]);
+$twig = Twig::create(__DIR__ . '/../src/templates', ['cache' => false]);
 $app->add(TwigMiddleware::create($app, $twig));
 
 // Basic route
