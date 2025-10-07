@@ -83,6 +83,12 @@ RUN chmod -R 755 public/assets
 # Copia Composer (solo dipendenze PHP)
 COPY composer.json composer.lock* /var/www/html/
 
+# Copia i client govpay usati come repository path in composer.json
+COPY govpay-clients/ /app/govpay-clients/
+
+# Installa le dipendenze PHP con Composer
+RUN composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction || composer install --no-interaction
+
 # ----------------------------------------------------------------------
 # Configurazione Finale
 # ----------------------------------------------------------------------
