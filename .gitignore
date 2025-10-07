@@ -2,9 +2,16 @@
 *.log
 *.pid
 ssl/
-certificate/
-!certificate/README.md
 !ssl/README.md
+
+# Certificate files but keep README
+certificate/*.cer
+certificate/*.crt
+certificate/*.key
+certificate/*.pem
+certificate/*.p12
+certificate/*.pfx
+!certificate/README.md
 
 # Ignore debug artifacts (debug UI, temp testers)
 public/debug/
