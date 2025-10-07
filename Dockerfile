@@ -95,6 +95,11 @@ COPY ssl/ /ssl/
 RUN mkdir -p /certificate
 COPY certificate/ /var/www/certificate/
 
+# Copia lo script di setup nel container e rendilo eseguibile
+COPY docker-setup.sh /usr/local/bin/docker-setup.sh
+RUN chmod +x /usr/local/bin/docker-setup.sh
+RUN sed -i 's/\r$//' /usr/local/bin/docker-setup.sh
+
 # Copia e Abilita la configurazione Apache personalizzata
 RUN rm /etc/apache2/sites-enabled/000-default.conf
 COPY apache/000-default-ssl.conf /etc/apache2/sites-available/000-default.conf

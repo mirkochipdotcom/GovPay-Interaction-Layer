@@ -1,8 +1,8 @@
 .env
 *.log
 *.pid
-ssl/server.crt
-ssl/server.key
+ssl/
 certificate/
 !certificate/README.md
+!ssl/README.md
 src/test.php

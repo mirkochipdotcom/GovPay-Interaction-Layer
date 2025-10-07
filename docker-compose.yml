@@ -8,14 +8,13 @@ services:
     volumes:
       # 1. Mount del codice sorgente principale (la tua applicazione)
       - ./src:/var/www/html
-      
+
       # 2. Mount ISOLATO dei client generati (PER COMPOSER)
-      - .:/app  
-      
+      - .:/app
+
       # 3. Volumi anonimi per Composer (vendor) e asset pubblici
       - /var/www/html/vendor
       - /var/www/html/public
-      - ./docker-setup.sh:/usr/local/bin/docker-setup.sh # Monta lo script nell'entrypoint PATH
     environment:
       - APACHE_SERVER_NAME=${APACHE_SERVER_NAME}
       # Dice a Composer di installare 'vendor' qui, indipendentemente da dove viene eseguito.
