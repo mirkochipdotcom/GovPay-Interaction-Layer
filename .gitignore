@@ -3,3 +3,5 @@
 *.pid
 ssl/server.crt
 ssl/server.key
+certificate/
+src/test.php

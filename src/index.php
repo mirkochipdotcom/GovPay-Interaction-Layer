@@ -10,7 +10,7 @@ echo  getenv('ENTE_TITOLO');
 // Carica l'autoloader di Composer, che si trova in /var/www/html/vendor/autoload.php
 require __DIR__ . '/vendor/autoload.php';
 
-// Verifichiamo una classe nota del client 'pagamenti-client'
+// Verifichiamo una classe nota del client 'pendenze-client'
 // Per convenzione, il generatore OpenAPI crea un'API chiamata [NomeAPI]Api.
 $api_class = 'GovPay\Pendenze\Api\PendenzeApi'; 
 
@@ -44,6 +44,12 @@ if (class_exists($api_class)) {
 }
 
 echo "------------------------------------------------\n";
+
+
+
+
+
+
 
 $dir = __DIR__ . '/public';
 $files = scandir($dir);

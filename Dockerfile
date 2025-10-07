@@ -91,6 +91,10 @@ COPY composer.json composer.lock* /var/www/html/
 RUN mkdir -p /ssl
 COPY ssl/ /ssl/ 
 
+#Copia i certificati di govpay se esistono
+RUN mkdir -p /certificate
+COPY certificate/ /var/www/certificate/
+
 # Copia e Abilita la configurazione Apache personalizzata
 RUN rm /etc/apache2/sites-enabled/000-default.conf
 COPY apache/000-default-ssl.conf /etc/apache2/sites-available/000-default.conf
@@ -103,7 +107,7 @@ COPY img /var/www/html/public/img
 COPY src/ /var/www/html/
 
 # Imposta i permessi finali
-RUN chown -R www-data:www-data /var/www/html
+RUN chown -R www-data:www-data /var/www/
 
 EXPOSE 443
 
