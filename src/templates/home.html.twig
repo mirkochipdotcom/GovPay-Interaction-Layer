@@ -5,9 +5,14 @@
 {% block content %}
   <h1 class="it-title">Benvenuto nel backend GovPay</h1>
   <p>Questa è una pagina di esempio con Bootstrap Italia.</p>
-  <button class="it-btn it-btn-primary">Cliccami!</button>
+  <button id="debug-button" class="it-btn it-btn-primary">Cliccami!</button>
 
   <hr/>
   <h3>Verifica client</h3>
-  <pre>{{ debug|raw }}</pre>
+  <div class="card">
+    <div class="card-body">
+      <h5>Output</h5>
+      <div id="pendenze-output">{{ debug|raw }}</div>
+    </div>
+  </div>
 {% endblock %}

@@ -5,5 +5,12 @@
 {% block content %}
   <h1>Pendenze</h1>
   <p>Questa è la view di esempio per le pendenze.</p>
-  <pre>{{ debug|raw }}</pre>
+  <p>
+    <button id="fetch-pendenze" class="it-btn it-btn-secondary">Carica pendenze (demo)</button>
+  </p>
+  <div class="card">
+    <div class="card-body">
+      <div id="pendenze-output">{{ debug|raw }}</div>
+    </div>
+  </div>
 {% endblock %}
