@@ -95,12 +95,16 @@
                                                 </li>';
                                           }
                                         }
-                                        if ($_SESSION["PORTALE_USER_CF_GESTIONE"] == $_SESSION["PORTALE_USER_CODICE_FISCALE"] )
-                                          echo '<li>
+                                        if ($_SESSION["PORTALE_USER_CF_GESTIONE"] == $_SESSION["PORTALE_USER_CODICE_FISCALE"] ) {
+?>
+                                              <li>
                                                 <a class="list-item left-icon" href="<?php echo getenv('URL_ENTE'); ?>/profilo_utente.php" title="Profilo utente">
-                                                <span class="fal"><i class="fas fa-address-card fa-lg" aria-hidden="true"></i></span>
-                                                <span class="font-weight-bold">Dati utente</span></a>
-                                              </li>';
+                                                  <span class="fal"><i class="fas fa-address-card fa-lg" aria-hidden="true"></i></span>
+                                                  <span class="font-weight-bold">Dati utente</span>
+                                                </a>
+                                              </li>
+<?php
+                                        }
                                         
                                         echo '<li>
                                         <div class="container-fluid">
@@ -108,20 +112,28 @@
                                                 </div>
                                               </li>';
 
-                                        echo '<li>
+?>
+                                              <li>
                                                 <a class="list-item left-icon" href="<?php echo getenv('URL_ENTE'); ?>/logout.php">
-                                                <span class="fal"><i class="fas fa-arrow-right-from-bracket fa-lg" aria-hidden="true"></i></span>
-                                                <span class="font-weight-bold">Esci</span></a>
-                                              </li>';
+                                                  <span class="fal"><i class="fas fa-arrow-right-from-bracket fa-lg" aria-hidden="true"></i></span>
+                                                  <span class="font-weight-bold">Esci</span>
+                                                </a>
+                                              </li>
+<?php
+
+                                        
                                    
                                     }else{
 
 
-                                    echo '<li>
+?>
+                                          <li>
                                             <a class="list-item left-icon" href="<?php echo getenv('URL_ENTE'); ?>/login.php" title="Login">
-                                            <span class="fal"><i class="fas fa-arrow-right-to-bracket fa-lg" aria-hidden="true"></i></span>
-                                            <span class="font-weight-bold">Accedi</span></a>
-                                          </li>';
+                                              <span class="fal"><i class="fas fa-arrow-right-to-bracket fa-lg" aria-hidden="true"></i></span>
+                                              <span class="font-weight-bold">Accedi</span>
+                                            </a>
+                                          </li>
+<?php
                                     }
                                     ?>
                           
