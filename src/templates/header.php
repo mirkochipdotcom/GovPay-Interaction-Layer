@@ -24,25 +24,10 @@
 <script type="text/javascript" src="/layout/datatables_2/datatables.min.js"></script>
 <script type="text/javascript" src="/spid/button/js/spid-sp-access-button.min.js"></script>
 <script type="text/javascript" src="/layout/charts/charts.js"></script>
-<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.10.3/jquery-ui.min.js"></script>
-<script type="text/javascript" src="https://ajax.aspnetcdn.com/ajax/knockout/knockout-2.2.1.js"></script>
+<!-- External CDN scripts removed: jquery-ui and knockout from remote CDNs -->
 <script type="text/javascript" src="/layout/sevenSeg/sevenSeg.js"></script>
 <script type="text/javascript" src="/layout/chartjs/chart.umd.js"></script>
-<!-- Matomo -->
-<script type="text/javascript">
-  var _paq = window._paq = window._paq || [];
-  /* tracker methods like "setCustomDimension" should be called before "trackPageView" */
-  _paq.push(['trackPageView']);
-  _paq.push(['enableLinkTracking']);
-  (function() {
-    var u="https://ingestion.webanalytics.italia.it/";
-    _paq.push(['setTrackerUrl', u+'matomo.php']);
-    _paq.push(['setSiteId', 'eO35kxmqon']);
-    var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
-    g.type='text/javascript'; g.async=true; g.src=u+'matomo.js'; s.parentNode.insertBefore(g,s);
-  })();
-</script>
-<!-- End Matomo Code -->
+<!-- Matomo removed: no external analytics tracking configured in this instance -->
 </head>
 <body>
 
