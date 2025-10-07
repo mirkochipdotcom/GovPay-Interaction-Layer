@@ -8,5 +8,6 @@ certificate/
 
 # Ignore debug artifacts (debug UI, temp testers)
 public/debug/
+!public/debug/README.md
 src/test.php
 
