@@ -12,7 +12,10 @@ services:
       # 2. Mount ISOLATO dei client generati (PER COMPOSER)
       - .:/app
 
-      # 3. Volumi anonimi per Composer (vendor) e asset pubblici
+      # 3. Mount della cartella debug per modifiche on-the-fly
+      - ./public/debug:/var/www/html/public/debug
+
+      # 4. Volumi anonimi per Composer (vendor) e asset pubblici
       - /var/www/html/vendor
       - /var/www/html/public
     environment:

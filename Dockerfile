@@ -122,6 +122,9 @@ COPY public/ /var/www/html/public/
 # in modo che le operazioni successive possano fare riferimento a /var/www/html/src/public
 COPY src/ /var/www/html/src/
 
+# Copia i template Twig dalla root del progetto
+COPY templates/ /var/www/html/templates/
+
 # Copia il front controller Slim dalla cartella src/public nella public root
 RUN cp -r /var/www/html/src/public/* /var/www/html/public/ || true
 
