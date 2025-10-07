@@ -97,7 +97,7 @@
                                         }
                                         if ($_SESSION["PORTALE_USER_CF_GESTIONE"] == $_SESSION["PORTALE_USER_CODICE_FISCALE"] )
                                           echo '<li>
-                                                <a class="list-item left-icon" href="https://servizi.comune.montesilvano.pe.it/profilo_utente.php" title="Profilo utente">
+                                                <a class="list-item left-icon" href="<?php echo getenv('URL_ENTE'); ?>/profilo_utente.php" title="Profilo utente">
                                                 <span class="fal"><i class="fas fa-address-card fa-lg" aria-hidden="true"></i></span>
                                                 <span class="font-weight-bold">Dati utente</span></a>
                                               </li>';
@@ -109,7 +109,7 @@
                                               </li>';
 
                                         echo '<li>
-                                                <a class="list-item left-icon" href="https://servizi.comune.montesilvano.pe.it/logout.php">
+                                                <a class="list-item left-icon" href="<?php echo getenv('URL_ENTE'); ?>/logout.php">
                                                 <span class="fal"><i class="fas fa-arrow-right-from-bracket fa-lg" aria-hidden="true"></i></span>
                                                 <span class="font-weight-bold">Esci</span></a>
                                               </li>';
@@ -118,7 +118,7 @@
 
 
                                     echo '<li>
-                                            <a class="list-item left-icon" href="https://servizi.comune.montesilvano.pe.it/login.php" title="Login">
+                                            <a class="list-item left-icon" href="<?php echo getenv('URL_ENTE'); ?>/login.php" title="Login">
                                             <span class="fal"><i class="fas fa-arrow-right-to-bracket fa-lg" aria-hidden="true"></i></span>
                                             <span class="font-weight-bold">Accedi</span></a>
                                           </li>';
@@ -146,11 +146,8 @@
           <div class="col-12">
             <div class="it-header-center-content-wrapper">
               <div class="it-brand-wrapper">
-                <a href="http://www.comune.montesilvano.pe.it/">
-                  <svg class="icon">
-                    <use
-                      xlink:href="/public/assets/bootstrap-italia/svg/sprite.svg#it-pa"></use>
-                  </svg>
+                <a href="<?php echo getenv('URL_ENTE'); ?>/" style="display: flex; align-items: center; gap: 10px;">
+                  <img src="/img/stemma_ente.png" alt="Logo ente" style="height: 48px; width: auto;" />
                   <div class="it-brand-text">
                     <h2 class="no_toc">Comune di Montesilvano</h2>
                     <h3 class="no_toc d-none d-md-block">
@@ -198,11 +195,11 @@
 
 				global $TEMPLATE_MENU;
 				if( !is_array($TEMPLATE_MENU) || !array_key_exists( "CUSTOM", $TEMPLATE_MENU ) ) {			
-					$TEMPLATE_MENU = array( "Home"    => "https://servizi.comune.montesilvano.pe.it/",
-											"Tributi" => array( "Valori Aree ai fini IMU"      => "https://servizi.comune.montesilvano.pe.it/valori_aree.php"),
-											"Servizi" => array( /*"Prenotazione Appuntamenti"    => "https://servizi.comune.montesilvano.pe.it/sportello.php",*/
-																          "Risultati elettorali" => "https://servizi.comune.montesilvano.pe.it/elezioni/risultati/" ),
-											"Pagamenti (PagoPA)" => "https://servizi.comune.montesilvano.pe.it/pagopa/" );
+                    $TEMPLATE_MENU = array( "Home"    => getenv('URL_COMUNE') . "/",
+                                            "Tributi" => array( "Valori Aree ai fini IMU"      => getenv('URL_COMUNE') . "/valori_aree.php"),
+                                            "Servizi" => array( /*"Prenotazione Appuntamenti"    => getenv('URL_COMUNE') . "/sportello.php",*/
+                                                                  "Risultati elettorali" => getenv('URL_COMUNE') . "/elezioni/risultati/" ),
+                                            "Pagamenti (PagoPA)" => getenv('URL_COMUNE') . "/pagopa/" );
 					
 				
 				} else unset( $TEMPLATE_MENU["CUSTOM"] );
