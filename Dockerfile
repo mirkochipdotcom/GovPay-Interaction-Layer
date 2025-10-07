@@ -115,6 +115,9 @@ RUN a2ensite 000-default.conf
 # Copia la cartella 'img' dall'Host alla destinazione finale nel Container.
 COPY img /var/www/html/public/img
 
+# Copia i file pubblici (incluso public/debug/test.php) nella public root
+COPY public/ /var/www/html/public/
+
 # Copia il codice sorgente del progetto nella sottocartella /var/www/html/src
 # in modo che le operazioni successive possano fare riferimento a /var/www/html/src/public
 COPY src/ /var/www/html/src/
