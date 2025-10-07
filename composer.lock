@@ -12,7 +12,7 @@
             "dist": {
                 "type": "path",
                 "url": "/app/govpay-clients/generated-clients/backoffice-v1/backoffice-client",
-                "reference": "ab451db08025a650de33a60f3131473331e4081d"
+                "reference": "a908c48078990fa3287be11c95bc49fa00893d8e"
             },
             "require": {
                 "ext-curl": "*",
@@ -68,7 +68,7 @@
             "dist": {
                 "type": "path",
                 "url": "/app/govpay-clients/generated-clients/pagamenti-v3/pagamenti-client",
-                "reference": "8063874aa005fedd207cbf7e7ad56a716d00c80d"
+                "reference": "54bc211c19cf0fe7b50a996ada11b6e41ab481e5"
             },
             "require": {
                 "ext-curl": "*",
@@ -124,7 +124,7 @@
             "dist": {
                 "type": "path",
                 "url": "/app/govpay-clients/generated-clients/pendenze-v2/pendenze-client",
-                "reference": "609eb36c213eef94dbc967d57d593fb43f5cc283"
+                "reference": "16a4f621bc1e267ba56296322bf8e1bc905aa30c"
             },
             "require": {
                 "ext-curl": "*",
@@ -180,7 +180,7 @@
             "dist": {
                 "type": "path",
                 "url": "/app/govpay-clients/generated-clients/ragioneria-v3/ragioneria-client",
-                "reference": "90e46580246c9ce2f7a56648be4c0d09b8b27145"
+                "reference": "04bfa6939dd56ff4ba14b70b05f30410cf92a26a"
             },
             "require": {
                 "ext-curl": "*",
