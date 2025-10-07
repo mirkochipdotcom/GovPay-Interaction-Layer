@@ -9,6 +9,8 @@
         "slim/slim": "^4.13",
         "slim/psr7": "^1.6",
         "nyholm/psr7": "^1.5",
+    "twig/twig": "^3.0",
+    "slim/twig-view": "^3.3",
         "govpay/pagamenti-client": "dev-main",
         "govpay/ragioneria-client": "dev-main",
         "govpay/pendenze-client": "dev-main",
@@ -42,6 +44,9 @@
             "php-http/discovery": true
         }
     },
+    "config.platform": {
+        "php": "8.3"
+    },
     "minimum-stability": "dev",
     "prefer-stable": true
   ,
@@ -52,5 +57,11 @@
     },
     "require-dev": {
         "symfony/var-dumper": "^6.0"
+    }
+    ,
+    "scripts": {
+        "start": "php -S 0.0.0.0:8080 -t src/public",
+        "post-install-cmd": ["@dump-autoload"],
+        "post-update-cmd": ["@dump-autoload"]
     }
 }

@@ -87,7 +87,8 @@ COPY composer.json composer.lock* /var/www/html/
 COPY govpay-clients/ /app/govpay-clients/
 
 # Installa le dipendenze PHP con Composer
-RUN composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction || composer install --no-interaction
+# Install dependencies. If the lock is out of date (we've changed composer.json), fall back to composer update.
+RUN composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction || composer update --no-dev --prefer-dist --optimize-autoloader --no-interaction
 
 # ----------------------------------------------------------------------
 # Configurazione Finale
@@ -114,8 +115,9 @@ RUN a2ensite 000-default.conf
 # Copia la cartella 'img' dall'Host alla destinazione finale nel Container.
 COPY img /var/www/html/public/img
 
-# Copia il codice sorgente del progetto
-COPY src/ /var/www/html/
+# Copia il codice sorgente del progetto nella sottocartella /var/www/html/src
+# in modo che le operazioni successive possano fare riferimento a /var/www/html/src/public
+COPY src/ /var/www/html/src/
 
 # Copia il front controller Slim dalla cartella src/public nella public root
 RUN cp -r /var/www/html/src/public/* /var/www/html/public/ || true

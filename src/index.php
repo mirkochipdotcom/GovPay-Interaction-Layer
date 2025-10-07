@@ -5,10 +5,14 @@
 if ($mysqli->connect_error) {
     die("Database connection failed: " . $mysqli->connect_error);
 }*/
-echo  getenv('ENTE_TITOLO');
+include 'templates/header.php';
 
-// Carica l'autoloader di Composer, che si trova in /var/www/html/vendor/autoload.php
-require __DIR__ . '/vendor/autoload.php';
+// Carica l'autoloader di Composer. Quando questo file viene incluso dal front controller
+// la cartella `vendor` può trovarsi in due posizioni relative: `src/vendor` o `../vendor`.
+// Proviamo entrambe le posizioni in ordine.
+// Shim to the new view-based home. Redirect to the front controller route handled by Slim/Twig.
+header('Location: /');
+exit;
 
 // Verifichiamo una classe nota del client 'pendenze-client'
 // Per convenzione, il generatore OpenAPI crea un'API chiamata [NomeAPI]Api.
