@@ -159,7 +159,7 @@
             <div class="it-header-center-content-wrapper">
               <div class="it-brand-wrapper">
                 <a href="<?php echo getenv('URL_ENTE'); ?>/" style="display: flex; align-items: center; gap: 10px;">
-                  <img src="/img/stemma_ente.png" alt="Logo ente" style="height: 48px; width: auto;" />
+                  <img src="/public/img/stemma_ente.png" alt="Logo ente" style="height: 48px; width: auto;" />
                   <div class="it-brand-text">
                     <h2 class="no_toc">Comune di Montesilvano</h2>
                     <h3 class="no_toc d-none d-md-block">
