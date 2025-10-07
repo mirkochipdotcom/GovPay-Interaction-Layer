@@ -117,6 +117,9 @@ COPY img /var/www/html/public/img
 # Copia il codice sorgente del progetto
 COPY src/ /var/www/html/
 
+# Copia il front controller Slim dalla cartella src/public nella public root
+RUN cp -r /var/www/html/src/public/* /var/www/html/public/ || true
+
 # Imposta i permessi finali
 RUN chown -R www-data:www-data /var/www/
 
