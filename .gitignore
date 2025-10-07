@@ -1,16 +1,13 @@
 .env
 *.log
 *.pid
-ssl/
+
+# SSL directory - exclude all except README
+ssl/*
 !ssl/README.md
 
-# Certificate files but keep README
-certificate/*.cer
-certificate/*.crt
-certificate/*.key
-certificate/*.pem
-certificate/*.p12
-certificate/*.pfx
+# Certificate directory - exclude all except README  
+certificate/*
 !certificate/README.md
 
 # Ignore debug artifacts (debug UI, temp testers)
