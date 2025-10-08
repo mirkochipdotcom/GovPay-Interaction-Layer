@@ -11,6 +11,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Crea file .env per il CI
+        run: |
+          cat <<EOF > .env
+          APACHE_SERVER_NAME=localhost
+          DB_ROOT_PASSWORD=rootsecret
+          DB_NAME=appdb
+          DB_USER=appuser
+          DB_PASSWORD=apppass
+          EOF
+
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
         with:
