@@ -19,23 +19,22 @@
     "repositories": [
         {
             "type": "path",
-            "url": "/app/govpay-clients/generated-clients/pagamenti-v3/pagamenti-client",
+            "url": "govpay-clients/generated-clients/pagamenti-v3/pagamenti-client",
             "options": { "symlink": false }
         },
         {
             "type": "path",
-            "url": "/app/govpay-clients/generated-clients/ragioneria-v3/ragioneria-client",
+            "url": "govpay-clients/generated-clients/ragioneria-v3/ragioneria-client",
             "options": { "symlink": false }
         },
         {
             "type": "path",
-            "url": "/app/govpay-clients/generated-clients/pendenze-v2/pendenze-client",
+            "url": "govpay-clients/generated-clients/pendenze-v2/pendenze-client",
             "options": { "symlink": false }
         },
         {
             "type": "path",
-            "url": "/app/govpay-clients/generated-clients/backoffice-v1/backoffice-client",
-            "options": { "symlink": false }
+            "url": "govpay-clients/generated-clients/backoffice-v1/backoffice-client"
         }
     ],
     "config": {
