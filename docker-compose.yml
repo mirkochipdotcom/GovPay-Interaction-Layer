@@ -8,14 +8,11 @@ services:
     volumes:
       # 1. Mount del codice sorgente principale (la tua applicazione)
       - ./src:/var/www/html
-
       # 2. Mount ISOLATO dei client generati (PER COMPOSER)
       - .:/app
-
-      # 3. Mount della cartella debug per modifiche on-the-fly
-      - ./public/debug:/var/www/html/public/debug
-
-      # 4. Volumi anonimi per Composer (vendor) e asset pubblici
+      # 3. Mount della cartella debug (ora spostata in root) per modifiche on-the-fly
+      - ./debug:/var/www/html/public/debug
+      # 4. Volumi anonimi per Composer (vendor) e public (cache runtime)
       - /var/www/html/vendor
       - /var/www/html/public
     environment:

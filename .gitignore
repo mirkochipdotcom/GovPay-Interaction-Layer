@@ -10,10 +10,9 @@ ssl/*
 certificate/*
 !certificate/README.md
 
-# Debug tool root (ora in /debug). Mantieni README e index.php (strumento) tracciati.
+# Debug tool root: ignora tutto tranne README esplicativo (non tracciamo index.php)
 debug/*
 !debug/README.md
-!debug/index.php
 
 # Rimosso vecchio public/debug; se la cartella public ricompare localmente ignorala
 public/

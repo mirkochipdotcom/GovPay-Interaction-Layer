@@ -79,7 +79,7 @@ echo "<p>MariaDB connection successful!</p>";
 <body>
 
 <div class="it-container">
-    <h1 class="it-title">Benvenuto nel backend GovPay</h1>
+    <h1 class="it-title">Benvenuto nel backend GIL</h1>
     <p>Questa è una pagina di esempio con Bootstrap Italia.</p>
     
     <button class="it-btn it-btn-primary">Cliccami!</button>
