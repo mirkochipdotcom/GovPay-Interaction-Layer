@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "23e29d17c3f6dbf126d01d5ea913d3f2",
+    "content-hash": "a9bfeb7a1e97506382004a0abea5b291",
     "packages": [
         {
             "name": "fig/http-message-util",
@@ -67,8 +67,8 @@
             "version": "dev-main",
             "dist": {
                 "type": "path",
-                "url": "/app/govpay-clients/generated-clients/backoffice-v1/backoffice-client",
-                "reference": "a908c48078990fa3287be11c95bc49fa00893d8e"
+                "url": "govpay-clients/generated-clients/backoffice-v1/backoffice-client",
+                "reference": "51294afecb1267e17b46c5402fac3b8dc51ad80d"
             },
             "require": {
                 "ext-curl": "*",
@@ -114,8 +114,7 @@
                 "sdk"
             ],
             "transport-options": {
-                "symlink": false,
-                "relative": false
+                "relative": true
             }
         },
         {
@@ -123,8 +122,8 @@
             "version": "dev-main",
             "dist": {
                 "type": "path",
-                "url": "/app/govpay-clients/generated-clients/pagamenti-v3/pagamenti-client",
-                "reference": "54bc211c19cf0fe7b50a996ada11b6e41ab481e5"
+                "url": "govpay-clients/generated-clients/pagamenti-v3/pagamenti-client",
+                "reference": "65a6469225c144f319e77b9a342a2d2e917df2ae"
             },
             "require": {
                 "ext-curl": "*",
@@ -171,7 +170,7 @@
             ],
             "transport-options": {
                 "symlink": false,
-                "relative": false
+                "relative": true
             }
         },
         {
@@ -179,8 +178,8 @@
             "version": "dev-main",
             "dist": {
                 "type": "path",
-                "url": "/app/govpay-clients/generated-clients/pendenze-v2/pendenze-client",
-                "reference": "16a4f621bc1e267ba56296322bf8e1bc905aa30c"
+                "url": "govpay-clients/generated-clients/pendenze-v2/pendenze-client",
+                "reference": "2654aeba062cfb474016138746dd371dfd166b1d"
             },
             "require": {
                 "ext-curl": "*",
@@ -227,7 +226,7 @@
             ],
             "transport-options": {
                 "symlink": false,
-                "relative": false
+                "relative": true
             }
         },
         {
@@ -235,8 +234,8 @@
             "version": "dev-main",
             "dist": {
                 "type": "path",
-                "url": "/app/govpay-clients/generated-clients/ragioneria-v3/ragioneria-client",
-                "reference": "04bfa6939dd56ff4ba14b70b05f30410cf92a26a"
+                "url": "govpay-clients/generated-clients/ragioneria-v3/ragioneria-client",
+                "reference": "b1a6fc7ebd8dd9309f3db0675f1a4d65e96fdeab"
             },
             "require": {
                 "ext-curl": "*",
@@ -283,7 +282,7 @@
             ],
             "transport-options": {
                 "symlink": false,
-                "relative": false
+                "relative": true
             }
         },
         {
