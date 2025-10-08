@@ -8,20 +8,6 @@ on:
 jobs:
   build-test:
     runs-on: ubuntu-latest
-    services:
-      db:
-        image: mariadb:11.4
-        env:
-          MYSQL_ROOT_PASSWORD: rootsecret
-          MYSQL_DATABASE: appdb
-          MYSQL_USER: appuser
-          MYSQL_PASSWORD: apppass
-        options: >-
-          --health-cmd="mysqladmin ping -h localhost -uappuser -papppass"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=3
-
     steps:
       - uses: actions/checkout@v4
 
@@ -32,8 +18,15 @@ jobs:
           extensions: mbstring, pdo_mysql, intl, zip
           coverage: xdebug
 
+      - name: Avvia servizi con Docker Compose
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d
+
       - name: Install dependencies
         run: composer install --prefer-dist --no-progress
 
       - name: Run tests
         run: vendor/bin/phpunit --coverage-text || echo "No tests found"
+
+      - name: Ferma i container
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml down
