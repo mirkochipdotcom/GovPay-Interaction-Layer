@@ -1,0 +1,18 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Pagina non trovata (404){% endblock %}
+
+{% block body %}
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-lg-8 text-center">
+      <h1 class="display-4 mb-4">404</h1>
+      <p class="lead mb-4">La risorsa richiesta non è stata trovata oppure è stata rimossa.</p>
+      {% if path is defined %}
+        <p class="text-muted">Percorso richiesto: <code>{{ path }}</code></p>
+      {% endif %}
+      <a href="/" class="btn btn-primary mt-3">Torna alla Home</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
