@@ -10,9 +10,13 @@ ssl/*
 certificate/*
 !certificate/README.md
 
-# Ignore debug artifacts (debug UI, temp testers)
-public/debug/
-!public/debug/README.md
+# Debug tool root (ora in /debug). Mantieni README e index.php (strumento) tracciati.
+debug/*
+!debug/README.md
+!debug/index.php
+
+# Rimosso vecchio public/debug; se la cartella public ricompare localmente ignorala
+public/
 src/test.php
 
 # Ignore composer vendor directory

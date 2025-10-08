@@ -1,0 +1,7 @@
+RewriteEngine On
+
+# Solo le directory consentite (assets, img, debug) vengono servite direttamente
+RewriteRule ^(assets|img|debug)(/.*)?$ - [L]
+
+# Tutto il resto passa al front controller Slim
+RewriteRule ^ index.php [QSA,L]

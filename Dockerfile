@@ -65,7 +65,6 @@ WORKDIR /var/www/html
 # COPIA ASSET FRONT-END
 # ----------------------------------------------------------------------
 
-# 1. Copia Bootstrap Italia (Asset compilati dalla Fase 1)
 RUN mkdir -p public/assets/bootstrap-italia
 COPY --from=asset_builder /app/dist/ /var/www/html/public/assets/bootstrap-italia
 
@@ -112,20 +111,13 @@ RUN rm /etc/apache2/sites-enabled/000-default.conf
 COPY apache/000-default-ssl.conf /etc/apache2/sites-available/000-default.conf
 RUN a2ensite 000-default.conf
 
-# Copia la cartella 'img' dall'Host alla destinazione finale nel Container.
 COPY img /var/www/html/public/img
+COPY assets /var/www/html/public/assets
+COPY public.htaccess /var/www/html/public/.htaccess
+COPY debug /var/www/html/public/debug
 
-# Copia i file pubblici (incluso public/debug/test.php) nella public root
-COPY public/ /var/www/html/public/
-
-# Copia il codice sorgente del progetto nella sottocartella /var/www/html/src
-# in modo che le operazioni successive possano fare riferimento a /var/www/html/src/public
 COPY src/ /var/www/html/src/
-
-# Copia i template Twig dalla root del progetto
 COPY templates/ /var/www/html/templates/
-
-# Copia il front controller Slim dalla cartella src/public nella public root
 RUN cp -r /var/www/html/src/public/* /var/www/html/public/ || true
 
 # Imposta i permessi finali
