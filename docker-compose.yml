@@ -6,15 +6,8 @@ services:
     ports:
       - "8443:443"
     volumes:
-      # 1. Mount del codice sorgente principale (la tua applicazione)
-      - ./src:/var/www/html
-      # 2. Mount ISOLATO dei client generati (PER COMPOSER)
-      - .:/app
-      # 3. Mount della cartella debug (ora spostata in root) per modifiche on-the-fly
+      # Monta solo la cartella debug per sviluppo live
       - ./debug:/var/www/html/public/debug
-      # 4. Volumi anonimi per Composer (vendor) e public (cache runtime)
-      - /var/www/html/vendor
-      - /var/www/html/public
     environment:
       - APACHE_SERVER_NAME=${APACHE_SERVER_NAME}
       # Dice a Composer di installare 'vendor' qui, indipendentemente da dove viene eseguito.
@@ -23,33 +16,8 @@ services:
       - .env # Assicura il caricamento di ENTE_TITOLO e delle URL
     depends_on:
       - db
-    entrypoint: ["/usr/local/bin/docker-setup.sh"] # Esegue prima lo script di setup
+    entrypoint: ["/usr/local/bin/docker-setup.sh"] # Esegue script di setup (composer/autoload + cert) poi CMD apache
     restart: unless-stopped
-    command: >
-      /bin/sh -c "
-        # 1. Entra nella directory di Composer (/app)
-        cd /app &&
-        
-        # 2. Il resto del codice Composer può usare la chiamata 'composer'
-        # COMPOSER_VENDOR_DIR gestirà dove va la cartella 'vendor'.
-        
-        if [ ! -d /var/www/html/vendor ]; then 
-          echo 'Eseguo: composer install per la prima volta...' &&
-          composer install --no-dev --optimize-autoloader; 
-        
-        # Le altre clausole (come dump-autoload) devono usare il percorso corretto
-        elif [ /var/www/html/vendor/composer/installed.json -ot composer.json ]; then
-          echo 'Eseguo: composer update (file modficiati)...' &&
-          composer update --no-dev --optimize-autoloader;
-        
-        else 
-          echo 'Eseguo: composer dump-autoload (solo autoloading)...' &&
-          composer dump-autoload;
-        fi && 
-        
-        # Avvia Apache
-        /usr/local/bin/docker-php-entrypoint apache2-foreground
-      "
   db:
     image: mariadb:11
     container_name: mariadb
