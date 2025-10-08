@@ -1,5 +1,5 @@
 services:
- govpay-interaction-layer:
+  govpay-interaction-layer:
     build: .
     image: govpay-interaction-layer:latest
     container_name: govpay-interaction-layer
