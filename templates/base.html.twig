@@ -4,14 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}GovPay - Backend{% endblock %}</title>
-    <link rel="stylesheet" href="/public/assets/bootstrap-italia/css/bootstrap-italia.min.css">
-    <link rel="stylesheet" href="/public/assets/fontawesome/css/all.min.css">
+  <link rel="stylesheet" href="/assets/bootstrap-italia/css/bootstrap-italia.min.css">
+  <link rel="stylesheet" href="/assets/fontawesome/css/all.min.css">
     {% block head %}{% endblock %}
   </head>
   <body>
     {% include 'partials/header.html.twig' %}
     <main class="container my-4">{% block content %}{% endblock %}</main>
     {% include 'partials/footer.html.twig' %}
-    <script src="/public/assets/bootstrap-italia/js/bootstrap-italia.bundle.min.js"></script>
+  <script src="/assets/bootstrap-italia/js/bootstrap-italia.bundle.min.js"></script>
   </body>
 </html>

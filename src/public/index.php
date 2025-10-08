@@ -23,7 +23,11 @@ use App\Controllers\PendenzeController;
 $app = AppFactory::create();
 $app->setBasePath('');
 
-$twig = Twig::create(__DIR__ . '/../templates', ['cache' => false]);
+// Carichiamo sia i template specifici dell'app (src/templates) sia quelli condivisi a livello root (templates/)
+$twig = Twig::create([
+    __DIR__ . '/../templates',          // /var/www/html/src/templates
+    '/var/www/html/templates',          // /var/www/html/templates (root, path assoluto)
+], ['cache' => false]);
 $app->add(TwigMiddleware::create($app, $twig));
 
 // Basic route
@@ -49,11 +53,21 @@ $app->get('/', function ($request, $response, $args) use ($twig) {
 
 // Pendenze route
 $app->any('/pendenze', function ($request, $response) use ($twig) {
-    // Use controller to prepare data
-    $controller = new PendenzeController();
-    $req = $controller->index($request, $response, []);
-    $debug = $req->getAttribute('debug', '');
-    return $twig->render($response, 'pendenze.html.twig', ['debug' => nl2br(htmlspecialchars($debug))]);
+    $debug = '';
+    try {
+        $controller = new PendenzeController();
+        $req = $controller->index($request, $response, []);
+        $debug = $req->getAttribute('debug', '');
+    } catch (\Throwable $e) {
+        $debug .= "Errore controller: " . $e->getMessage();
+    }
+    try {
+        return $twig->render($response, 'pendenze.html.twig', ['debug' => nl2br(htmlspecialchars($debug))]);
+    } catch (\Throwable $e) {
+        // Fallback minimale in caso di template non trovato
+        $response->getBody()->write('<h1>Pendenze</h1><pre>' . htmlspecialchars($debug . "\n" . $e->getMessage()) . '</pre>');
+        return $response->withStatus(500);
+    }
 });
 
 $appDebugRaw = getenv('APP_DEBUG');
@@ -88,6 +102,13 @@ $errorMiddleware->setDefaultErrorHandler(function (
     bool $logErrors,
     bool $logErrorDetails
 ) use ($twig) : Response {
+    // Log esteso per diagnosi (sempre) - evita leak in output se non in debug
+    error_log('[APP ERROR] ' . $exception::class . ': ' . $exception->getMessage() . " in " . $exception->getFile() . ':' . $exception->getLine());
+    foreach ($exception->getTrace() as $i => $t) {
+        if ($i > 15) { break; }
+        $fn = ($t['class'] ?? '') . ($t['type'] ?? '') . ($t['function'] ?? '');
+        error_log("  #$i $fn (" . ($t['file'] ?? '?') . ':' . ($t['line'] ?? '?') . ")");
+    }
     $status = $exception instanceof HttpInternalServerErrorException ? 500 : 500;
     $response = new \Slim\Psr7\Response();
     return $twig->render($response->withStatus($status), 'errors/500.html.twig', [
@@ -95,5 +116,32 @@ $errorMiddleware->setDefaultErrorHandler(function (
         'displayErrorDetails' => $displayErrorDetails,
     ]);
 });
+
+// Rotta diagnostica per verificare i template caricabili (solo in debug)
+if ($displayErrorDetails) {
+    $app->get('/_diag/templates', function($request, $response) use ($twig) {
+        $candidates = [
+            'base.html.twig',
+            'pendenze.html.twig',
+            'home.html.twig',
+            'partials/header.html.twig',
+            'partials/footer.html.twig',
+            'errors/404.html.twig',
+            'errors/500.html.twig'
+        ];
+        $loader = $twig->getLoader();
+        $rows = [];
+        foreach ($candidates as $tpl) {
+            $ok = 'missing';
+            try { if ($loader->exists($tpl)) { $ok = 'ok'; } } catch (\Throwable $e) { $ok = 'error:' . $e->getMessage(); }
+            $rows[] = [$tpl, $ok];
+        }
+        $body = "<h1>Template Diagnostic</h1><table border='1' cellpadding='4'><tr><th>Template</th><th>Status</th></tr>";
+        foreach ($rows as [$t,$s]) { $body .= "<tr><td>" . htmlspecialchars($t) . "</td><td>" . htmlspecialchars($s) . "</td></tr>"; }
+        $body .= '</table>';
+        $response->getBody()->write($body);
+        return $response;
+    });
+}
 
 $app->run();

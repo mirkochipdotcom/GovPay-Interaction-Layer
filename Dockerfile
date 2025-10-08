@@ -1,12 +1,11 @@
-# ----------------------------------------------------------------------
-# FASE 1: Asset Builder (Compilazione Asset Front-End)
-# ----------------------------------------------------------------------
-FROM node:20 AS asset_builder
+######################################################################
+# STAGE 1: Asset Builder (Bootstrap Italia + Font Awesome)
+######################################################################
+FROM node:20-bookworm-slim AS asset_builder
 
 # Installa dipendenze necessarie per la fase di build (Git, Wget, Unzip)
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    git ca-certificates coreutils unzip wget && \
+    apt-get install -y --no-install-recommends git ca-certificates unzip wget && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -42,21 +41,38 @@ RUN mkdir -p /tmp/fa_download && \
 # Il risultato della compilazione di Bootstrap Italia è in /app/dist
 # Il risultato del download di Font Awesome è in /app/fontawesome-dist
 
-# ----------------------------------------------------------------------
-# FASE 2: Finale (Immagine Apache e Servizio PHP)
-# ----------------------------------------------------------------------
-FROM php:8.3-apache
+######################################################################
+# STAGE 2: Composer vendor builder (solo dipendenze PHP)
+######################################################################
+FROM composer:2 AS vendor_builder
+WORKDIR /app
+COPY composer.json composer.lock* ./
+COPY govpay-clients/ ./govpay-clients/
+RUN composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction || \
+    composer update --no-dev --prefer-dist --optimize-autoloader --no-interaction
+
+######################################################################
+# STAGE 3: Runtime (Apache + PHP) harden
+######################################################################
+FROM php:8.4-apache-bookworm
 
 # Installazione delle dipendenze di sistema e PHP (inclusi unzip e wget)
+ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libicu-dev libonig-dev libzip-dev openssl curl ca-certificates coreutils unzip wget && \
-    docker-php-ext-install intl mbstring pdo_mysql zip \
-    && a2enmod ssl rewrite \
+    libicu-dev libzip-dev libonig-dev \
+    ca-certificates curl unzip openssl \
+    && docker-php-ext-install intl mbstring pdo_mysql zip \
+    && a2enmod ssl rewrite headers \
     && echo "ServerName localhost" >> /etc/apache2/apache2.conf \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+    # Mantiene runtime le librerie condivise necessarie a zip (libzip4) purgando solo headers/dev superflui
+    && apt-get install -y --no-install-recommends libzip4 \
+    && apt-get purge -y --auto-remove libicu-dev libzip-dev libonig-dev \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# 2. Installa Composer separatamente
-COPY --from=composer:latest /usr/bin/composer /usr/local/bin/composer
+# Copia vendor dal builder
+COPY --from=vendor_builder /app/vendor /var/www/html/vendor
+# Reintroduco composer solo per script di setup (dump-autoload scenario)
+COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
 
 # Imposta la directory di lavoro
 WORKDIR /var/www/html
@@ -65,13 +81,11 @@ WORKDIR /var/www/html
 # COPIA ASSET FRONT-END
 # ----------------------------------------------------------------------
 
-RUN mkdir -p public/assets/bootstrap-italia
-COPY --from=asset_builder /app/dist/ /var/www/html/public/assets/bootstrap-italia
+RUN mkdir -p public/assets/bootstrap-italia public/assets/fontawesome
+COPY --from=asset_builder /app/dist/ /var/www/html/public/assets/bootstrap-italia/
 
 # 2. Copia Font Awesome (Asset scaricati dalla Fase 1)
 ENV FA_DEST="/var/www/html/public/assets/fontawesome"
-RUN mkdir -p ${FA_DEST}
-# Copia le sottocartelle essenziali dalla cartella rinominata
 COPY --from=asset_builder /app/fontawesome-dist/css ${FA_DEST}/css/
 COPY --from=asset_builder /app/fontawesome-dist/js ${FA_DEST}/js/
 COPY --from=asset_builder /app/fontawesome-dist/webfonts ${FA_DEST}/webfonts/
@@ -79,15 +93,8 @@ COPY --from=asset_builder /app/fontawesome-dist/webfonts ${FA_DEST}/webfonts/
 # Imposta i permessi per gli asset copiati
 RUN chmod -R 755 public/assets
 
-# Copia Composer (solo dipendenze PHP)
+# (Documentativo) composer gestito nello stage vendor_builder
 COPY composer.json composer.lock* /var/www/html/
-
-# Copia i client govpay usati come repository path in composer.json
-COPY govpay-clients/ /app/govpay-clients/
-
-# Installa le dipendenze PHP con Composer
-# Install dependencies. If the lock is out of date (we've changed composer.json), fall back to composer update.
-RUN composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction || composer update --no-dev --prefer-dist --optimize-autoloader --no-interaction
 
 # ----------------------------------------------------------------------
 # Configurazione Finale
@@ -103,8 +110,7 @@ COPY certificate/ /var/www/certificate/
 
 # Copia lo script di setup nel container e rendilo eseguibile
 COPY docker-setup.sh /usr/local/bin/docker-setup.sh
-RUN chmod +x /usr/local/bin/docker-setup.sh
-RUN sed -i 's/\r$//' /usr/local/bin/docker-setup.sh
+RUN sed -i 's/\r$//' /usr/local/bin/docker-setup.sh && chmod 755 /usr/local/bin/docker-setup.sh
 
 # Copia e Abilita la configurazione Apache personalizzata
 RUN rm /etc/apache2/sites-enabled/000-default.conf
@@ -120,8 +126,14 @@ COPY src/ /var/www/html/src/
 COPY templates/ /var/www/html/templates/
 RUN cp -r /var/www/html/src/public/* /var/www/html/public/ || true
 
-# Imposta i permessi finali
-RUN chown -R www-data:www-data /var/www/
+# Hardening Apache: rimuove Indexes e aggiunge security headers
+RUN sed -i 's/Options Indexes FollowSymLinks/Options FollowSymLinks/g' /etc/apache2/apache2.conf && \
+    printf '\n<IfModule mod_headers.c>\n  Header always set X-Content-Type-Options "nosniff"\n  Header always set X-Frame-Options "SAMEORIGIN"\n  Header always set Referrer-Policy "strict-origin-when-cross-origin"\n  Header always set X-XSS-Protection "1; mode=block"\n</IfModule>\n' > /etc/apache2/conf-enabled/security-headers.conf
+
+# (RIMOSSO cambio utente: Apache necessita privilegi iniziali per bind 443, rimane root che poi esegue worker come www-data)
+RUN useradd -r -d /var/www -g www-data www-app && chown -R www-app:www-data /var/www/html
+
+# Permessi finali già assegnati a www-app
 
 EXPOSE 443
 

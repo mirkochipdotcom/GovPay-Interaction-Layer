@@ -1,10 +1,35 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
-# Entra nella directory del progetto dove ci sono i file di configurazione
-cd /app
+# Directory applicativa effettiva nel runtime
+APP_DIR="/var/www/html"
+cd "$APP_DIR"
 
 echo "--- Esecuzione Setup Composer Autocorreggente ---"
+
+INIT_MARKER="${APP_DIR}/.init_done"
+RUN_COMPOSER=1
+if [ -f "$INIT_MARKER" ]; then
+  echo "ℹ️  Init marker presente: salto fase Composer (nessun cambiamento rilevato)."
+  RUN_COMPOSER=0
+fi
+
+# Rileva composer (path assoluto se disponibile)
+if command -v composer >/dev/null 2>&1; then
+  COMPOSER_BIN="$(command -v composer)"
+else
+  # fallback: potrebbe non essere stato copiato (immagine minimale) -> esci con warning non bloccante
+  echo "⚠️  Composer non trovato nel PATH. Skip operazioni Composer." >&2
+  COMPOSER_BIN=""
+fi
+
+# Rileva openssl per eventuale generazione certificati
+if command -v openssl >/dev/null 2>&1; then
+  OPENSSL_BIN="$(command -v openssl)"
+else
+  OPENSSL_BIN=""
+  echo "⚠️  openssl non trovato: salterò la generazione certificati self-signed." >&2
+fi
 
 # === Controllo file TLS forniti via env (GOVPAY) o fallback su directory certificate ===
 # Se l'utente ha impostato le variabili GOVPAY_TLS_CERT e GOVPAY_TLS_KEY nel file .env,
@@ -54,11 +79,15 @@ if [ -z "${SKIP_SELF_SIGNED:-}" ] && ( [ ! -f /ssl/server.crt ] || [ ! -f /ssl/s
   echo "⚙️  Certificati SSL mancanti: genero certificati self-signed in /ssl ..."
   mkdir -p /ssl
   # Genera una chiave privata e un certificato self-signed valido 365 giorni
-  openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-    -keyout /ssl/server.key -out /ssl/server.crt \
-    -subj "/CN=localhost" >/dev/null 2>&1 || {
-    echo "❌ Errore: openssl non disponibile o generazione fallita";
-  }
+  if [ -n "$OPENSSL_BIN" ]; then
+    if ! $OPENSSL_BIN req -x509 -nodes -days 365 -newkey rsa:2048 \
+      -keyout /ssl/server.key -out /ssl/server.crt \
+      -subj "/CN=localhost" >/dev/null 2>&1; then
+        echo "❌ Errore: generazione certificati fallita" >&2
+    fi
+  else
+    echo "⚠️  openssl assente: salto generazione certificati" >&2
+  fi
   chmod 600 /ssl/server.key || true
   chmod 644 /ssl/server.crt || true
   echo "✅ Certificati self-signed creati.";
@@ -67,31 +96,47 @@ fi
 # === 1. SCENARIO AGGIORNAMENTO/RIGENERAZIONE LOCK ===
 # Se il file lock NON esiste E la cartella vendor ESISTE,
 # l'utente ha ELIMINATO il lock per forzare un aggiornamento.
-if [ ! -f composer.lock ] && [ -d /var/www/html/vendor ]; then
+if [ "$RUN_COMPOSER" -eq 1 ] && [ -n "$COMPOSER_BIN" ] && [ ! -f composer.lock ] && [ -d /var/www/html/vendor ]; then
   echo '🟡 ATTENZIONE: composer.lock mancante. Eseguo: composer update per rigenerarlo...'
-  composer update --no-dev --optimize-autoloader;
+  $COMPOSER_BIN update --no-dev --optimize-autoloader;
 
 # === 2. SCENARIO PRIMA INSTALLAZIONE (Nuovo progetto o pulizia completa) ===
 # Se il file lock NON esiste E la cartella vendor NON esiste (primo avvio/pulizia totale)
-elif [ ! -f composer.lock ] && [ ! -d /var/www/html/vendor ]; then
+elif [ "$RUN_COMPOSER" -eq 1 ] && [ -n "$COMPOSER_BIN" ] && [ ! -f composer.lock ] && [ ! -d /var/www/html/vendor ]; then
   echo '🔴 ATTENZIONE: Nessun artefatto trovato. Eseguo: composer install...'
-  composer install --no-dev --optimize-autoloader;
+  $COMPOSER_BIN install --no-dev --optimize-autoloader;
 
 # === 3. SCENARIO NORMALE (Dump-autoload veloce) ===
-else
+elif [ "$RUN_COMPOSER" -eq 1 ] && [ -n "$COMPOSER_BIN" ]; then
   echo '✅ Artefatti trovati. Eseguo dump-autoload o update condizionale...'
 
   # Puoi mantenere qui la tua logica originale di update/dump
   if [ /var/www/html/vendor/composer/installed.json -ot composer.json ]; then
       echo 'Eseguo: composer update (file modificati)...'
-      composer update --no-dev --optimize-autoloader;
+      $COMPOSER_BIN update --no-dev --optimize-autoloader;
   else
       echo 'Eseguo: composer dump-autoload...'
-      composer dump-autoload;
+      $COMPOSER_BIN dump-autoload;
   fi
+else
+  echo "ℹ️  Nessuna operazione Composer eseguita (composer mancante)"
 fi
 
-echo "--- Setup Composer completato. Avvio Apache. ---"
+if [ "$RUN_COMPOSER" -eq 1 ]; then
+  touch "$INIT_MARKER" || true
+fi
 
-# Esegue il comando finale che ti interessa (es. apache2-foreground)
-exec "$@"
+echo "--- Setup completato. Avvio Apache. ---"
+
+# Se nessun comando passato, avvia apache2-foreground di default
+# Se è stato passato un comando custom (debug), eseguilo direttamente
+if [ "$#" -gt 0 ]; then
+  exec "$@"
+fi
+
+# Avvio standard Apache (sorgendo envvars per definire APACHE_RUN_DIR etc.)
+if [ -f /etc/apache2/envvars ]; then
+  # shellcheck disable=SC1091
+  . /etc/apache2/envvars
+fi
+exec apache2 -DFOREGROUND
