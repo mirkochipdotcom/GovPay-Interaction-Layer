@@ -1,0 +1,28 @@
+{% extends 'base.html.twig' %}
+{% block content %}
+<div class="container my-5" style="max-width:640px;">
+  <h1 class="h4 mb-3">Modifica utente</h1>
+  {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+  <form method="post" action="/users/{{ edit_user.id }}/edit">
+    <div class="mb-3">
+      <label class="form-label">Email</label>
+      <input class="form-control" type="email" name="email" value="{{ edit_user.email }}" required>
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Nuova password (opzionale)</label>
+      <input class="form-control" type="password" name="password">
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Ruolo</label>
+      <select class="form-select" name="role">
+        {% set roles = ['user','admin','superadmin'] %}
+        {% for r in roles %}
+          <option value="{{ r }}" {% if edit_user.role == r %}selected{% endif %}>{{ r }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button class="btn btn-primary" type="submit">Salva</button>
+    <a class="btn btn-outline-secondary" href="/users">Annulla</a>
+  </form>
+  </div>
+{% endblock %}

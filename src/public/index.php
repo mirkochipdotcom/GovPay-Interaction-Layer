@@ -19,8 +19,10 @@ use Slim\Exception\HttpInternalServerErrorException;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Message\ResponseInterface as Response;
 use App\Controllers\PendenzeController;
+use App\Controllers\UsersController;
 use App\Middleware\SessionMiddleware;
 use App\Middleware\AuthMiddleware;
+use App\Middleware\FlashMiddleware;
 use App\Auth\UserRepository;
 
 $app = AppFactory::create();
@@ -57,8 +59,9 @@ $twig->getEnvironment()->addGlobal('app_favicon', $appFavicon);
 $app->add(TwigMiddleware::create($app, $twig));
 // Public paths: login, logout, assets, debug
 $publicPaths = ['/login', '/logout', '/assets/*', '/debug/*'];
-// Add Auth first, then Session last so that Session runs before Auth (LIFO order)
+// LIFO execution: add Auth, then Flash, then Session so execution is Session -> Flash -> Auth
 $app->add(new AuthMiddleware($publicPaths));
+$app->add(new FlashMiddleware($twig));
 $app->add(new SessionMiddleware());
 
 // Inject user into Twig globals if logged
@@ -178,6 +181,81 @@ $app->any('/pendenze', function ($request, $response) use ($twig) {
     }
 });
 
+// Profile
+$app->get('/profile', function($request, $response) use ($twig) {
+    if (isset($_SESSION['user'])) {
+        $twig->getEnvironment()->addGlobal('current_user', $_SESSION['user']);
+    }
+    return $twig->render($response, 'profile.html.twig');
+});
+
+// Users management (admin/superadmin)
+$app->get('/users', function($request, $response) use ($twig) {
+    $controller = new UsersController();
+    $req = $controller->index($request, $response, []);
+    $users = $req->getAttribute('users', []);
+    if (isset($_SESSION['user'])) {
+        $twig->getEnvironment()->addGlobal('current_user', $_SESSION['user']);
+    }
+    return $twig->render($response, 'users/index.html.twig', ['users' => $users]);
+});
+
+$app->get('/users/new', function($request, $response) use ($twig) {
+    if (isset($_SESSION['user'])) {
+        $twig->getEnvironment()->addGlobal('current_user', $_SESSION['user']);
+    }
+    return $twig->render($response, 'users/new.html.twig');
+});
+
+$app->post('/users/new', function($request, $response) use ($twig) {
+    $controller = new UsersController();
+    $resOrReq = $controller->create($request, $response, []);
+    if ($resOrReq instanceof \Psr\Http\Message\ResponseInterface) {
+        return $resOrReq; // redirect già pronto (flash impostato nel controller)
+    }
+    $error = $resOrReq->getAttribute('error');
+    if ($error) {
+        if (isset($_SESSION['user'])) {
+            $twig->getEnvironment()->addGlobal('current_user', $_SESSION['user']);
+        }
+        return $twig->render($response, 'users/new.html.twig', ['error' => $error]);
+    }
+    // fallback: torna alla lista
+    return $response->withHeader('Location', '/users')->withStatus(302);
+});
+
+$app->get('/users/{id}/edit', function($request, $response, $args) use ($twig) {
+    $controller = new UsersController();
+    $req = $controller->edit($request, $response, $args);
+    $editUser = $req->getAttribute('edit_user');
+    if (isset($_SESSION['user'])) {
+        $twig->getEnvironment()->addGlobal('current_user', $_SESSION['user']);
+    }
+    return $twig->render($response, 'users/edit.html.twig', ['edit_user' => $editUser]);
+});
+
+$app->post('/users/{id}/edit', function($request, $response, $args) use ($twig) {
+    $controller = new UsersController();
+    $resOrReq = $controller->update($request, $response, $args);
+    if ($resOrReq instanceof \Psr\Http\Message\ResponseInterface) {
+        return $resOrReq; // redirect già pronto (flash impostato nel controller)
+    }
+    $error = $resOrReq->getAttribute('error');
+    if ($error) {
+        $editUser = $resOrReq->getAttribute('edit_user');
+        if (isset($_SESSION['user'])) {
+            $twig->getEnvironment()->addGlobal('current_user', $_SESSION['user']);
+        }
+        return $twig->render($response, 'users/edit.html.twig', ['error' => $error, 'edit_user' => $editUser]);
+    }
+    // fallback
+    return $response->withHeader('Location', '/users')->withStatus(302);
+});
+
+$app->post('/users/{id}/delete', function($request, $response, $args) {
+    $controller = new UsersController();
+    return $controller->delete($request, $response, $args);
+});
 // Login routes
 $app->get('/login', function($request, $response) use ($twig) {
     if (isset($_SESSION['user'])) {
@@ -202,6 +280,7 @@ $app->post('/login', function($request, $response) use ($twig) {
             'email' => $user['email'],
             'role' => $user['role'],
         ];
+        $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Accesso effettuato'];
         return $response->withHeader('Location', '/')->withStatus(302);
     }
     return $twig->render($response, 'login.html.twig', [
@@ -211,13 +290,12 @@ $app->post('/login', function($request, $response) use ($twig) {
 });
 
 $app->get('/logout', function($request, $response) {
+    // Mantieni la sessione per mostrare il flash dopo il redirect
+    $_SESSION['flash'][] = ['type' => 'info', 'text' => 'Sei stato disconnesso'];
+    unset($_SESSION['user']);
+    // Rigenera l'ID di sessione per sicurezza
     if (session_status() === PHP_SESSION_ACTIVE) {
-        $_SESSION = [];
-        if (ini_get('session.use_cookies')) {
-            $params = session_get_cookie_params();
-            setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], $params['secure'], $params['httponly']);
-        }
-        session_destroy();
+        session_regenerate_id(true);
     }
     return $response->withHeader('Location', '/login')->withStatus(302);
 });
