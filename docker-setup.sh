@@ -126,7 +126,23 @@ if [ "$RUN_COMPOSER" -eq 1 ]; then
   touch "$INIT_MARKER" || true
 fi
 
-echo "--- Setup completato. Avvio Apache. ---"
+echo "--- Setup completato. Eseguo migrazioni DB (non-bloccanti) ---"
+
+# Esegui migrazioni database (non fatali in caso di errore)
+if command -v php >/dev/null 2>&1; then
+  if [ -f "/var/www/html/bin/run-migrations.php" ]; then
+    echo "Eseguo: php bin/run-migrations.php"
+    if ! php /var/www/html/bin/run-migrations.php; then
+      echo "⚠️  Avviso: migrazioni fallite, proseguo comunque con l'avvio di Apache." >&2
+    fi
+  else
+    echo "ℹ️  Nessun file di migrazione trovato (bin/run-migrations.php)."
+  fi
+else
+  echo "ℹ️  PHP CLI non disponibile: salto migrazioni."
+fi
+
+echo "--- Avvio Apache. ---"
 
 # Se nessun comando passato, avvia apache2-foreground di default
 # Se è stato passato un comando custom (debug), eseguilo direttamente
