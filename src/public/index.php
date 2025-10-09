@@ -23,6 +23,7 @@ use App\Controllers\UsersController;
 use App\Middleware\SessionMiddleware;
 use App\Middleware\AuthMiddleware;
 use App\Middleware\FlashMiddleware;
+use App\Middleware\CurrentPathMiddleware;
 use App\Auth\UserRepository;
 
 $app = AppFactory::create();
@@ -63,6 +64,8 @@ $publicPaths = ['/login', '/logout', '/assets/*', '/debug/*'];
 $app->add(new AuthMiddleware($publicPaths));
 $app->add(new FlashMiddleware($twig));
 $app->add(new SessionMiddleware());
+// Espone current_path a Twig su ogni richiesta
+$app->add(new CurrentPathMiddleware($twig));
 
 // Inject user into Twig globals if logged
 if (session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['user'])) {
@@ -179,6 +182,49 @@ $app->any('/pendenze', function ($request, $response) use ($twig) {
         $response->getBody()->write('<h1>Pendenze</h1><pre>' . htmlspecialchars($debug . "\n" . $e->getMessage()) . '</pre>');
         return $response->withStatus(500);
     }
+});
+
+// Pendenze - sottosezioni placeholder
+$app->get('/pendenze/ricerca', function($request, $response) use ($twig) {
+    $controller = new PendenzeController();
+    $req = $controller->search($request, $response);
+    $filters = $req->getAttribute('filters', []);
+    $errors = $req->getAttribute('errors', []);
+    $allowedStates = $req->getAttribute('allowed_states', []);
+    $results = $req->getAttribute('results');
+    $numPagine = $req->getAttribute('num_pagine');
+    $numRisultati = $req->getAttribute('num_risultati');
+    $queryMade = $req->getAttribute('query_made');
+    $prevUrl = $req->getAttribute('prev_url');
+    $nextUrl = $req->getAttribute('next_url');
+    if (isset($_SESSION['user'])) {
+        $twig->getEnvironment()->addGlobal('current_user', $_SESSION['user']);
+    }
+    return $twig->render($response, 'pendenze/ricerca.html.twig', [
+        'filters' => $filters,
+        'errors' => $errors,
+        'allowed_states' => $allowedStates,
+        'results' => $results,
+        'num_pagine' => $numPagine,
+        'num_risultati' => $numRisultati,
+        'query_made' => $queryMade,
+        'prev_url' => $prevUrl,
+        'next_url' => $nextUrl,
+    ]);
+});
+
+$app->get('/pendenze/inserimento', function($request, $response) use ($twig) {
+    if (isset($_SESSION['user'])) {
+        $twig->getEnvironment()->addGlobal('current_user', $_SESSION['user']);
+    }
+    return $twig->render($response, 'pendenze/inserimento.html.twig');
+});
+
+$app->get('/pendenze/inserimento-massivo', function($request, $response) use ($twig) {
+    if (isset($_SESSION['user'])) {
+        $twig->getEnvironment()->addGlobal('current_user', $_SESSION['user']);
+    }
+    return $twig->render($response, 'pendenze/inserimento_massivo.html.twig');
 });
 
 // Profile
