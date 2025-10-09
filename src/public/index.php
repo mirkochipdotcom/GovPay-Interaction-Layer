@@ -28,13 +28,21 @@ $twig = Twig::create([
     __DIR__ . '/../templates',          // /var/www/html/src/templates
     '/var/www/html/templates',          // /var/www/html/templates (root, path assoluto)
 ], ['cache' => false]);
-$entityName = getenv('APP_ENTITY_NAME') ?: 'Comune di Montesilvano';
+$entityName = getenv('APP_ENTITY_NAME') ?: 'Comune di Esempio';
 $entitySuffix = getenv('APP_ENTITY_SUFFIX') ?: 'Servizi ai cittadini';
+$entityGovernment = getenv('APP_ENTITY_GOVERNMENT') ?: '';
+$customLogoFs = '/var/www/html/public/img/stemma_ente.png';
+$hasCustomLogo = file_exists($customLogoFs);
+$appLogo = $hasCustomLogo
+    ? ['type' => 'img', 'src' => '/img/stemma_ente.png']
+    : ['type' => 'sprite', 'src' => '/assets/bootstrap-italia/svg/sprites.svg#it-pa'];
 $twig->getEnvironment()->addGlobal('app_entity', [
     'name' => $entityName,
     'suffix' => $entitySuffix,
     'full' => $entityName . ' - ' . $entitySuffix,
+    'government' => $entityGovernment,
 ]);
+$twig->getEnvironment()->addGlobal('app_logo', $appLogo);
 $app->add(TwigMiddleware::create($app, $twig));
 
 // Basic route

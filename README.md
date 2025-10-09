@@ -102,6 +102,11 @@ I certificati per l'autenticazione con le API GovPay devono essere posizionati n
 - `DB_*`: Configurazione database MariaDB
 - `APACHE_SERVER_NAME`: Nome server Apache
 
+### Logo ente personalizzato
+- Default a runtime: simbolo PA dello sprite Bootstrap Italia (`/assets/bootstrap-italia/svg/sprites.svg#it-pa`).
+- Personalizzazione: aggiungi `img/stemma_ente.png` (ignorato da Git) per usare il tuo stemma.
+- Se lo stemma non è presente, verrà mostrato il simbolo PA di default.
+
 ### Certificati SSL per HTTPS (opzionale)
 Per certificati SSL personalizzati del server web, posiziona i file nella cartella `ssl/`:
 - `ssl/server.key` - Chiave privata del server
