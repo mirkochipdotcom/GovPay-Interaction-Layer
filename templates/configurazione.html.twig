@@ -1,0 +1,24 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Configurazione - GovPay{% endblock %}
+
+{% block content %}
+  <h1 class="it-title">Configurazione Backoffice</h1>
+  <p class="text-muted">Risultato API: <code>/configurazioni</code></p>
+
+  {% if errors is defined and errors|length > 0 %}
+    <div class="alert alert-warning">
+      <ul class="mb-0">
+        {% for e in errors %}
+          <li>{{ e }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
+  {% if cfg_json %}
+    <pre>{{ cfg_json }}</pre>
+  {% else %}
+    <p class="text-muted">Nessun dato disponibile.</p>
+  {% endif %}
+{% endblock %}
