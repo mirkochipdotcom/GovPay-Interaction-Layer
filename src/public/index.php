@@ -189,6 +189,69 @@ $app->get('/profile', function($request, $response) use ($twig) {
     return $twig->render($response, 'profile.html.twig');
 });
 
+// Configurazione (solo superadmin): mostra il risultato di Backoffice /configurazioni
+$app->get('/configurazione', function($request, $response) use ($twig) {
+    // Controllo ruolo: solo superadmin
+    $u = $_SESSION['user'] ?? null;
+    if (!$u || ($u['role'] ?? '') !== 'superadmin') {
+        $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Accesso negato: permessi insufficienti'];
+        return $response->withHeader('Location', '/')->withStatus(302);
+    }
+    if (isset($_SESSION['user'])) {
+        $twig->getEnvironment()->addGlobal('current_user', $_SESSION['user']);
+    }
+
+    $errors = [];
+    $cfgJson = null;
+    $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
+    if (class_exists('\\GovPay\\Backoffice\\Api\\ConfigurazioniApi')) {
+        if (!empty($backofficeUrl)) {
+            try {
+                $config = new \GovPay\Backoffice\Configuration();
+                $config->setHost(rtrim($backofficeUrl, '/'));
+
+                $username = getenv('GOVPAY_USER');
+                $password = getenv('GOVPAY_PASSWORD');
+                if ($username !== false && $password !== false && $username !== '' && $password !== '') {
+                    $config->setUsername($username);
+                    $config->setPassword($password);
+                }
+
+                $guzzleOptions = [];
+                $authMethod = getenv('AUTHENTICATION_GOVPAY');
+                if ($authMethod !== false && strtolower($authMethod) === 'sslheader') {
+                    $cert = getenv('GOVPAY_TLS_CERT');
+                    $key = getenv('GOVPAY_TLS_KEY');
+                    $keyPass = getenv('GOVPAY_TLS_KEY_PASSWORD') ?: null;
+                    if (!empty($cert) && !empty($key)) {
+                        $guzzleOptions['cert'] = $cert;
+                        $guzzleOptions['ssl_key'] = $keyPass ? [$key, $keyPass] : $key;
+                    } else {
+                        $errors[] = 'mTLS abilitato ma GOVPAY_TLS_CERT/GOVPAY_TLS_KEY non impostati';
+                    }
+                }
+
+                $httpClient = new \GuzzleHttp\Client($guzzleOptions);
+                $api = new \GovPay\Backoffice\Api\ConfigurazioniApi($httpClient, $config);
+                $result = $api->getConfigurazioni();
+                $data = \GovPay\Backoffice\ObjectSerializer::sanitizeForSerialization($result);
+                $cfgJson = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+            } catch (\Throwable $e) {
+                $errors[] = 'Errore chiamata Backoffice: ' . $e->getMessage();
+            }
+        } else {
+            $errors[] = 'Variabile GOVPAY_BACKOFFICE_URL non impostata';
+        }
+    } else {
+        $errors[] = 'Client Backoffice non disponibile (namespace GovPay\\Backoffice)';
+    }
+
+    return $twig->render($response, 'configurazione.html.twig', [
+        'errors' => $errors,
+        'cfg_json' => $cfgJson,
+    ]);
+});
+
 // Users management (admin/superadmin)
 $app->get('/users', function($request, $response) use ($twig) {
     $controller = new UsersController();

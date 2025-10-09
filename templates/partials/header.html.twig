@@ -67,6 +67,9 @@
                       {% if current_user.role in ['admin','superadmin'] %}
                         <li class="nav-item"><a class="nav-link" href="/users">Utenti</a></li>
                       {% endif %}
+                      {% if current_user.role == 'superadmin' %}
+                        <li class="nav-item"><a class="nav-link" href="/configurazione">Configurazione</a></li>
+                      {% endif %}
                     {% endif %}
                     {% if not current_user %}
                       <li class="nav-item"><a class="nav-link" href="/login">Login</a></li>
