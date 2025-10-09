@@ -3,3 +3,20 @@ body { background: #f8f9fa; }
 .it-title { color: #003366; }
 .container .card { margin-top: 1rem; }
 #pendenze-output { white-space: pre-wrap; background: #fff; padding: 1rem; border-radius: 6px; border: 1px solid #e6e6e6; }
+
+/* Sticky footer layout: il footer resta al fondo della finestra, senza coprire i contenuti */
+html, body { height: 100%; }
+body { display: flex; flex-direction: column; min-height: 100vh; }
+main.container { flex: 1 0 auto; }
+footer.it-footer { margin-top: auto; }
+
+/* Quando il footer è fixed-bottom, evita che copra i contenuti */
+.pb-footer { padding-bottom: 6rem; }
+
+/* Contrasto migliore per item attivo nel dropdown del menu in tema scuro */
+.theme-dark .dropdown-menu .dropdown-item.active,
+.theme-dark .dropdown-menu .dropdown-item:active,
+.dropdown-menu .dropdown-item.active {
+	background-color: var(--bs-primary, #0d6efd);
+	color: #fff !important;
+}

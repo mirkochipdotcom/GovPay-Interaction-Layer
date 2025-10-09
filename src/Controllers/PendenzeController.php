@@ -126,33 +126,82 @@ class PendenzeController
                     $metadatiPaginazione = true;
                     $maxRisultati = true;
 
-                    $result = $api->findPendenze(
-                        $pagina,
-                        $rpp,
-                        $ordinamento,
-                        $campi,
-                        $idDominio,
-                        $idA2A,
-                        $idDebitore,
-                        $stato,
-                        $idPagamento,
-                        $idPendenza,
-                        $dataDa,
-                        $dataA,
-                        $idTipoPendenza,
-                        $direzione,
-                        $divisione,
-                        $iuv,
-                        $mostraSpontanei,
-                        $metadatiPaginazione,
-                        $maxRisultati
-                    );
+                    try {
+                        // 1) Prova via SDK (può fallire per vincoli dei modelli generati)
+                        $result = $api->findPendenze(
+                            $pagina,
+                            $rpp,
+                            $ordinamento,
+                            $campi,
+                            $idDominio,
+                            $idA2A,
+                            $idDebitore,
+                            $stato,
+                            $idPagamento,
+                            $idPendenza,
+                            $dataDa,
+                            $dataA,
+                            $idTipoPendenza,
+                            $direzione,
+                            $divisione,
+                            $iuv,
+                            $mostraSpontanei,
+                            $metadatiPaginazione,
+                            $maxRisultati
+                        );
 
-                    // Normalizza il modello in un array associativo per l'uso in Twig
-                    $data = \GovPay\Backoffice\ObjectSerializer::sanitizeForSerialization($result);
-                    $dataArr = json_decode(json_encode($data), true);
+                        $data = \GovPay\Backoffice\ObjectSerializer::sanitizeForSerialization($result);
+                        $dataArr = is_array($data) ? $data : json_decode(json_encode($data), true);
+                    } catch (\Throwable $sdkEx) {
+                        // 2) Fallback raw HTTP se l'SDK fallisce per es. "invalid length"
+                        $msg = $sdkEx->getMessage();
+                        $shouldFallback = stripos($msg, 'invalid length') !== false
+                            || stripos($msg, 'must be smaller than or equal to') !== false
+                            || stripos($msg, 'length') !== false;
+                        if (!$shouldFallback) {
+                            throw $sdkEx; // errore diverso: propaga al catch esterno
+                        }
 
-                    // Estraggo info paginazione
+                        // Backoffice findPendenze: path '/pendenze' e parametri in snake_case
+                        $url = rtrim($backofficeUrl, '/') . '/pendenze';
+                        $query = [
+                            'pagina' => $pagina,
+                            'risultati_per_pagina' => $rpp,
+                            'ordinamento' => $ordinamento,
+                            // 'campi' => $campi, // omesso se null
+                            'id_dominio' => $idDominio,
+                            'id_a2_a' => $idA2A,
+                            'id_debitore' => $idDebitore,
+                            'stato' => $stato,
+                            'id_pagamento' => $idPagamento,
+                            'id_pendenza' => $idPendenza,
+                            'data_da' => $dataDa,
+                            'data_a' => $dataA,
+                            // 'id_tipo_pendenza' => $idTipoPendenza,
+                            'direzione' => $direzione,
+                            'divisione' => $divisione,
+                            'iuv' => $iuv,
+                            'mostra_spontanei_non_pagati' => $mostraSpontanei,
+                            'metadati_paginazione' => $metadatiPaginazione,
+                            'max_risultati' => $maxRisultati,
+                        ];
+                        $query = array_filter($query, static function($v) { return $v !== null && $v !== ''; });
+                        $requestOptions = [
+                            'headers' => ['Accept' => 'application/json'],
+                            'query' => $query,
+                        ];
+                        if ($username !== false && $password !== false && $username !== '' && $password !== '') {
+                            $requestOptions['auth'] = [$username, $password];
+                        }
+                        $resp = $httpClient->request('GET', $url, $requestOptions);
+                        $json = (string)$resp->getBody();
+                        $dataArr = json_decode($json, true);
+                        if (json_last_error() !== JSON_ERROR_NONE || !is_array($dataArr)) {
+                            throw new \RuntimeException('Parsing JSON fallito: ' . json_last_error_msg());
+                        }
+                    }
+
+                    // Estraggo info paginazione e imposto risultati
                     $numPagine = $dataArr['numPagine'] ?? null;
                     $numRisultati = $dataArr['numRisultati'] ?? null;
                     $results = $dataArr;
@@ -161,12 +210,10 @@ class PendenzeController
                     $basePath = $request->getUri()->getPath();
                     $qs = $params;
                     $qs['q'] = '1';
-                    // prev
                     if ($filters['pagina'] > 1) {
                         $qs['pagina'] = $filters['pagina'] - 1;
                         $prevUrl = $basePath . '?' . http_build_query($qs);
                     }
-                    // next
                     if ($numPagine !== null && $filters['pagina'] < (int)$numPagine) {
                         $qs['pagina'] = $filters['pagina'] + 1;
                         $nextUrl = $basePath . '?' . http_build_query($qs);

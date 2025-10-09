@@ -21,6 +21,41 @@
 			"label": "rebuild-and-restart",
 			"type": "shell",
 			"command": "docker compose up -d --build --force-recreate"
+		},
+		{
+			"label": "rebuild-and-restart",
+			"type": "shell",
+			"command": "docker compose up -d --build --force-recreate"
+		},
+		{
+			"label": "rebuild-and-restart",
+			"type": "shell",
+			"command": "docker compose up -d --build --force-recreate"
+		},
+		{
+			"label": "rebuild-and-restart",
+			"type": "shell",
+			"command": "docker compose up -d --build --force-recreate"
+		},
+		{
+			"label": "rebuild-and-restart",
+			"type": "shell",
+			"command": "docker compose up -d --build --force-recreate"
+		},
+		{
+			"label": "rebuild-and-restart",
+			"type": "shell",
+			"command": "docker compose up -d --build --force-recreate"
+		},
+		{
+			"label": "rebuild-and-restart",
+			"type": "shell",
+			"command": "docker compose up -d --build --force-recreate"
+		},
+		{
+			"label": "rebuild-and-restart",
+			"type": "shell",
+			"command": "docker compose up -d --build --force-recreate"
 		}
 	]
 }
