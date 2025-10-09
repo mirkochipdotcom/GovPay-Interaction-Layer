@@ -36,6 +36,13 @@ $hasCustomLogo = file_exists($customLogoFs);
 $appLogo = $hasCustomLogo
     ? ['type' => 'img', 'src' => '/img/stemma_ente.png']
     : ['type' => 'sprite', 'src' => '/assets/bootstrap-italia/svg/sprites.svg#it-pa'];
+$customFaviconIco = '/var/www/html/public/img/favicon.ico';
+$customFaviconPng = '/var/www/html/public/img/favicon.png';
+$appFavicon = file_exists($customFaviconIco)
+    ? ['href' => '/img/favicon.ico', 'type' => 'image/x-icon']
+    : (file_exists($customFaviconPng)
+        ? ['href' => '/img/favicon.png', 'type' => 'image/png']
+        : ['href' => '/img/favicon_default.png', 'type' => 'image/png']);
 $twig->getEnvironment()->addGlobal('app_entity', [
     'name' => $entityName,
     'suffix' => $entitySuffix,
@@ -43,6 +50,7 @@ $twig->getEnvironment()->addGlobal('app_entity', [
     'government' => $entityGovernment,
 ]);
 $twig->getEnvironment()->addGlobal('app_logo', $appLogo);
+$twig->getEnvironment()->addGlobal('app_favicon', $appFavicon);
 $app->add(TwigMiddleware::create($app, $twig));
 
 // Basic route
