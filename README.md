@@ -38,13 +38,13 @@ La prima build può impiegare qualche minuto perché scarica dipendenze e compil
 - **URL principale**: https://localhost:8443
 - **Debug tool**: https://localhost:8443/debug/
 
-⚠️ **Nota SSL**: Al primo avvio vengono generati certificati self-signed. Il browser mostrerà un avviso di sicurezza che puoi ignorare per lo sviluppo.
+⚠️ **Nota SSL**: Se non fornisci certificati personalizzati in `ssl/`, al primo avvio verranno generati certificati self-signed. Il browser mostrerà un avviso di sicurezza che puoi ignorare per lo sviluppo.
 
 ## 🛠️ Workflow di sviluppo
 
 ### Modifiche al codice
-- **Backend PHP**: Modifica i file in `src/` - le modifiche sono immediate (volume montato)
-- **Debug/test**: Modifica i file in `public/debug/` - le modifiche sono immediate (volume montato)
+- **Backend PHP**: Modifica i file in `src/` - richiede rebuild: `docker compose up -d --build`
+- **Debug/test**: Modifica i file in `debug/` - le modifiche sono immediate (volume montato)
 - **Template Twig**: Modifica i file in `templates/` - richiede rebuild: `docker compose up -d --build`
 
 ### Monitoraggio e debug
@@ -53,7 +53,7 @@ La prima build può impiegare qualche minuto perché scarica dipendenze e compil
 docker compose logs -f php-apache
 
 # Accedi al container per debug
-docker exec -it govpay-interaction-layer bash
+docker compose exec php-apache bash
 
 # Riavvia solo il servizio PHP senza rebuild
 docker compose restart php-apache
@@ -62,7 +62,7 @@ docker compose restart php-apache
 ## 🔧 Configurazione
 
 ### Variabili d'ambiente
-Copia `.env.example` in `.env` e configura le variabili per il tuo ambiente:
+Crea il file `.env` (puoi partire da `.env.example` se presente) e configura le variabili per il tuo ambiente:
 
 ```bash
 cp .env.example .env
@@ -193,9 +193,9 @@ docker exec -it govpay-interaction-layer find /var/www/html -name "*.php" | head
 GovPay-Interaction-Layer/
 ├── docker-compose.yml      # Configurazione servizi Docker
 ├── Dockerfile             # Build dell'immagine PHP/Apache
-├── src/                   # Codice sorgente PHP (montato come volume)
-├── templates/             # Template Twig
-├── public/debug/          # Tool di debug (montato come volume)
+├── src/                   # Codice sorgente PHP (copiato in build)
+├── templates/             # Template Twig (copiati in build)
+├── debug/                 # Tool di debug (montato come volume)
 ├── govpay-clients/        # Client API generati da OpenAPI
 ├── ssl/                   # Certificati SSL personalizzati
 └── .env                   # Configurazione ambiente (da creare)
