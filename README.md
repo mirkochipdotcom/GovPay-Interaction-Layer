@@ -50,13 +50,13 @@ La prima build può impiegare qualche minuto perché scarica dipendenze e compil
 ### Monitoraggio e debug
 ```bash
 # Visualizza i log in tempo reale
-docker compose logs -f php-apache
+docker compose logs -f govpay-interaction-layer
 
 # Accedi al container per debug
-docker compose exec php-apache bash
+docker compose exec govpay-interaction-layer bash
 
 # Riavvia solo il servizio PHP senza rebuild
-docker compose restart php-apache
+docker compose restart govpay-interaction-layer
 ```
 
 ## 🔧 Configurazione
@@ -67,6 +67,40 @@ Crea il file `.env` (puoi partire da `.env.example` se presente) e configura le 
 ```bash
 cp .env.example .env
 ```
+
+### 🔐 Autenticazione e superadmin
+
+L'applicazione richiede autenticazione. Al primo avvio, uno script di migrazione crea lo schema utenti e inserisce un utente amministratore di default (seed) usando le variabili d'ambiente `ADMIN_EMAIL` e `ADMIN_PASSWORD`.
+
+Passi rapidi:
+
+1) Imposta nel file `.env`:
+
+```env
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=una_password_sicura
+```
+
+2) Avvia l'applicazione:
+
+```bash
+docker compose up -d --build
+```
+
+3) Accedi a https://localhost:8443/login e usa le credenziali impostate.
+
+4) (Consigliato) Dopo l'accesso, vai su “Utenti” per creare altri utenti o aggiornare la password dell'admin.
+
+Ruoli disponibili:
+- `user`: utente base
+- `admin`: può gestire utenti
+- `superadmin`: privilegi equivalenti ad admin nell'app attuale
+
+Note importanti:
+- Il seed crea l'utente admin solo se non esiste già. Se vuoi rigenerarlo con nuove credenziali, puoi:
+   - Eliminare l'utente dalla sezione “Utenti” e riavviare il container (verrà ricreato dal seed), oppure
+   - Aggiornare la password dell'utente direttamente dalla pagina “Modifica utente”.
+- I messaggi di successo/errore compaiono come notifiche (flash) nella parte alta della pagina dopo i redirect.
 
 ### Configurazione GovPay
 Per l'integrazione con GovPay, configura le seguenti variabili nel file `.env`:
