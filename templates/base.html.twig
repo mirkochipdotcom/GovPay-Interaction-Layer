@@ -11,7 +11,16 @@
   </head>
   <body>
     {% include 'partials/header.html.twig' %}
-    <main class="container my-4">{% block content %}{% endblock %}</main>
+    <main class="container my-4">
+      {% if flash %}
+        <div class="mb-3">
+          {% for m in flash %}
+            <div class="alert alert-{{ m.type == 'success' ? 'success' : (m.type == 'error' ? 'danger' : 'info') }}" role="alert">{{ m.text }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+      {% block content %}{% endblock %}
+    </main>
     {% include 'partials/footer.html.twig' %}
   <script src="/assets/bootstrap-italia/js/bootstrap-italia.bundle.min.js"></script>
   </body>
