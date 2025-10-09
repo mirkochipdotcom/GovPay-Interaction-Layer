@@ -28,6 +28,13 @@ $twig = Twig::create([
     __DIR__ . '/../templates',          // /var/www/html/src/templates
     '/var/www/html/templates',          // /var/www/html/templates (root, path assoluto)
 ], ['cache' => false]);
+$entityName = getenv('APP_ENTITY_NAME') ?: 'Comune di Montesilvano';
+$entitySuffix = getenv('APP_ENTITY_SUFFIX') ?: 'Servizi ai cittadini';
+$twig->getEnvironment()->addGlobal('app_entity', [
+    'name' => $entityName,
+    'suffix' => $entitySuffix,
+    'full' => $entityName . ' - ' . $entitySuffix,
+]);
 $app->add(TwigMiddleware::create($app, $twig));
 
 // Basic route
