@@ -57,6 +57,20 @@ $twig->getEnvironment()->addGlobal('app_entity', [
 ]);
 $twig->getEnvironment()->addGlobal('app_logo', $appLogo);
 $twig->getEnvironment()->addGlobal('app_favicon', $appFavicon);
+// Alias stati pendenza (globali per tutto l'app)
+$pendenzaStates = [
+    'NON_ESEGUITA' => ['label' => 'Da pagare', 'color' => 'secondary'],
+    'TENTATIVO_DI_PAGAMENTO' => ['label' => 'Tentativo di pagamento in corso', 'color' => 'warning'],
+    'ESEGUITA' => ['label' => 'Pagato', 'color' => 'success'],
+    'RENDICONTATA' => ['label' => 'Rendicontato', 'color' => 'primary'],
+    'ANNULLATA' => ['label' => 'Annullato', 'color' => 'light'],
+    'SCADUTA' => ['label' => 'Scaduto', 'color' => 'danger'],
+    'ESEGUITA_PARZIALE' => ['label' => 'Eseguito parzialmente', 'color' => 'warning'],
+    'ANOMALA' => ['label' => 'Anomalia', 'color' => 'danger'],
+    'ERRORE' => ['label' => 'Errore', 'color' => 'danger'],
+    'INCASSATA' => ['label' => 'Incassato', 'color' => 'primary'],
+];
+$twig->getEnvironment()->addGlobal('pendenza_states', $pendenzaStates);
 $app->add(TwigMiddleware::create($app, $twig));
 // Public paths: login, logout, assets, debug
 $publicPaths = ['/login', '/logout', '/assets/*', '/debug/*'];
@@ -225,6 +239,17 @@ $app->get('/pendenze/inserimento-massivo', function($request, $response) use ($t
         $twig->getEnvironment()->addGlobal('current_user', $_SESSION['user']);
     }
     return $twig->render($response, 'pendenze/inserimento_massivo.html.twig');
+});
+
+// Dettaglio pendenza (placeholder)
+$app->get('/pendenze/dettaglio/{idPendenza}', function($request, $response, $args) use ($twig) {
+    if (isset($_SESSION['user'])) {
+        $twig->getEnvironment()->addGlobal('current_user', $_SESSION['user']);
+    }
+    $idPendenza = $args['idPendenza'] ?? '';
+    return $twig->render($response, 'pendenze/dettaglio.html.twig', [
+        'idPendenza' => $idPendenza,
+    ]);
 });
 
 // Profile
