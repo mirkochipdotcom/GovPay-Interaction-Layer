@@ -24,3 +24,7 @@ vendor/
 # Logo ente personalizzato (non versionare)
 img/stemma_ente.png
 
+# Favicon personalizzate (non versionare)
+img/favicon.ico
+img/favicon.png
+

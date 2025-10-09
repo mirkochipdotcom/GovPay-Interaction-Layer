@@ -107,6 +107,10 @@ I certificati per l'autenticazione con le API GovPay devono essere posizionati n
 - Personalizzazione: aggiungi `img/stemma_ente.png` (ignorato da Git) per usare il tuo stemma.
 - Se lo stemma non è presente, verrà mostrato il simbolo PA di default.
 
+### Icona del sito (favicon)
+- Personalizzazione: puoi aggiungere `img/favicon.ico` oppure `img/favicon.png` (sono ignorati da Git).
+- Logica di risoluzione: prima `img/favicon.ico`, altrimenti `img/favicon.png`, altrimenti fallback automatico su `img/favicon_default.png` incluso nel repository.
+
 ### Certificati SSL per HTTPS (opzionale)
 Per certificati SSL personalizzati del server web, posiziona i file nella cartella `ssl/`:
 - `ssl/server.key` - Chiave privata del server
