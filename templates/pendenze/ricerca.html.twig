@@ -3,6 +3,147 @@
 {% block title %}Pendenze - Ricerca{% endblock %}
 
 {% block content %}
-  <h1 class="it-title">Pendenze - Ricerca</h1>
-  <p class="text-muted">Placeholder per la pagina di ricerca pendenze.</p>
+  <h1 class="it-title mb-3">Pendenze - Ricerca</h1>
+
+  {# Messaggi errore #}
+  {% if errors is defined and errors %}
+    <div class="alert alert-danger" role="alert">
+      <ul class="mb-0">
+        {% for e in errors %}<li>{{ e }}</li>{% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
+  {% set f = filters ?? {} %}
+  <form method="get" action="/pendenze/ricerca" class="card p-3 mb-4">
+    <input type="hidden" name="q" value="1" />
+    <div class="row g-3">
+      <div class="col-md-3">
+        <label class="form-label">Ordina per</label>
+        <select class="form-select" name="ordinamento">
+          {% set ord = f.ordinamento|default('-dataCaricamento') %}
+          <option value="-dataCaricamento" {% if ord == '-dataCaricamento' %}selected{% endif %}>Data caricamento (recenti prima)</option>
+          <option value="+dataCaricamento" {% if ord == '+dataCaricamento' %}selected{% endif %}>Data caricamento (vecchie prima)</option>
+          <option value="+nome" {% if ord == '+nome' %}selected{% endif %}>Nome (A→Z)</option>
+          <option value="-nome" {% if ord == '-nome' %}selected{% endif %}>Nome (Z→A)</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Dominio (CF ente)</label>
+        <input class="form-control" name="idDominio" value="{{ f.idDominio|default('') }}" placeholder="XXXXXXXXXXX" maxlength="11">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">ID Pendenza</label>
+        <input class="form-control" name="idPendenza" value="{{ f.idPendenza|default('') }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">ID Debitore (CF/PI)</label>
+        <input class="form-control" name="idDebitore" value="{{ f.idDebitore|default('') }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">IUV</label>
+        <input class="form-control" name="iuv" value="{{ f.iuv|default('') }}">
+      </div>
+
+      <div class="col-md-3">
+        <label class="form-label">Stato</label>
+        <select class="form-select" name="stato">
+          <option value="">-- tutti --</option>
+          {% for s in allowed_states|default([]) %}
+            <option value="{{ s }}" {% if f.stato is defined and f.stato == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Data da</label>
+        <input class="form-control" type="date" name="dataDa" value="{{ f.dataDa|default('') }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Data a</label>
+        <input class="form-control" type="date" name="dataA" value="{{ f.dataA|default('') }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Risultati per pagina</label>
+        <input class="form-control" type="number" min="1" max="200" name="risultatiPerPagina" value="{{ f.risultatiPerPagina|default(25) }}">
+      </div>
+    </div>
+    <div class="mt-3 d-flex gap-2">
+      <button type="submit" class="btn btn-primary">Cerca</button>
+      <a class="btn btn-outline-secondary" href="/pendenze/ricerca">Azzera</a>
+    </div>
+  </form>
+
+  {% if query_made and results %}
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <div>
+        <strong>Risultati:</strong>
+        {% if num_risultati is not null %}
+          {{ num_risultati }}
+        {% else %}
+          --
+        {% endif %}
+      </div>
+      <div class="btn-group">
+        {% if prev_url %}
+          <a class="btn btn-outline-primary" href="{{ prev_url }}">&laquo; Precedente</a>
+        {% endif %}
+        {% if next_url %}
+          <a class="btn btn-outline-primary" href="{{ next_url }}">Successiva &raquo;</a>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-striped">
+        <thead>
+          <tr>
+            <th>Data caricamento</th>
+            <th>Nome</th>
+            <th>Debitore</th>
+            <th>Importo</th>
+            <th>Numero avviso</th>
+            <th>Stato</th>
+            <th>IUV</th>
+            <th>ID A2A</th>
+            <th>ID Pendenza</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in results.risultati|default([]) %}
+            <tr>
+              <td>{{ r.dataCaricamento|default('') }}</td>
+              <td>{{ r.nome|default('') }}</td>
+              <td>{{ r.soggettoPagatore.denominazione|default('') }}</td>
+              <td>{{ r.importo is defined ? (r.importo|number_format(2, ',', '.')) : '' }}</td>
+              <td>{{ r.numeroAvviso|default('') }}</td>
+              <td>{{ r.stato|default('') }}</td>
+              <td>{{ r.iuvAvviso|default('') }}</td>
+              <td>{{ r.idA2A|default('') }}</td>
+              <td>{{ r.idPendenza|default('') }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="9" class="text-center text-muted">Nessun risultato</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mt-2">
+      <div>
+        {% if num_pagine is not null %}
+          Pagina {{ f.pagina|default(1) }} di {{ num_pagine }}
+        {% endif %}
+      </div>
+      <div class="btn-group">
+        {% if prev_url %}
+          <a class="btn btn-outline-primary" href="{{ prev_url }}">&laquo; Precedente</a>
+        {% endif %}
+        {% if next_url %}
+          <a class="btn btn-outline-primary" href="{{ next_url }}">Successiva &raquo;</a>
+        {% endif %}
+      </div>
+    </div>
+  {% elseif query_made %}
+    <div class="alert alert-warning">Nessun risultato trovato.</div>
+  {% endif %}
 {% endblock %}
