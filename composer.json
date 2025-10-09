@@ -34,7 +34,8 @@
         },
         {
             "type": "path",
-            "url": "govpay-clients/generated-clients/backoffice-v1/backoffice-client"
+            "url": "govpay-clients/generated-clients/backoffice-v1/backoffice-client",
+            "options": { "symlink": false }
         }
     ],
     "config": {

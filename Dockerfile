@@ -126,6 +126,9 @@ COPY src/ /var/www/html/src/
 COPY templates/ /var/www/html/templates/
 RUN cp -r /var/www/html/src/public/* /var/www/html/public/ || true
 
+# Copia la sorgente dei client generati (necessario se Composer ha creato symlink per path repositories)
+COPY govpay-clients/ /var/www/html/govpay-clients/
+
 # Hardening Apache: rimuove Indexes e aggiunge security headers
 RUN sed -i 's/Options Indexes FollowSymLinks/Options FollowSymLinks/g' /etc/apache2/apache2.conf && \
     printf '\n<IfModule mod_headers.c>\n  Header always set X-Content-Type-Options "nosniff"\n  Header always set X-Frame-Options "SAMEORIGIN"\n  Header always set Referrer-Policy "strict-origin-when-cross-origin"\n  Header always set X-XSS-Protection "1; mode=block"\n</IfModule>\n' > /etc/apache2/conf-enabled/security-headers.conf

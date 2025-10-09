@@ -10,4 +10,21 @@
   <hr/>
   <h3>Verifica client</h3>
   <pre>{{ debug|raw }}</pre>
+
+  <hr/>
+  <h3>Statistiche Backoffice: /quadrature/riscossioni</h3>
+  {% if errors is defined and errors|length > 0 %}
+    <div class="alert alert-warning">
+      <ul class="mb-0">
+        {% for e in errors %}
+          <li>{{ e }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+  {% if stats_json %}
+    <pre>{{ stats_json }}</pre>
+  {% else %}
+    <p class="text-muted">Nessun dato ancora disponibile.</p>
+  {% endif %}
 {% endblock %}
