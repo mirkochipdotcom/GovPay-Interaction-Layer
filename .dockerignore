@@ -1,0 +1,28 @@
+# Riduce il build context ed evita errori di accesso a file bloccati su Windows
+
+# VCS / IDE
+.git
+.gitignore
+.github/
+.vscode/
+.idea/
+
+# Env e log
+.env
+.env.*
+*.log
+
+# Docker compose locali
+docker-compose*.yml
+
+# Composer vendors (non servono nel build context: vengono installati nello stage composer)
+/vendor/
+/**/vendor/
+
+# Node
+/node_modules/
+/**/node_modules/
+
+# OS junk
+.DS_Store
+Thumbs.db
