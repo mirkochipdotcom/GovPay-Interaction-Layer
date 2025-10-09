@@ -1,61 +1,30 @@
 {
-	"version": "2.0.0",
-	"tasks": [
-		{
-			"label": "rebuild-and-restart",
-			"type": "shell",
-			"command": "docker compose up -d --build --force-recreate",
-			"args": [],
-			"isBackground": false,
-			"problemMatcher": [
-				"$eslint-stylish"
-			],
-			"group": "build"
-		},
-		{
-			"label": "rebuild-and-restart",
-			"type": "shell",
-			"command": "docker compose up -d --build --force-recreate"
-		},
-		{
-			"label": "rebuild-and-restart",
-			"type": "shell",
-			"command": "docker compose up -d --build --force-recreate"
-		},
-		{
-			"label": "rebuild-and-restart",
-			"type": "shell",
-			"command": "docker compose up -d --build --force-recreate"
-		},
-		{
-			"label": "rebuild-and-restart",
-			"type": "shell",
-			"command": "docker compose up -d --build --force-recreate"
-		},
-		{
-			"label": "rebuild-and-restart",
-			"type": "shell",
-			"command": "docker compose up -d --build --force-recreate"
-		},
-		{
-			"label": "rebuild-and-restart",
-			"type": "shell",
-			"command": "docker compose up -d --build --force-recreate"
-		},
-		{
-			"label": "rebuild-and-restart",
-			"type": "shell",
-			"command": "docker compose up -d --build --force-recreate"
-		},
-		{
-			"label": "rebuild-and-restart",
-			"type": "shell",
-			"command": "docker compose up -d --build --force-recreate"
-		},
-		{
-			"label": "rebuild-and-restart",
-			"type": "shell",
-			"command": "docker compose up -d --build --force-recreate"
-		}
-	]
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "rebuild-and-restart",
+      "type": "shell",
+      "command": "docker compose up -d --build --force-recreate",
+      "args": [],
+      "isBackground": false,
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "logs",
+      "type": "shell",
+      "command": "docker compose logs -f",
+      "isBackground": true,
+      "group": "none",
+      "problemMatcher": []
+    },
+    {
+      "label": "down",
+      "type": "shell",
+      "command": "docker compose down --remove-orphans",
+      "isBackground": false,
+      "group": "build",
+      "problemMatcher": []
+    }
+  ]
 }
