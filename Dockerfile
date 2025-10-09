@@ -124,6 +124,7 @@ COPY debug /var/www/html/public/debug
 
 COPY src/ /var/www/html/src/
 COPY templates/ /var/www/html/templates/
+COPY bin/ /var/www/html/bin/
 RUN cp -r /var/www/html/src/public/* /var/www/html/public/ || true
 
 # Copia la sorgente dei client generati (necessario se Composer ha creato symlink per path repositories)

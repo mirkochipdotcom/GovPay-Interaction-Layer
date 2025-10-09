@@ -19,6 +19,9 @@ use Slim\Exception\HttpInternalServerErrorException;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Message\ResponseInterface as Response;
 use App\Controllers\PendenzeController;
+use App\Middleware\SessionMiddleware;
+use App\Middleware\AuthMiddleware;
+use App\Auth\UserRepository;
 
 $app = AppFactory::create();
 $app->setBasePath('');
@@ -52,6 +55,16 @@ $twig->getEnvironment()->addGlobal('app_entity', [
 $twig->getEnvironment()->addGlobal('app_logo', $appLogo);
 $twig->getEnvironment()->addGlobal('app_favicon', $appFavicon);
 $app->add(TwigMiddleware::create($app, $twig));
+// Public paths: login, logout, assets, debug
+$publicPaths = ['/login', '/logout', '/assets/*', '/debug/*'];
+// Add Auth first, then Session last so that Session runs before Auth (LIFO order)
+$app->add(new AuthMiddleware($publicPaths));
+$app->add(new SessionMiddleware());
+
+// Inject user into Twig globals if logged
+if (session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['user'])) {
+    $twig->getEnvironment()->addGlobal('current_user', $_SESSION['user']);
+}
 
 // Basic route
 $app->get('/', function ($request, $response, $args) use ($twig) {
@@ -132,6 +145,10 @@ $app->get('/', function ($request, $response, $args) use ($twig) {
         $errors[] = 'Client Backoffice non disponibile (namespace GovPay\\Backoffice)';
     }
 
+    // ensure user available in this request too
+    if (isset($_SESSION['user'])) {
+        $twig->getEnvironment()->addGlobal('current_user', $_SESSION['user']);
+    }
     return $twig->render($response, 'home.html.twig', [
         'debug' => nl2br(htmlspecialchars($debug)),
         'stats_json' => $statsJson,
@@ -150,12 +167,59 @@ $app->any('/pendenze', function ($request, $response) use ($twig) {
         $debug .= "Errore controller: " . $e->getMessage();
     }
     try {
+        if (isset($_SESSION['user'])) {
+            $twig->getEnvironment()->addGlobal('current_user', $_SESSION['user']);
+        }
         return $twig->render($response, 'pendenze.html.twig', ['debug' => nl2br(htmlspecialchars($debug))]);
     } catch (\Throwable $e) {
         // Fallback minimale in caso di template non trovato
         $response->getBody()->write('<h1>Pendenze</h1><pre>' . htmlspecialchars($debug . "\n" . $e->getMessage()) . '</pre>');
         return $response->withStatus(500);
     }
+});
+
+// Login routes
+$app->get('/login', function($request, $response) use ($twig) {
+    if (isset($_SESSION['user'])) {
+        return $response->withHeader('Location', '/')->withStatus(302);
+    }
+    return $twig->render($response, 'login.html.twig', [
+        'error' => null,
+        'last_email' => ''
+    ]);
+});
+
+$app->post('/login', function($request, $response) use ($twig) {
+    $data = (array)($request->getParsedBody() ?? []);
+    $email = trim($data['email'] ?? '');
+    $password = $data['password'] ?? '';
+    $repo = new UserRepository();
+    $user = $email !== '' ? $repo->findByEmail($email) : null;
+    if ($user && $repo->verifyPassword($password, $user['password_hash'])) {
+        // Set session user (minimal info)
+        $_SESSION['user'] = [
+            'id' => $user['id'],
+            'email' => $user['email'],
+            'role' => $user['role'],
+        ];
+        return $response->withHeader('Location', '/')->withStatus(302);
+    }
+    return $twig->render($response, 'login.html.twig', [
+        'error' => 'Credenziali non valide',
+        'last_email' => $email,
+    ]);
+});
+
+$app->get('/logout', function($request, $response) {
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        $_SESSION = [];
+        if (ini_get('session.use_cookies')) {
+            $params = session_get_cookie_params();
+            setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], $params['secure'], $params['httponly']);
+        }
+        session_destroy();
+    }
+    return $response->withHeader('Location', '/login')->withStatus(302);
 });
 
 $appDebugRaw = getenv('APP_DEBUG');
