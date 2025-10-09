@@ -21,3 +21,6 @@ src/test.php
 # Ignore composer vendor directory
 vendor/
 
+# Logo ente personalizzato (non versionare)
+img/stemma_ente.png
+
