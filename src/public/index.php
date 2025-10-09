@@ -71,7 +71,72 @@ $app->get('/', function ($request, $response, $args) use ($twig) {
         $debug .= "Classe API non trovata.\n";
     }
 
-    return $twig->render($response, 'home.html.twig', ['debug' => nl2br(htmlspecialchars($debug))]);
+    // Backoffice stats: /quadrature/riscossioni -> stampa JSON grezzo
+    $errors = [];
+    $statsJson = null;
+    $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
+    if (class_exists('\\GovPay\\Backoffice\\Api\\ReportisticaApi')) {
+        if (!empty($backofficeUrl)) {
+            try {
+                // Configurazione client Backoffice
+                $config = new \GovPay\Backoffice\Configuration();
+                $config->setHost(rtrim($backofficeUrl, '/'));
+
+                $username = getenv('GOVPAY_USER');
+                $password = getenv('GOVPAY_PASSWORD');
+                if ($username !== false && $password !== false && $username !== '' && $password !== '') {
+                    $config->setUsername($username);
+                    $config->setPassword($password);
+                }
+
+                // Opzioni Guzzle per mTLS se richiesto
+                $guzzleOptions = [];
+                $authMethod = getenv('AUTHENTICATION_GOVPAY');
+                if ($authMethod !== false && strtolower($authMethod) === 'sslheader') {
+                    $cert = getenv('GOVPAY_TLS_CERT');
+                    $key = getenv('GOVPAY_TLS_KEY');
+                    $keyPass = getenv('GOVPAY_TLS_KEY_PASSWORD') ?: null;
+                    if (!empty($cert) && !empty($key)) {
+                        $guzzleOptions['cert'] = $cert;
+                        $guzzleOptions['ssl_key'] = $keyPass ? [$key, $keyPass] : $key;
+                    } else {
+                        $errors[] = 'mTLS abilitato ma GOVPAY_TLS_CERT/GOVPAY_TLS_KEY non impostati';
+                    }
+                }
+
+                $httpClient = new \GuzzleHttp\Client($guzzleOptions);
+                $api = new \GovPay\Backoffice\Api\ReportisticaApi($httpClient, $config);
+
+                // Almeno un gruppo è richiesto dall'API: usiamo DOMINIO di default
+                $gruppi = [\GovPay\Backoffice\Model\RaggruppamentoStatistica::DOMINIO];
+                // Se configurato in .env, filtra per ID_DOMINIO
+                $idDominioEnv = getenv('ID_DOMINIO');
+                if ($idDominioEnv !== false && $idDominioEnv !== '') {
+                    $idDominio = trim($idDominioEnv);
+                    // Parametri: gruppi, pagina, risultati_per_pagina, data_da, data_a, id_dominio
+                    $result = $api->findQuadratureRiscossioni($gruppi, 1, 10, null, null, $idDominio);
+                } else {
+                    $result = $api->findQuadratureRiscossioni($gruppi, 1, 10);
+                }
+
+                // Serializza il modello in JSON leggibile
+                $data = \GovPay\Backoffice\ObjectSerializer::sanitizeForSerialization($result);
+                $statsJson = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+            } catch (\Throwable $e) {
+                $errors[] = 'Errore chiamata Backoffice: ' . $e->getMessage();
+            }
+        } else {
+            $errors[] = 'Variabile GOVPAY_BACKOFFICE_URL non impostata';
+        }
+    } else {
+        $errors[] = 'Client Backoffice non disponibile (namespace GovPay\\Backoffice)';
+    }
+
+    return $twig->render($response, 'home.html.twig', [
+        'debug' => nl2br(htmlspecialchars($debug)),
+        'stats_json' => $statsJson,
+        'errors' => $errors,
+    ]);
 });
 
 // Pendenze route
