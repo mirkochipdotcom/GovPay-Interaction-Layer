@@ -22,50 +22,31 @@
       <div class="text-muted small">Compila uno o più campi</div>
     </div>
     <div class="card-body">
+      {% set ord = f.ordinamento|default('-dataCaricamento') %}
       <div class="row g-3">
         <div class="col-md-4">
-          {% set ord = f.ordinamento|default('-dataCaricamento') %}
-          <label class="form-label d-block">Ordina per data caricamento</label>
-          <div class="form-check form-check-inline">
-            <div class="toggles">
-              <label for="ordToggleVecchie">
-                <span class="me-2">Recenti</span>
-                <input type="checkbox" id="ordToggleVecchie" name="ordVecchiePrima" {% if ord == '+dataCaricamento' %}checked{% endif %}>
-                <span class="lever"></span>
-                <span class="ms-2">Vecchie</span>
-              </label>
-            </div>
-          </div>
-        </div>
-        <div class="col-md-3">
-          <div class="form-group">
-            <label for="idDominio" class="form-label">Dominio (CF ente)</label>
-            <input class="form-control" id="idDominio" name="idDominio" value="{{ f.idDominio|default('') }}" placeholder="CF ente" maxlength="11">
-          </div>
-        </div>
-        <div class="col-md-3">
           <div class="form-group">
             <label for="idPendenza" class="form-label">ID Pendenza</label>
             <input class="form-control" id="idPendenza" name="idPendenza" value="{{ f.idPendenza|default('') }}" placeholder="ID pendenza">
           </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-md-4">
           <div class="form-group">
             <label for="idDebitore" class="form-label">ID Debitore (CF/PI)</label>
             <input class="form-control" id="idDebitore" name="idDebitore" value="{{ f.idDebitore|default('') }}" placeholder="CF/PI">
           </div>
         </div>
 
-        <div class="col-md-3">
+        <div class="col-md-4">
           <div class="form-group">
             <label for="iuv" class="form-label">IUV</label>
             <input class="form-control" id="iuv" name="iuv" value="{{ f.iuv|default('') }}" placeholder="IUV">
           </div>
         </div>
-        <div class="col-md-3">
-          <div class="form-group">
+        <div class="col-md-4">
+          <div class="select-wrapper w-100">
             <label for="stato" class="form-label">Stato</label>
-            <select class="form-select" id="stato" name="stato" aria-label="Stato">
+            <select id="stato" name="stato" class="form-select" aria-label="Stato">
               <option value="">-- tutti --</option>
               {% set allowed = allowed_states|default([]) %}
               {% set order = pendenza_states|keys %}
@@ -86,20 +67,32 @@
           </div>
         </div>
 
-        <div class="col-md-6">
-          <label class="form-label">Intervallo date</label>
-          <div class="input-group">
-            <span class="input-group-text">Da</span>
-            <input class="form-control" type="date" name="dataDa" value="{{ f.dataDa|default('') }}">
-            <span class="input-group-text">A</span>
-            <input class="form-control" type="date" name="dataA" value="{{ f.dataA|default('') }}">
-          </div>
-        </div>
-
-        <div class="col-md-3">
-          <div class="form-group">
-            <label for="risultatiPerPagina" class="form-label">Risultati per pagina</label>
-            <input class="form-control" type="number" min="1" max="200" id="risultatiPerPagina" name="risultatiPerPagina" value="{{ f.risultatiPerPagina|default(25) }}" placeholder="25">
+        <div class="col-md-4">
+          <div class="form-group date-range-container position-relative">
+            <label for="dateRangeInput" class="form-label">Intervallo date</label>
+            <input type="text" id="dateRangeInput" class="form-control" placeholder="Seleziona intervallo" autocomplete="off" inputmode="none">
+            <input type="hidden" id="dataDa" name="dataDa" value="{{ f.dataDa|default('') }}">
+            <input type="hidden" id="dataA" name="dataA" value="{{ f.dataA|default('') }}">
+            <div id="dateRangePanel" class="card shadow date-range-panel d-none">
+              <div class="card-body p-3">
+                <div class="row g-2 align-items-center">
+                  <div class="col-6">
+                    <label for="dateStart" class="form-label mb-1">Da</label>
+                    <input type="date" id="dateStart" class="form-control">
+                  </div>
+                  <div class="col-6">
+                    <label for="dateEnd" class="form-label mb-1">A</label>
+                    <input type="date" id="dateEnd" class="form-control">
+                  </div>
+                </div>
+                <div class="d-flex flex-wrap gap-2 mt-3">
+                  <button type="button" class="btn btn-outline-primary btn-sm" data-range="week">Ultima settimana</button>
+                  <button type="button" class="btn btn-outline-primary btn-sm" data-range="month">Ultimo mese</button>
+                  <button type="button" class="btn btn-outline-secondary btn-sm" data-range="all">Tutto</button>
+                  <button type="button" class="btn btn-primary btn-sm ms-auto" data-action="apply">Applica</button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -111,9 +104,21 @@
         <a class="btn btn-outline-secondary" href="/pendenze/ricerca">
           <i class="fas fa-eraser me-1"></i> Azzera
         </a>
-        <button class="btn btn-link ms-auto" type="button" data-bs-toggle="collapse" data-bs-target="#advancedFilters" aria-expanded="false" aria-controls="advancedFilters">
+        <button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#advancedFilters" aria-expanded="false" aria-controls="advancedFilters">
           Filtri avanzati
         </button>
+
+        <div class="ms-auto d-flex align-items-center gap-2">
+          <span class="text-muted small">Ordine</span>
+          <div class="toggles">
+            <label for="ordToggleVecchie" class="mb-0 small">
+              <span class="me-2">Rec</span>
+              <input type="checkbox" id="ordToggleVecchie" name="ordVecchiePrima" {% if ord == '+dataCaricamento' %}checked{% endif %}>
+              <span class="lever"></span>
+              <span class="ms-2">Vec</span>
+            </label>
+          </div>
+        </div>
 
       <div class="collapse mt-3" id="advancedFilters">
         <div class="row g-3">
