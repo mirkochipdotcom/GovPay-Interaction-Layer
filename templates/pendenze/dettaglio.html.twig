@@ -100,14 +100,17 @@
 
     {# Collapse Ricevute Telematiche (RT) sotto ciascun tentativo RPP #}
     {% set rpp = r.rpp|default([]) %}
-    {% if rpp is iterable and rpp|length > 0 %}
-        <div class="card mt-3">
-          <div class="card-header d-flex justify-content-between align-items-center">
-          <span>Tentativi di pagamento (RPP) ({{ rpp|length }})</span>
-          <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#rtCollapse" aria-expanded="false" aria-controls="rtCollapse">Mostra/Nascondi</button>
-          </div>
-          <div class="collapse" id="rtCollapse">
-            <div class="card-body">
+    {% set rppCount = (rpp is iterable) ? (rpp|length) : 0 %}
+    <div class="card mt-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <button class="btn btn-sm btn-outline-secondary" type="button"
+          {% if rppCount == 0 %}disabled aria-disabled="true"{% else %}data-bs-toggle="collapse" data-bs-target="#rtCollapse" aria-expanded="false" aria-controls="rtCollapse"{% endif %}>
+          Mostra tentativi di pagamento <span class="badge bg-secondary">{{ rppCount }}</span>
+        </button>
+      </div>
+      {% if rppCount > 0 %}
+      <div class="collapse" id="rtCollapse">
+        <div class="card-body">
               <div class="table-responsive">
                 <table class="table table-striped align-middle">
                   <thead>
@@ -125,7 +128,8 @@
                   {% for rr in rpp %}
                     {# Seleziona la RT da usare: ultima se array, altrimenti singola #}
                     {% set selectedRt = null %}
-                    {% if rr.rt is defined and rr.rt is iterable and rr.rt|length > 0 %}
+                    {# Se rr.rt[0] esiste: è una lista di RT; altrimenti è un singolo oggetto RT #}
+                    {% if rr.rt is defined and rr.rt[0] is defined %}
                       {% set selectedRt = rr.rt|last %}
                     {% elseif rr.rt is defined and rr.rt %}
                       {% set selectedRt = rr.rt %}
@@ -160,9 +164,6 @@
                     {% set stato = '' %}
                     {% if selectedRt and selectedRt.datiPagamento is defined and selectedRt.datiPagamento.datiSingoloPagamento is defined and selectedRt.datiPagamento.datiSingoloPagamento|length > 0 and selectedRt.datiPagamento.datiSingoloPagamento[0].esitoSingoloPagamento is defined %}
                       {% set stato = selectedRt.datiPagamento.datiSingoloPagamento[0].esitoSingoloPagamento %}
-                    {% endif %}
-                    {% if stato == '' %}
-                      {% set stato = rr.stato|default('') %}
                     {% endif %}
                     {# IUV: da RPT #}
                     {% set iuv = (rr.rpt is defined and rr.rpt.datiVersamento is defined and rr.rpt.datiVersamento.identificativoUnivocoVersamento is defined)
@@ -203,8 +204,8 @@
               </div>
             </div>
           </div>
-        </div>
-    {% endif %}
+      {% endif %}
+    </div>
 
     {% if app_debug %}
       <div class="card mt-3">
