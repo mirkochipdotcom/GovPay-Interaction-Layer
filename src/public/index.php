@@ -392,19 +392,20 @@ $app->get('/avvisi/{idDominio}/{numeroAvviso}', function($request, $response, $a
     }
 });
 
-// Download Ricevuta di pagamento (PDF): /pagamenti/ricevute/{idDominio}/{iuv}/{idRicevuta}
-$app->get('/pagamenti/ricevute/{idDominio}/{iuv}/{idRicevuta}', function($request, $response, $args) {
+// Download Ricevuta Telematica (RT) via API Pendenze: /pendenze/rpp/{idDominio}/{iuv}/{ccp}/rt
+$app->get('/pendenze/rpp/{idDominio}/{iuv}/{ccp}/rt', function($request, $response, $args) {
     $idDominio = $args['idDominio'] ?? '';
     $iuv = $args['iuv'] ?? '';
-    $idRicevuta = $args['idRicevuta'] ?? '';
-    if ($idDominio === '' || $iuv === '' || $idRicevuta === '') {
+    $ccp = $args['ccp'] ?? '';
+    if ($idDominio === '' || $iuv === '' || $ccp === '') {
         $response->getBody()->write('Parametri mancanti');
         return $response->withStatus(400);
     }
 
-    $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
-    if (empty($backofficeUrl)) {
-        $response->getBody()->write('GOVPAY_BACKOFFICE_URL non impostata');
+    // Usa l'API Pendenze per recuperare la RT del tentativo RPP
+    $pendenzeUrl = getenv('GOVPAY_PENDENZE_URL') ?: '';
+    if (empty($pendenzeUrl)) {
+        $response->getBody()->write('GOVPAY_PENDENZE_URL non impostata');
         return $response->withStatus(500);
     }
 
@@ -434,12 +435,15 @@ $app->get('/pagamenti/ricevute/{idDominio}/{iuv}/{idRicevuta}', function($reques
         }
 
         $http = new \GuzzleHttp\Client($guzzleOptions);
-        $url = rtrim($backofficeUrl, '/') . '/pagamenti/ricevute/'
-            . rawurlencode($idDominio) . '/' . rawurlencode($iuv) . '/' . rawurlencode($idRicevuta);
+        // Endpoint Pendenze: /rpp/{idDominio}/{iuv}/{ccp}/rt
+        $url = rtrim($pendenzeUrl, '/') . '/rpp/'
+            . rawurlencode($idDominio) . '/' . rawurlencode($iuv) . '/' . rawurlencode($ccp) . '/rt';
+
+        // (debug headers rimossi)
         $resp = $http->request('GET', $url);
         $contentType = $resp->getHeaderLine('Content-Type');
         $pdf = (string)$resp->getBody();
-        $filename = 'ricevuta-' . $iuv . '-' . $idRicevuta . '.pdf';
+        $filename = 'rt-' . $iuv . '-' . $ccp . '.pdf';
         $response = $response
             ->withHeader('Content-Type', $contentType ?: 'application/pdf')
             ->withHeader('Content-Disposition', 'attachment; filename="' . $filename . '"')
@@ -712,6 +716,61 @@ if ($displayErrorDetails) {
         $body .= '</table>';
         $response->getBody()->write($body);
         return $response;
+    });
+
+    // Rotta di debug: elenca le ricevute disponibili per {idDominio}/{iuv}
+    $app->get('/_diag/ricevute/{idDominio}/{iuv}', function($request, $response, $args) {
+        $idDominio = $args['idDominio'] ?? '';
+        $iuv = $args['iuv'] ?? '';
+        if ($idDominio === '' || $iuv === '') {
+            $response->getBody()->write('Parametri mancanti');
+            return $response->withStatus(400);
+        }
+
+        $pagamentiUrl = getenv('GOVPAY_PAGAMENTI_URL') ?: '';
+        if (empty($pagamentiUrl)) {
+            $response->getBody()->write('GOVPAY_PAGAMENTI_URL non impostata');
+            return $response->withStatus(500);
+        }
+
+        try {
+            $username = getenv('GOVPAY_USER');
+            $password = getenv('GOVPAY_PASSWORD');
+            $guzzleOptions = [
+                'headers' => ['Accept' => 'application/json']
+            ];
+            $authMethod = getenv('AUTHENTICATION_GOVPAY');
+            if ($authMethod !== false && strtolower($authMethod) === 'sslheader') {
+                $cert = getenv('GOVPAY_TLS_CERT');
+                $key = getenv('GOVPAY_TLS_KEY');
+                $keyPass = getenv('GOVPAY_TLS_KEY_PASSWORD') ?: null;
+                if (!empty($cert) && !empty($key)) {
+                    $guzzleOptions['cert'] = $cert;
+                    $guzzleOptions['ssl_key'] = $keyPass ? [$key, $keyPass] : $key;
+                } else {
+                    $response->getBody()->write('mTLS abilitato ma GOVPAY_TLS_CERT/GOVPAY_TLS_KEY non impostati');
+                    return $response->withStatus(500);
+                }
+            }
+            if ($username !== false && $password !== false && $username !== '' && $password !== '') {
+                $guzzleOptions['auth'] = [$username, $password];
+            }
+
+            $http = new \GuzzleHttp\Client($guzzleOptions);
+            $url = rtrim($pagamentiUrl, '/') . '/ricevute/' . rawurlencode($idDominio) . '/' . rawurlencode($iuv);
+            $resp = $http->request('GET', $url, ['query' => ['esito' => 'ESEGUITO']]);
+            $json = (string)$resp->getBody();
+            $response = $response->withHeader('Content-Type', 'application/json');
+            $response->getBody()->write($json);
+            return $response;
+        } catch (\GuzzleHttp\Exception\ClientException $ce) {
+            $code = $ce->getResponse() ? $ce->getResponse()->getStatusCode() : 0;
+            $response->getBody()->write('Errore client diag ricevute: ' . $ce->getMessage());
+            return $response->withStatus($code ?: 500);
+        } catch (\Throwable $e) {
+            $response->getBody()->write('Errore diag ricevute: ' . $e->getMessage());
+            return $response->withStatus(500);
+        }
     });
 }
 
