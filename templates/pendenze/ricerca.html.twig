@@ -23,45 +23,48 @@
     </div>
     <div class="card-body">
       <div class="row g-3">
-        <div class="col-md-3">
-          <div class="form-floating">
-            <select class="form-select" id="ordinamento" name="ordinamento" aria-label="Ordina per">
-              {% set ord = f.ordinamento|default('-dataCaricamento') %}
-              <option value="-dataCaricamento" {% if ord == '-dataCaricamento' %}selected{% endif %}>Data caricamento (recenti prima)</option>
-              <option value="+dataCaricamento" {% if ord == '+dataCaricamento' %}selected{% endif %}>Data caricamento (vecchie prima)</option>
-              <option value="+nome" {% if ord == '+nome' %}selected{% endif %}>Nome (A→Z)</option>
-              <option value="-nome" {% if ord == '-nome' %}selected{% endif %}>Nome (Z→A)</option>
-            </select>
-            <label for="ordinamento">Ordina per</label>
+        <div class="col-md-4">
+          {% set ord = f.ordinamento|default('-dataCaricamento') %}
+          <label class="form-label d-block">Ordina per data caricamento</label>
+          <div class="form-check form-check-inline">
+            <div class="toggles">
+              <label for="ordToggleVecchie">
+                <span class="me-2">Recenti</span>
+                <input type="checkbox" id="ordToggleVecchie" name="ordVecchiePrima" {% if ord == '+dataCaricamento' %}checked{% endif %}>
+                <span class="lever"></span>
+                <span class="ms-2">Vecchie</span>
+              </label>
+            </div>
           </div>
         </div>
         <div class="col-md-3">
-          <div class="form-floating">
+          <div class="form-group">
+            <label for="idDominio" class="form-label">Dominio (CF ente)</label>
             <input class="form-control" id="idDominio" name="idDominio" value="{{ f.idDominio|default('') }}" placeholder="CF ente" maxlength="11">
-            <label for="idDominio">Dominio (CF ente)</label>
           </div>
         </div>
         <div class="col-md-3">
-          <div class="form-floating">
+          <div class="form-group">
+            <label for="idPendenza" class="form-label">ID Pendenza</label>
             <input class="form-control" id="idPendenza" name="idPendenza" value="{{ f.idPendenza|default('') }}" placeholder="ID pendenza">
-            <label for="idPendenza">ID Pendenza</label>
           </div>
         </div>
         <div class="col-md-3">
-          <div class="form-floating">
+          <div class="form-group">
+            <label for="idDebitore" class="form-label">ID Debitore (CF/PI)</label>
             <input class="form-control" id="idDebitore" name="idDebitore" value="{{ f.idDebitore|default('') }}" placeholder="CF/PI">
-            <label for="idDebitore">ID Debitore (CF/PI)</label>
           </div>
         </div>
 
         <div class="col-md-3">
-          <div class="form-floating">
+          <div class="form-group">
+            <label for="iuv" class="form-label">IUV</label>
             <input class="form-control" id="iuv" name="iuv" value="{{ f.iuv|default('') }}" placeholder="IUV">
-            <label for="iuv">IUV</label>
           </div>
         </div>
         <div class="col-md-3">
-          <div class="form-floating">
+          <div class="form-group">
+            <label for="stato" class="form-label">Stato</label>
             <select class="form-select" id="stato" name="stato" aria-label="Stato">
               <option value="">-- tutti --</option>
               {% set allowed = allowed_states|default([]) %}
@@ -80,7 +83,6 @@
                 {% endif %}
               {% endfor %}
             </select>
-            <label for="stato">Stato</label>
           </div>
         </div>
 
@@ -95,9 +97,9 @@
         </div>
 
         <div class="col-md-3">
-          <div class="form-floating">
+          <div class="form-group">
+            <label for="risultatiPerPagina" class="form-label">Risultati per pagina</label>
             <input class="form-control" type="number" min="1" max="200" id="risultatiPerPagina" name="risultatiPerPagina" value="{{ f.risultatiPerPagina|default(25) }}" placeholder="25">
-            <label for="risultatiPerPagina">Risultati per pagina</label>
           </div>
         </div>
       </div>
@@ -116,27 +118,27 @@
       <div class="collapse mt-3" id="advancedFilters">
         <div class="row g-3">
           <div class="col-md-3">
-            <div class="form-floating">
+            <div class="form-group">
+              <label for="idA2A" class="form-label">ID A2A</label>
               <input class="form-control" id="idA2A" name="idA2A" value="{{ f.idA2A|default('') }}" placeholder="ID A2A">
-              <label for="idA2A">ID A2A</label>
             </div>
           </div>
           <div class="col-md-3">
-            <div class="form-floating">
+            <div class="form-group">
+              <label for="idPagamento" class="form-label">ID Pagamento</label>
               <input class="form-control" id="idPagamento" name="idPagamento" value="{{ f.idPagamento|default('') }}" placeholder="ID Pagamento">
-              <label for="idPagamento">ID Pagamento</label>
             </div>
           </div>
           <div class="col-md-3">
-            <div class="form-floating">
+            <div class="form-group">
+              <label for="direzione" class="form-label">Direzione</label>
               <input class="form-control" id="direzione" name="direzione" value="{{ f.direzione|default('') }}" placeholder="Direzione">
-              <label for="direzione">Direzione</label>
             </div>
           </div>
           <div class="col-md-3">
-            <div class="form-floating">
+            <div class="form-group">
+              <label for="divisione" class="form-label">Divisione</label>
               <input class="form-control" id="divisione" name="divisione" value="{{ f.divisione|default('') }}" placeholder="Divisione">
-              <label for="divisione">Divisione</label>
             </div>
           </div>
         </div>

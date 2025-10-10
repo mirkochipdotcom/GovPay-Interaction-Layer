@@ -32,12 +32,19 @@ class PendenzeController
         }
 
         // Filtri con default leggeri
+        // Ordinamento: se presente il toggle ordVecchiePrima (checkbox), usa '+dataCaricamento',
+        // altrimenti usa il parametro 'ordinamento' se passato, o di default '-dataCaricamento'.
+        $ordFromToggle = array_key_exists('ordVecchiePrima', $params);
+        $ordinamento = $ordFromToggle
+            ? '+dataCaricamento'
+            : (string)($params['ordinamento'] ?? '-dataCaricamento');
+
         $filters = [
             'q' => isset($params['q']) ? (string)$params['q'] : null,
             'pagina' => max(1, (int)($params['pagina'] ?? 1)),
             'risultatiPerPagina' => min(200, max(1, (int)($params['risultatiPerPagina'] ?? 25))),
             // Ordinamento di default: più recenti prima
-            'ordinamento' => (string)($params['ordinamento'] ?? '-dataCaricamento'),
+            'ordinamento' => $ordinamento,
             'idDominio' => (string)($params['idDominio'] ?? (getenv('ID_DOMINIO') ?: '')),
             'idA2A' => (string)($params['idA2A'] ?? ''),
             'idPendenza' => (string)($params['idPendenza'] ?? ''),
