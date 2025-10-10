@@ -98,15 +98,15 @@
       </div>
     </div>
 
-    {# Collapse RPP: tentativi di pagamento #}
-    {% set rpp = r.rpp|default([]) %}
-    {% if rpp is iterable and rpp|length > 0 %}
+    {# Collapse Pagamenti #}
+    {% set pagamenti = r.pagamenti|default([]) %}
+    {% if pagamenti is iterable and pagamenti|length > 0 %}
       <div class="card mt-3">
         <div class="card-header d-flex justify-content-between align-items-center">
-          <span>Tentativi di pagamento ({{ rpp|length }})</span>
-          <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#rppCollapse" aria-expanded="false" aria-controls="rppCollapse">Mostra/Nascondi</button>
+          <span>Pagamenti ({{ pagamenti|length }})</span>
+          <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#pagamentiCollapse" aria-expanded="false" aria-controls="pagamentiCollapse">Mostra/Nascondi</button>
         </div>
-        <div class="collapse" id="rppCollapse">
+        <div class="collapse" id="pagamentiCollapse">
           <div class="card-body">
             <div class="table-responsive">
               <table class="table table-striped align-middle">
@@ -122,16 +122,22 @@
                   </tr>
                 </thead>
                 <tbody>
-                {% for t in rpp %}
-                  {% set idPago = t.identificativoPagamento|default(t.idPagamento|default('')) %}
-                  {% set dataOp = t.data|default(t.dataOperazione|default('')) %}
+                {% for t in pagamenti %}
+                  {# Mapping robusto dei campi #}
+                  {% set idPago = t.idPagamento|default(t.identificativoPagamento|default(t.id|default(''))) %}
+                  {% set dataOp = t.dataPagamento|default(t.data|default(t.dataOperazione|default(''))) %}
                   {% set importo = t.importo|default(t.importoPagato|default(null)) %}
-                  {% set abi = t.abi|default('') %}
-                  {% set istituto = t.istituto|default(t.denominazionePsp|default('')) %}
+                  {% set pspAbi = (t.psp is defined and t.psp) ? (t.psp.abi|default('')) : '' %}
+                  {% set pspDen = (t.psp is defined and t.psp) ? (t.psp.denominazione|default('')) : '' %}
+                  {% set abi = t.abi|default(pspAbi) %}
+                  {% set istituto = t.istituto|default(t.denominazionePsp|default(pspDen)) %}
                   {% set stato = t.stato|default(t.esito|default('')) %}
-                  {% set iuv = r.iuv|default('') %}
+                  {% set iuv = t.iuv|default(r.iuv|default('')) %}
                   {% set idDom = id_dominio|default(r.idDominio|default('')) %}
                   {% set idRicevuta = t.idRicevuta|default(t.identificativoRicevuta|default('')) %}
+                  {% if idRicevuta == '' and t.ricevute is defined and t.ricevute|length > 0 %}
+                    {% set idRicevuta = t.ricevute[0].idRicevuta|default(t.ricevute[0].identificativo|default('')) %}
+                  {% endif %}
                   <tr>
                     <td>{{ idPago ?: '—' }}</td>
                     <td class="text-nowrap">{% if dataOp %}{{ dataOp|date('d/m/Y H:i') }}{% else %}—{% endif %}</td>
