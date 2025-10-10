@@ -5,7 +5,15 @@
 {% block content %}
   <div class="d-flex align-items-center justify-content-between mb-3">
     <h2 class="h4 mb-0">Dettaglio pendenza <span class="text-muted">{{ idPendenza }}</span></h2>
-    <a class="btn btn-outline-secondary" href="{{ return_url|default('/pendenze/ricerca') }}">&laquo; Torna alla ricerca</a>
+    <div class="d-flex gap-2">
+      {% set idDom = id_dominio|default(pendenza.idDominio|default('')) %}
+      {% if idDom and pendenza.numeroAvviso %}
+        <a class="btn btn-primary" href="/avvisi/{{ idDom|url_encode }}/{{ pendenza.numeroAvviso|url_encode }}" target="_blank" rel="noopener" title="Scarica avviso (PDF)">
+          <i class="fas fa-file-pdf me-1"></i> Scarica avviso
+        </a>
+      {% endif %}
+      <a class="btn btn-outline-secondary" href="{{ return_url|default('/pendenze/ricerca') }}">&laquo; Torna alla ricerca</a>
+    </div>
   </div>
 
   {% if error %}
@@ -89,6 +97,66 @@
         </div>
       </div>
     </div>
+
+    {# Collapse RPP: tentativi di pagamento #}
+    {% set rpp = r.rpp|default([]) %}
+    {% if rpp is iterable and rpp|length > 0 %}
+      <div class="card mt-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span>Tentativi di pagamento ({{ rpp|length }})</span>
+          <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#rppCollapse" aria-expanded="false" aria-controls="rppCollapse">Mostra/Nascondi</button>
+        </div>
+        <div class="collapse" id="rppCollapse">
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-striped align-middle">
+                <thead>
+                  <tr>
+                    <th>Identificativo pagamento</th>
+                    <th>Data e ora</th>
+                    <th>Stato</th>
+                    <th class="text-end">Importo</th>
+                    <th>ABI</th>
+                    <th>Istituto</th>
+                    <th class="text-center">Ricevuta</th>
+                  </tr>
+                </thead>
+                <tbody>
+                {% for t in rpp %}
+                  {% set idPago = t.identificativoPagamento|default(t.idPagamento|default('')) %}
+                  {% set dataOp = t.data|default(t.dataOperazione|default('')) %}
+                  {% set importo = t.importo|default(t.importoPagato|default(null)) %}
+                  {% set abi = t.abi|default('') %}
+                  {% set istituto = t.istituto|default(t.denominazionePsp|default('')) %}
+                  {% set stato = t.stato|default(t.esito|default('')) %}
+                  {% set iuv = r.iuv|default('') %}
+                  {% set idDom = id_dominio|default(r.idDominio|default('')) %}
+                  {% set idRicevuta = t.idRicevuta|default(t.identificativoRicevuta|default('')) %}
+                  <tr>
+                    <td>{{ idPago ?: '—' }}</td>
+                    <td class="text-nowrap">{% if dataOp %}{{ dataOp|date('d/m/Y H:i') }}{% else %}—{% endif %}</td>
+                    <td>{{ stato ?: '—' }}</td>
+                    <td class="text-end">{% if importo is not null %}{{ importo|number_format(2, ',', '.') }} €{% else %}—{% endif %}</td>
+                    <td>{{ abi ?: '—' }}</td>
+                    <td>{{ istituto ?: '—' }}</td>
+                    <td class="text-center">
+                      {% if idDom and iuv and idRicevuta %}
+                        <a class="btn btn-outline-primary btn-sm px-2 py-0" href="/pagamenti/ricevute/{{ idDom|url_encode }}/{{ iuv|url_encode }}/{{ idRicevuta|url_encode }}" title="Scarica ricevuta" aria-label="Scarica ricevuta">
+                          <i class="fas fa-file-pdf"></i>
+                        </a>
+                      {% else %}
+                        <span class="text-muted">—</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endif %}
 
     {% if app_debug %}
       <div class="card mt-3">
