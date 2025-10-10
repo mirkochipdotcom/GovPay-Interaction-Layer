@@ -100,21 +100,11 @@
 
     {# Collapse Ricevute Telematiche (RT) sotto ciascun tentativo RPP #}
     {% set rpp = r.rpp|default([]) %}
-    {% set rtCount = 0 %}
     {% if rpp is iterable and rpp|length > 0 %}
-      {# Conta quante RT totali per etichetta (solo rr.rt) #}
-      {% for rr in rpp %}
-        {% if rr.rt is defined and rr.rt is iterable %}
-          {% set rtCount = rtCount + rr.rt|length %}
-        {% elseif rr.rt is defined and rr.rt %}
-          {% set rtCount = rtCount + 1 %}
-        {% endif %}
-      {% endfor %}
-      {% if rtCount > 0 %}
         <div class="card mt-3">
           <div class="card-header d-flex justify-content-between align-items-center">
-            <span>Ricevute telematiche (RT) ({{ rtCount }})</span>
-            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#rtCollapse" aria-expanded="false" aria-controls="rtCollapse">Mostra/Nascondi</button>
+          <span>Tentativi di pagamento (RPP) ({{ rpp|length }})</span>
+          <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#rtCollapse" aria-expanded="false" aria-controls="rtCollapse">Mostra/Nascondi</button>
           </div>
           <div class="collapse" id="rtCollapse">
             <div class="card-body">
@@ -133,69 +123,80 @@
                   </thead>
                   <tbody>
                   {% for rr in rpp %}
-                    {# Determina la lista RT per il tentativo rr (solo rr.rt) #}
-                    {% set rtList = [] %}
-                    {% if rr.rt is defined and rr.rt is iterable %}
-                      {% set rtList = rr.rt %}
+                    {# Seleziona la RT da usare: ultima se array, altrimenti singola #}
+                    {% set selectedRt = null %}
+                    {% if rr.rt is defined and rr.rt is iterable and rr.rt|length > 0 %}
+                      {% set selectedRt = rr.rt|last %}
                     {% elseif rr.rt is defined and rr.rt %}
-                      {% set rtList = [rr.rt] %}
+                      {% set selectedRt = rr.rt %}
                     {% endif %}
-                    {% for rt in rtList %}
-                      {# Identificativo: da RPT -> datiVersamento -> codiceContestoPagamento #}
-                      {% set idPago = rr.rpt is defined and rr.rpt.datiVersamento is defined and rr.rpt.datiVersamento.codiceContestoPagamento is defined 
-                        ? rr.rpt.datiVersamento.codiceContestoPagamento 
-                        : '' %}
-                      {# Data: da RPT -> datiVersamento -> dataEsecuzionePagamento #}
-                      {% set dataOp = rr.rpt is defined and rr.rpt.datiVersamento is defined and rr.rpt.datiVersamento.dataEsecuzionePagamento is defined 
-                        ? rr.rpt.datiVersamento.dataEsecuzionePagamento 
-                        : '' %}
-                      {# Importo: da RPT -> datiVersamento -> datiSingoloVersamento[0] -> importoSingoloVersamento #}
-                      {% set importo = (rr.rpt is defined and rr.rpt.datiVersamento is defined and rr.rpt.datiVersamento.datiSingoloVersamento is defined and rr.rpt.datiVersamento.datiSingoloVersamento|length > 0 and rr.rpt.datiVersamento.datiSingoloVersamento[0].importoSingoloVersamento is defined)
-                        ? rr.rpt.datiVersamento.datiSingoloVersamento[0].importoSingoloVersamento
-                        : null %}
-                      {# ABI/Istituto: da RT -> istitutoAttestante #}
-                      {% set abi = (rt.istitutoAttestante is defined and rt.istitutoAttestante.identificativoUnivocoAttestante is defined) 
-                        ? (rt.istitutoAttestante.identificativoUnivocoAttestante.codiceIdentificativoUnivoco|default('')) 
-                        : '' %}
-                      {% set istituto = (rt.istitutoAttestante is defined) 
-                        ? (rt.istitutoAttestante.denominazioneAttestante|default('')) 
-                        : '' %}
-                      {# Stato: usa lo stato del tentativo #}
+
+                    {# Identificativo: da RPT -> datiVersamento -> codiceContestoPagamento #}
+                    {% set idPago = rr.rpt is defined and rr.rpt.datiVersamento is defined and rr.rpt.datiVersamento.codiceContestoPagamento is defined 
+                      ? rr.rpt.datiVersamento.codiceContestoPagamento 
+                      : '' %}
+                    {# Data e ora: dataEsecuzionePagamento (data) + ora di dataOraMessaggioRichiesta #}
+                    {% set dataExec = rr.rpt is defined and rr.rpt.datiVersamento is defined and rr.rpt.datiVersamento.dataEsecuzionePagamento is defined ? rr.rpt.datiVersamento.dataEsecuzionePagamento : '' %}
+                    {% set oraMsg = rr.rpt is defined and rr.rpt.dataOraMessaggioRichiesta is defined ? rr.rpt.dataOraMessaggioRichiesta : '' %}
+                    {# Normalizza data e ora in stringhe sicure prima di concatenare #}
+                    {% set combinedTs = '' %}
+                    {% if dataExec %}
+                      {% set dataExecStr = dataExec|date('Y-m-d') %}
+                      {% set timeStr = oraMsg ? (oraMsg|date('H:i:s')) : '00:00:00' %}
+                      {% set combinedTs = dataExecStr ~ ' ' ~ timeStr %}
+                    {% endif %}
+                    {# Importo: da RPT -> datiVersamento -> datiSingoloVersamento[0] -> importoSingoloVersamento #}
+                    {% set importo = (rr.rpt is defined and rr.rpt.datiVersamento is defined and rr.rpt.datiVersamento.datiSingoloVersamento is defined and rr.rpt.datiVersamento.datiSingoloVersamento|length > 0 and rr.rpt.datiVersamento.datiSingoloVersamento[0].importoSingoloVersamento is defined)
+                      ? rr.rpt.datiVersamento.datiSingoloVersamento[0].importoSingoloVersamento
+                      : null %}
+                    {# ABI/Istituto: da selectedRt -> istitutoAttestante #}
+                    {% set abi = (selectedRt and selectedRt.istitutoAttestante is defined and selectedRt.istitutoAttestante.identificativoUnivocoAttestante is defined)
+                      ? (selectedRt.istitutoAttestante.identificativoUnivocoAttestante.codiceIdentificativoUnivoco|default(''))
+                      : '' %}
+                    {% set istituto = (selectedRt and selectedRt.istitutoAttestante is defined)
+                      ? (selectedRt.istitutoAttestante.denominazioneAttestante|default(''))
+                      : '' %}
+                    {# Stato: da selectedRt -> datiPagamento -> datiSingoloPagamento[0] -> esitoSingoloPagamento #}
+                    {% set stato = '' %}
+                    {% if selectedRt and selectedRt.datiPagamento is defined and selectedRt.datiPagamento.datiSingoloPagamento is defined and selectedRt.datiPagamento.datiSingoloPagamento|length > 0 and selectedRt.datiPagamento.datiSingoloPagamento[0].esitoSingoloPagamento is defined %}
+                      {% set stato = selectedRt.datiPagamento.datiSingoloPagamento[0].esitoSingoloPagamento %}
+                    {% endif %}
+                    {% if stato == '' %}
                       {% set stato = rr.stato|default('') %}
-                      {# IUV per link ricevuta: usa IUV da RPT #}
-                      {% set iuv = (rr.rpt is defined and rr.rpt.datiVersamento is defined and rr.rpt.datiVersamento.identificativoUnivocoVersamento is defined)
-                        ? rr.rpt.datiVersamento.identificativoUnivocoVersamento
-                        : (r.iuv|default('')) %}
-                      {% set idDom = id_dominio|default(r.idDominio|default('')) %}
-                      {# idRicevuta: preferisci identificativoUnivocoRiscossione nella RT, altrimenti identificativoMessaggioRicevuta #}
-                      {% set idRicevuta = '' %}
-                      {% if rt.datiPagamento is defined and rt.datiPagamento.datiSingoloPagamento is defined and rt.datiPagamento.datiSingoloPagamento|length > 0 
-                            and rt.datiPagamento.datiSingoloPagamento[0].identificativoUnivocoRiscossione is defined 
-                            and rt.datiPagamento.datiSingoloPagamento[0].identificativoUnivocoRiscossione 
-                            and rt.datiPagamento.datiSingoloPagamento[0].identificativoUnivocoRiscossione != '0' %}
-                        {% set idRicevuta = rt.datiPagamento.datiSingoloPagamento[0].identificativoUnivocoRiscossione %}
-                      {% elseif rt.identificativoMessaggioRicevuta is defined and rt.identificativoMessaggioRicevuta %}
-                        {% set idRicevuta = rt.identificativoMessaggioRicevuta %}
-                      {% endif %}
-                      {% set displayId = idPago ?: iuv %}
-                      <tr>
-                        <td>{{ displayId ?: '—' }}</td>
-                        <td class="text-nowrap">{% if dataOp %}{{ dataOp|date('d/m/Y') }}{% else %}—{% endif %}</td>
-                        <td>{{ stato ?: '—' }}</td>
-                        <td class="text-end">{% if importo is not null %}{{ importo|number_format(2, ',', '.') }} €{% else %}—{% endif %}</td>
-                        <td>{{ abi ?: '—' }}</td>
-                        <td>{{ istituto ?: '—' }}</td>
-                        <td class="text-center">
-                          {% if idDom and iuv and idRicevuta %}
-                            <a class="btn btn-outline-primary btn-sm px-2 py-0" href="/pagamenti/ricevute/{{ idDom|url_encode }}/{{ iuv|url_encode }}/{{ idRicevuta|url_encode }}" title="Scarica ricevuta" aria-label="Scarica ricevuta">
-                              <i class="fas fa-file-pdf"></i>
-                            </a>
-                          {% else %}
-                            <span class="text-muted">—</span>
-                          {% endif %}
-                        </td>
-                      </tr>
-                    {% endfor %}
+                    {% endif %}
+                    {# IUV: da RPT #}
+                    {% set iuv = (rr.rpt is defined and rr.rpt.datiVersamento is defined and rr.rpt.datiVersamento.identificativoUnivocoVersamento is defined)
+                      ? rr.rpt.datiVersamento.identificativoUnivocoVersamento
+                      : (r.iuv|default('')) %}
+                    {% set idDom = id_dominio|default(r.idDominio|default('')) %}
+                    {# idRicevuta da selectedRt #}
+                    {% set idRicevuta = '' %}
+                    {% if selectedRt and selectedRt.datiPagamento is defined and selectedRt.datiPagamento.datiSingoloPagamento is defined and selectedRt.datiPagamento.datiSingoloPagamento|length > 0 
+                          and selectedRt.datiPagamento.datiSingoloPagamento[0].identificativoUnivocoRiscossione is defined 
+                          and selectedRt.datiPagamento.datiSingoloPagamento[0].identificativoUnivocoRiscossione 
+                          and selectedRt.datiPagamento.datiSingoloPagamento[0].identificativoUnivocoRiscossione != '0' %}
+                      {% set idRicevuta = selectedRt.datiPagamento.datiSingoloPagamento[0].identificativoUnivocoRiscossione %}
+                    {% elseif selectedRt and selectedRt.identificativoMessaggioRicevuta is defined and selectedRt.identificativoMessaggioRicevuta %}
+                      {% set idRicevuta = selectedRt.identificativoMessaggioRicevuta %}
+                    {% endif %}
+                    {% set displayId = idPago ?: iuv %}
+                    <tr>
+                      <td>{{ displayId ?: '—' }}</td>
+                      <td class="text-nowrap">{% if combinedTs %}{{ combinedTs|date('d/m/Y H:i:s') }}{% else %}—{% endif %}</td>
+                      <td>{{ stato ?: '—' }}</td>
+                      <td class="text-end">{% if importo is not null %}{{ importo|number_format(2, ',', '.') }} €{% else %}—{% endif %}</td>
+                      <td>{{ abi ?: '—' }}</td>
+                      <td>{{ istituto ?: '—' }}</td>
+                      <td class="text-center">
+                        {% if idDom and iuv and idRicevuta %}
+                          <a class="btn btn-outline-primary btn-sm px-2 py-0" href="/pagamenti/ricevute/{{ idDom|url_encode }}/{{ iuv|url_encode }}/{{ idRicevuta|url_encode }}" title="Scarica ricevuta" aria-label="Scarica ricevuta">
+                            <i class="fas fa-file-pdf"></i>
+                          </a>
+                        {% else %}
+                          <span class="text-muted">—</span>
+                        {% endif %}
+                      </td>
+                    </tr>
                   {% endfor %}
                   </tbody>
                 </table>
@@ -203,7 +204,6 @@
             </div>
           </div>
         </div>
-      {% endif %}
     {% endif %}
 
     {% if app_debug %}
