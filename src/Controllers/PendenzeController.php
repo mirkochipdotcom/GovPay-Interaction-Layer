@@ -32,12 +32,16 @@ class PendenzeController
         }
 
         // Filtri con default leggeri
-        // Ordinamento: se presente il toggle ordVecchiePrima (checkbox), usa '+dataCaricamento',
-        // altrimenti usa il parametro 'ordinamento' se passato, o di default '-dataCaricamento'.
-        $ordFromToggle = array_key_exists('ordVecchiePrima', $params);
-        $ordinamento = $ordFromToggle
-            ? '+dataCaricamento'
-            : (string)($params['ordinamento'] ?? '-dataCaricamento');
+        // Ordinamento: singolo toggle ordRecentiPrima (checked => recenti prima).
+        // Se il form è stato inviato (q=1) e la checkbox non è presente => vecchie prima.
+        $formSubmitted = array_key_exists('q', $params);
+        if (array_key_exists('ordRecentiPrima', $params)) {
+            $ordinamento = '-dataCaricamento';
+        } elseif ($formSubmitted) {
+            $ordinamento = '+dataCaricamento';
+        } else {
+            $ordinamento = (string)($params['ordinamento'] ?? '-dataCaricamento');
+        }
 
         $filters = [
             'q' => isset($params['q']) ? (string)$params['q'] : null,
@@ -219,10 +223,13 @@ class PendenzeController
                     $qs['q'] = '1';
                     if ($filters['pagina'] > 1) {
                         $qs['pagina'] = $filters['pagina'] - 1;
+                        // Propaga esplicitamente l'ordinamento calcolato
+                        $qs['ordinamento'] = $ordinamento;
                         $prevUrl = $basePath . '?' . http_build_query($qs);
                     }
                     if ($numPagine !== null && $filters['pagina'] < (int)$numPagine) {
                         $qs['pagina'] = $filters['pagina'] + 1;
+                        $qs['ordinamento'] = $ordinamento;
                         $nextUrl = $basePath . '?' . http_build_query($qs);
                     }
                 } catch (\Throwable $e) {

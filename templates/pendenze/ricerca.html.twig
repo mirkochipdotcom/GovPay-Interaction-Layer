@@ -109,13 +109,11 @@
         </button>
 
         <div class="ms-auto d-flex align-items-center gap-2">
-          <span class="text-muted small">Ordine</span>
+          <span class="text-muted small">Ordinamento più recente</span>
           <div class="toggles">
             <label for="ordToggleVecchie" class="mb-0 small">
-              <span class="me-2">Rec</span>
-              <input type="checkbox" id="ordToggleVecchie" name="ordVecchiePrima" {% if ord == '+dataCaricamento' %}checked{% endif %}>
+              <input type="checkbox" id="ordToggleVecchie" name="ordRecentiPrima" {% if ord is defined and ord == '-dataCaricamento' %}checked{% endif %}>
               <span class="lever"></span>
-              <span class="ms-2">Vec</span>
             </label>
           </div>
         </div>
