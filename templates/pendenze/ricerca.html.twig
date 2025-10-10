@@ -178,8 +178,11 @@
           </tr>
         </thead>
         <tbody>
+          {% set hl = highlight_id|default('') %}
           {% for r in results.risultati|default([]) %}
-            <tr class="align-middle">
+            {% set rid = r.idPendenza|default('') %}
+            {% set is_hl = hl and rid and (hl == rid) %}
+            <tr id="row-{{ rid }}" class="align-middle{% if is_hl %} table-warning highlight-row{% endif %}">
               <td>
                 {% set cf = r.soggettoPagatore.identificativo|default('') %}
                 {% set den = r.soggettoPagatore.anagrafica|default(r.soggettoPagatore.denominazione|default('')) %}
@@ -193,7 +196,14 @@
               </td>
               <td>{{ r.causale|default(r.nome|default('')) }}</td>
               <td>{{ r.tipoPendenza.descrizione|default('') }}</td>
-              <td>{{ r.dataScadenza|default('') }}</td>
+              <td class="text-nowrap">
+                {% set ds = r.dataScadenza|default('') %}
+                {% if ds %}
+                  {{ ds|date('d/m/Y') }}
+                {% else %}
+                  —
+                {% endif %}
+              </td>
               <td class="text-center">{{ r.importo is defined ? (r.importo|number_format(2, ',', '.')) : '' }}</td>
               <td>
                 {% set st = r.stato|default('') %}
@@ -206,7 +216,11 @@
               </td>
               <td class="text-center">
                 {% if r.idPendenza is defined and r.idPendenza %}
-                  <a class="btn btn-outline-primary btn-sm px-2 py-0" href="/pendenze/dettaglio/{{ r.idPendenza|url_encode }}" title="Dettaglio" aria-label="Dettaglio">
+                  {% set back = return_url|default('/pendenze/ricerca') %}
+                  {# Alla fine del ritorno, aggiungi highlight e anchor alla riga #}
+                  {% set anchor = '#row-' ~ r.idPendenza %}
+                  {% set back_hl = back ~ ('?' in back ? '&' : '?') ~ 'highlight=' ~ (r.idPendenza|url_encode) ~ (anchor) %}
+                  <a class="btn btn-outline-primary btn-sm px-2 py-0" href="/pendenze/dettaglio/{{ r.idPendenza|url_encode }}?return={{ back_hl|url_encode }}" title="Dettaglio" aria-label="Dettaglio">
                     <i class="fas fa-eye"></i>
                   </a>
                 {% else %}

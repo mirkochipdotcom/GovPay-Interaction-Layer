@@ -211,9 +211,14 @@ $app->get('/pendenze/ricerca', function($request, $response) use ($twig) {
     $queryMade = $req->getAttribute('query_made');
     $prevUrl = $req->getAttribute('prev_url');
     $nextUrl = $req->getAttribute('next_url');
+    // ID pendenza da evidenziare (ritorno dal dettaglio)
+    $highlightId = $request->getQueryParams()['highlight'] ?? null;
     if (isset($_SESSION['user'])) {
         $twig->getEnvironment()->addGlobal('current_user', $_SESSION['user']);
     }
+    // Costruisce l'URL di ritorno alla ricerca preservando la query corrente
+    $qs = $request->getUri()->getQuery();
+    $returnUrl = '/pendenze/ricerca' . ($qs ? ('?' . $qs) : '');
     return $twig->render($response, 'pendenze/ricerca.html.twig', [
         'filters' => $filters,
         'errors' => $errors,
@@ -224,6 +229,8 @@ $app->get('/pendenze/ricerca', function($request, $response) use ($twig) {
         'query_made' => $queryMade,
         'prev_url' => $prevUrl,
         'next_url' => $nextUrl,
+        'return_url' => $returnUrl,
+        'highlight_id' => $highlightId,
     ]);
 });
 
@@ -241,14 +248,82 @@ $app->get('/pendenze/inserimento-massivo', function($request, $response) use ($t
     return $twig->render($response, 'pendenze/inserimento_massivo.html.twig');
 });
 
-// Dettaglio pendenza (placeholder)
+// Dettaglio pendenza (API: /pendenze/{idA2A}/{idPendenza})
 $app->get('/pendenze/dettaglio/{idPendenza}', function($request, $response, $args) use ($twig) {
     if (isset($_SESSION['user'])) {
         $twig->getEnvironment()->addGlobal('current_user', $_SESSION['user']);
     }
     $idPendenza = $args['idPendenza'] ?? '';
+    $q = $request->getQueryParams();
+    $ret = $q['return'] ?? '/pendenze/ricerca';
+    // Whitelisting: consenti solo ritorni verso /pendenze/ricerca
+    if (strpos($ret, '/pendenze/ricerca') !== 0) {
+        $ret = '/pendenze/ricerca';
+    }
+
+    $error = null;
+    $pendenza = null;
+
+    $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
+    $idA2A = getenv('ID_A2A') ?: '';
+    if ($idPendenza === '') {
+        $error = 'ID pendenza non specificato';
+    } elseif (empty($backofficeUrl)) {
+        $error = 'Variabile GOVPAY_BACKOFFICE_URL non impostata';
+    } elseif ($idA2A === '') {
+        $error = 'Variabile ID_A2A non impostata nel file .env';
+    } else {
+        try {
+            // Config client (basic/mTLS come altrove)
+            $username = getenv('GOVPAY_USER');
+            $password = getenv('GOVPAY_PASSWORD');
+            $guzzleOptions = [
+                'headers' => ['Accept' => 'application/json']
+            ];
+            $authMethod = getenv('AUTHENTICATION_GOVPAY');
+            if ($authMethod !== false && strtolower($authMethod) === 'sslheader') {
+                $cert = getenv('GOVPAY_TLS_CERT');
+                $key = getenv('GOVPAY_TLS_KEY');
+                $keyPass = getenv('GOVPAY_TLS_KEY_PASSWORD') ?: null;
+                if (!empty($cert) && !empty($key)) {
+                    $guzzleOptions['cert'] = $cert;
+                    $guzzleOptions['ssl_key'] = $keyPass ? [$key, $keyPass] : $key;
+                } else {
+                    $error = 'mTLS abilitato ma GOVPAY_TLS_CERT/GOVPAY_TLS_KEY non impostati';
+                }
+            }
+            if (!$error && $username !== false && $password !== false && $username !== '' && $password !== '') {
+                $guzzleOptions['auth'] = [$username, $password];
+            }
+
+            if (!$error) {
+                $http = new \GuzzleHttp\Client($guzzleOptions);
+                $url = rtrim($backofficeUrl, '/') . '/pendenze/' . rawurlencode($idA2A) . '/' . rawurlencode($idPendenza);
+                $resp = $http->request('GET', $url);
+                $json = (string)$resp->getBody();
+                $data = json_decode($json, true);
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    throw new \RuntimeException('Parsing JSON fallito: ' . json_last_error_msg());
+                }
+                $pendenza = $data;
+            }
+        } catch (\GuzzleHttp\Exception\ClientException $ce) {
+            $code = $ce->getResponse() ? $ce->getResponse()->getStatusCode() : 0;
+            if ($code === 404) {
+                $error = 'Pendenza non trovata (404)';
+            } else {
+                $error = 'Errore client nella chiamata pendenza: ' . $ce->getMessage();
+            }
+        } catch (\Throwable $e) {
+            $error = 'Errore chiamata pendenza: ' . $e->getMessage();
+        }
+    }
+
     return $twig->render($response, 'pendenze/dettaglio.html.twig', [
         'idPendenza' => $idPendenza,
+        'return_url' => $ret,
+        'pendenza' => $pendenza,
+        'error' => $error,
     ]);
 });
 
@@ -436,6 +511,8 @@ $app->get('/logout', function($request, $response) {
 
 $appDebugRaw = getenv('APP_DEBUG');
 $displayErrorDetails = $appDebugRaw !== false && in_array(strtolower($appDebugRaw), ['1','true','yes','on'], true);
+// Espone un flag globale a Twig per consentire controlli condizionali lato template
+$twig->getEnvironment()->addGlobal('app_debug', $displayErrorDetails);
 if ($displayErrorDetails) {
     $app->get('/_test-error', function() {
         throw new \RuntimeException('Errore di test intenzionale');
