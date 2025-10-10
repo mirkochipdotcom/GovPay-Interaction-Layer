@@ -1,16 +1,115 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}Pendenza - Dettaglio{% endblock %}
+{% block title %}Pendenza {{ idPendenza }}{% endblock %}
 
 {% block content %}
-  <h1 class="it-title mb-3">Dettaglio pendenza</h1>
-  <div class="card">
-    <div class="card-body">
-      <p class="mb-2">ID Pendenza: <code>{{ idPendenza }}</code></p>
-      <p class="text-muted mb-0">Questa è una vista placeholder. Nel passo successivo aggiungeremo i dati di dettaglio.</p>
-    </div>
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h2 class="h4 mb-0">Dettaglio pendenza <span class="text-muted">{{ idPendenza }}</span></h2>
+    <a class="btn btn-outline-secondary" href="{{ return_url|default('/pendenze/ricerca') }}">&laquo; Torna alla ricerca</a>
   </div>
+
+  {% if error %}
+    <div class="alert alert-danger">{{ error }}</div>
+  {% endif %}
+
+  {% if pendenza %}
+    {% set r = pendenza %}
+    <div class="card mb-3">
+      <div class="card-body">
+        <div class="d-flex flex-wrap align-items-center gap-3">
+          <div>
+            <div class="text-muted small">Stato</div>
+            {% set st = r.stato|default('') %}
+            {% set conf = pendenza_states[st]|default(null) %}
+            {% if conf %}
+              <span class="badge bg-{{ conf.color }}">{{ conf.label }}</span>
+            {% else %}
+              <span class="badge bg-secondary">{{ st }}</span>
+            {% endif %}
+          </div>
+          <div>
+            <div class="text-muted small">Importo</div>
+            <div class="h5 mb-0">{{ r.importo is defined ? (r.importo|number_format(2, ',', '.')) ~ ' €' : '—' }}</div>
+          </div>
+          <div>
+            <div class="text-muted small">Scadenza</div>
+            {% set ds = r.dataScadenza|default('') %}
+            <div class="mb-0">{{ ds ? (ds|date('d/m/Y')) : '—' }}</div>
+          </div>
+          <div>
+            <div class="text-muted small">Validità</div>
+            {% set dv = r.dataValidita|default('') %}
+            <div class="mb-0">{{ dv ? (dv|date('d/m/Y')) : '—' }}</div>
+          </div>
+          {% if r.dataPagamento is defined and r.dataPagamento %}
+          <div>
+            <div class="text-muted small">Pagamento</div>
+            <div class="mb-0">{{ r.dataPagamento|date('d/m/Y') }}</div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-md-6">
+        <div class="card h-100">
+          <div class="card-header">Soggetto pagatore</div>
+          <div class="card-body">
+            {% set sogg = r.soggettoPagatore|default({}) %}
+            {% set tipo = sogg.tipo|default('') %}
+            {% if tipo != 'F' and tipo != 'G' %}
+              {% set tipo = sogg.denominazione ? 'G' : 'F' %}
+            {% endif %}
+            <div>
+              <span class="badge rounded-pill bg-secondary me-1" title="{{ tipo == 'F' ? 'Persona fisica' : 'Persona giuridica' }}">{{ tipo }}</span>
+              <span class="text-muted">Identificativo:</span> <strong>{{ sogg.identificativo|default('—') }}</strong>
+            </div>
+            <div><span class="text-muted">Anagrafica:</span> {{ sogg.anagrafica|default(sogg.denominazione|default('—')) }}</div>
+            {% if sogg.email %}<div><span class="text-muted">Email:</span> {{ sogg.email }}</div>{% endif %}
+            {% set parti = [] %}
+            {% if sogg.indirizzo %}{% set parti = parti|merge([sogg.indirizzo]) %}{% endif %}
+            {% if sogg.civico %}{% set parti = parti|merge([sogg.civico]) %}{% endif %}
+            {% if sogg.localita %}{% set parti = parti|merge([sogg.localita]) %}{% endif %}
+            {% if sogg.provincia %}{% set parti = parti|merge([sogg.provincia]) %}{% endif %}
+            {% if sogg.nazione %}{% set parti = parti|merge([sogg.nazione]) %}{% endif %}
+            {% if parti|length > 0 %}<div><span class="text-muted">Indirizzo:</span> {{ parti|join(', ') }}</div>{% endif %}
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card h-100">
+          <div class="card-header">Dettagli pendenza</div>
+          <div class="card-body">
+            <div><span class="text-muted">Causale:</span> {{ r.causale|default(r.nome|default('—')) }}</div>
+            <div><span class="text-muted">Tipo:</span> {{ r.tipoPendenza.descrizione|default('—') }}</div>
+            <div><span class="text-muted">Numero avviso:</span> {{ r.numeroAvviso|default('—') }}</div>
+            {% if r.idPagamento %}<div><span class="text-muted">ID Pagamento:</span> {{ r.idPagamento }}</div>{% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {% if app_debug %}
+      <div class="card mt-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span>Dati raw</span>
+          <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#rawCollapse" aria-expanded="false" aria-controls="rawCollapse">Mostra/Nascondi</button>
+        </div>
+        <div class="collapse" id="rawCollapse">
+          <div class="card-body">
+            <pre class="mb-0">{{ pendenza|json_encode(constant('JSON_PRETTY_PRINT') b-or constant('JSON_UNESCAPED_SLASHES')) }}</pre>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+  {% else %}
+    {% if not error %}
+      <div class="alert alert-warning">Nessun dato pendenza disponibile.</div>
+    {% endif %}
+  {% endif %}
+
   <div class="mt-3">
-    <a class="btn btn-outline-secondary" href="/pendenze/ricerca">&laquo; Torna alla ricerca</a>
+    <a class="btn btn-outline-secondary" href="{{ return_url|default('/pendenze/ricerca') }}">&laquo; Torna alla ricerca</a>
   </div>
 {% endblock %}

@@ -7,7 +7,6 @@
           <div class="it-header-slim-wrapper-content d-flex justify-content-between align-items-center">
             <a class="d-lg-block navbar-brand text-white" href="#">{{ app_entity.government ?: app_entity.suffix }}</a>
             <div class="it-header-slim-right-zone d-flex align-items-center gap-3">
-              <span class="text-white-50 small">{{ app_entity.full }}</span>
               {% if current_user %}
                 <span class="badge bg-success">{{ current_user.email }} ({{ current_user.role }})</span>
                 <a class="btn btn-sm btn-outline-light" href="/logout">Logout</a>

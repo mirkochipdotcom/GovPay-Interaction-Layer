@@ -13,7 +13,7 @@ services:
       # Dice a Composer di installare 'vendor' qui, indipendentemente da dove viene eseguito.
       - COMPOSER_VENDOR_DIR=/var/www/html/vendor 
     env_file:
-      - .env # Assicura il caricamento di ENTE_TITOLO e delle URL
+      - .env # Assicura il caricamento dei parametri, leggere il readme
     depends_on:
       - db
     entrypoint: ["/usr/local/bin/docker-setup.sh"] # Esegue script di setup (composer/autoload + cert) poi CMD apache
