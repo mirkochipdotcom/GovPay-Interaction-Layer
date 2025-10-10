@@ -6,12 +6,6 @@
   <div class="d-flex align-items-center justify-content-between mb-3">
     <h2 class="h4 mb-0">Dettaglio pendenza <span class="text-muted">{{ idPendenza }}</span></h2>
     <div class="d-flex gap-2">
-      {% set idDom = id_dominio|default(pendenza.idDominio|default('')) %}
-      {% if idDom and pendenza.numeroAvviso %}
-        <a class="btn btn-primary" href="/avvisi/{{ idDom|url_encode }}/{{ pendenza.numeroAvviso|url_encode }}" target="_blank" rel="noopener" title="Scarica avviso (PDF)">
-          <i class="fas fa-file-pdf me-1"></i> Scarica avviso
-        </a>
-      {% endif %}
       <a class="btn btn-outline-secondary" href="{{ return_url|default('/pendenze/ricerca') }}">&laquo; Torna alla ricerca</a>
     </div>
   </div>
@@ -56,21 +50,33 @@
           </div>
           {% endif %}
         </div>
+        {% set idDom = id_dominio|default(pendenza.idDominio|default('')) %}
+        {% if idDom and pendenza.numeroAvviso %}
+          <div class="d-flex justify-content-end mt-3">
+            <a class="btn btn-primary" href="/avvisi/{{ idDom|url_encode }}/{{ pendenza.numeroAvviso|url_encode }}" target="_blank" rel="noopener" title="Scarica avviso (PDF)">
+              <i class="fas fa-file-pdf me-1"></i> Scarica avviso
+            </a>
+          </div>
+        {% endif %}
       </div>
     </div>
 
     <div class="row g-3">
       <div class="col-md-6">
         <div class="card h-100">
-          <div class="card-header">Soggetto pagatore</div>
+          {% set sogg = r.soggettoPagatore|default({}) %}
+          {% set tipo = sogg.tipo|default('') %}
+          {% if tipo != 'F' and tipo != 'G' %}
+            {% set tipo = sogg.denominazione ? 'G' : 'F' %}
+          {% endif %}
+          <div class="card-header d-flex align-items-center gap-2">
+            <span class="text-secondary" title="{{ tipo == 'F' ? 'Persona fisica' : 'Persona giuridica' }}">
+              <i class="fas {{ tipo == 'F' ? 'fa-user' : 'fa-building' }}"></i>
+            </span>
+            <span>Soggetto pagatore</span>
+          </div>
           <div class="card-body">
-            {% set sogg = r.soggettoPagatore|default({}) %}
-            {% set tipo = sogg.tipo|default('') %}
-            {% if tipo != 'F' and tipo != 'G' %}
-              {% set tipo = sogg.denominazione ? 'G' : 'F' %}
-            {% endif %}
             <div>
-              <span class="badge rounded-pill bg-secondary me-1" title="{{ tipo == 'F' ? 'Persona fisica' : 'Persona giuridica' }}">{{ tipo }}</span>
               <span class="text-muted">Identificativo:</span> <strong>{{ sogg.identificativo|default('—') }}</strong>
             </div>
             <div><span class="text-muted">Anagrafica:</span> {{ sogg.anagrafica|default(sogg.denominazione|default('—')) }}</div>
@@ -165,20 +171,30 @@
                     {% if selectedRt and selectedRt.datiPagamento is defined and selectedRt.datiPagamento.datiSingoloPagamento is defined and selectedRt.datiPagamento.datiSingoloPagamento|length > 0 and selectedRt.datiPagamento.datiSingoloPagamento[0].esitoSingoloPagamento is defined %}
                       {% set stato = selectedRt.datiPagamento.datiSingoloPagamento[0].esitoSingoloPagamento %}
                     {% endif %}
-                    {# IUV: da RPT #}
-                    {% set iuv = (rr.rpt is defined and rr.rpt.datiVersamento is defined and rr.rpt.datiVersamento.identificativoUnivocoVersamento is defined)
-                      ? rr.rpt.datiVersamento.identificativoUnivocoVersamento
-                      : (r.iuv|default('')) %}
-                    {% set idDom = id_dominio|default(r.idDominio|default('')) %}
-                    {# idRicevuta da selectedRt #}
-                    {% set idRicevuta = '' %}
-                    {% if selectedRt and selectedRt.datiPagamento is defined and selectedRt.datiPagamento.datiSingoloPagamento is defined and selectedRt.datiPagamento.datiSingoloPagamento|length > 0 
-                          and selectedRt.datiPagamento.datiSingoloPagamento[0].identificativoUnivocoRiscossione is defined 
-                          and selectedRt.datiPagamento.datiSingoloPagamento[0].identificativoUnivocoRiscossione 
-                          and selectedRt.datiPagamento.datiSingoloPagamento[0].identificativoUnivocoRiscossione != '0' %}
-                      {% set idRicevuta = selectedRt.datiPagamento.datiSingoloPagamento[0].identificativoUnivocoRiscossione %}
-                    {% elseif selectedRt and selectedRt.identificativoMessaggioRicevuta is defined and selectedRt.identificativoMessaggioRicevuta %}
-                      {% set idRicevuta = selectedRt.identificativoMessaggioRicevuta %}
+                    {# IUV: preferisci da RT.datiPagamento.identificativoUnivocoVersamento; fallback RPT.datiVersamento.identificativoUnivocoVersamento #}
+                    {% set iuv = '' %}
+                    {% if selectedRt and selectedRt.datiPagamento is defined and selectedRt.datiPagamento.identificativoUnivocoVersamento is defined and selectedRt.datiPagamento.identificativoUnivocoVersamento %}
+                      {% set iuv = selectedRt.datiPagamento.identificativoUnivocoVersamento %}
+                    {% elseif rr.rpt is defined and rr.rpt.datiVersamento is defined and rr.rpt.datiVersamento.identificativoUnivocoVersamento is defined %}
+                      {% set iuv = rr.rpt.datiVersamento.identificativoUnivocoVersamento %}
+                    {% else %}
+                      {% set iuv = r.iuv|default('') %}
+                    {% endif %}
+                    {# idDominio: preferisci quello dalla RPT; fallback al dominio nella pendenza; infine ENV passato come id_dominio #}
+                    {% set idDom =
+                      (rr.rpt is defined and rr.rpt.dominio is defined and rr.rpt.dominio.identificativoDominio is defined and rr.rpt.dominio.identificativoDominio)
+                        ? rr.rpt.dominio.identificativoDominio
+                        : ((pendenza.dominio.idDominio|default('')) ?: (id_dominio|default(''))) %}
+                    {# CCP per RT via Pendenze: preferisci codiceContestoPagamento #}
+                    {% set ccp = idPago %}
+                    {# Mostra bottone ricevuta solo se esito positivo #}
+                    {% set esitoOk = false %}
+                    {% if selectedRt and selectedRt.datiPagamento is defined %}
+                      {% if selectedRt.datiPagamento.codiceEsitoPagamento is defined and selectedRt.datiPagamento.codiceEsitoPagamento == '0' %}
+                        {% set esitoOk = true %}
+                      {% elseif selectedRt.datiPagamento.datiSingoloPagamento is defined and selectedRt.datiPagamento.datiSingoloPagamento|length > 0 and selectedRt.datiPagamento.datiSingoloPagamento[0].esitoSingoloPagamento is defined and selectedRt.datiPagamento.datiSingoloPagamento[0].esitoSingoloPagamento == 'ESEGUITO' %}
+                        {% set esitoOk = true %}
+                      {% endif %}
                     {% endif %}
                     {% set displayId = idPago ?: iuv %}
                     <tr>
@@ -189,8 +205,8 @@
                       <td>{{ abi ?: '—' }}</td>
                       <td>{{ istituto ?: '—' }}</td>
                       <td class="text-center">
-                        {% if idDom and iuv and idRicevuta %}
-                          <a class="btn btn-outline-primary btn-sm px-2 py-0" href="/pagamenti/ricevute/{{ idDom|url_encode }}/{{ iuv|url_encode }}/{{ idRicevuta|url_encode }}" title="Scarica ricevuta" aria-label="Scarica ricevuta">
+                        {% if esitoOk and idDom and iuv and ccp %}
+                          <a class="btn btn-outline-primary btn-sm px-2 py-0" href="/pendenze/rpp/{{ idDom|url_encode }}/{{ iuv|url_encode }}/{{ ccp|url_encode }}/rt" title="Scarica ricevuta (IUV {{ iuv }}, CCP {{ ccp }})" aria-label="Scarica ricevuta">
                             <i class="fas fa-file-pdf"></i>
                           </a>
                         {% else %}
