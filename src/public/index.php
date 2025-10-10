@@ -324,7 +324,137 @@ $app->get('/pendenze/dettaglio/{idPendenza}', function($request, $response, $arg
         'return_url' => $ret,
         'pendenza' => $pendenza,
         'error' => $error,
+        // For download avviso
+        'id_dominio' => ($pendenza['idDominio'] ?? (getenv('ID_DOMINIO') ?: '')),
     ]);
+});
+
+// Download Avviso (PDF): /avvisi/{idDominio}/{numeroAvviso}
+$app->get('/avvisi/{idDominio}/{numeroAvviso}', function($request, $response, $args) {
+    $idDominio = $args['idDominio'] ?? '';
+    $numeroAvviso = $args['numeroAvviso'] ?? '';
+    if ($idDominio === '' || $numeroAvviso === '') {
+        $response->getBody()->write('Parametri mancanti');
+        return $response->withStatus(400);
+    }
+
+    $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
+    if (empty($backofficeUrl)) {
+        $response->getBody()->write('GOVPAY_BACKOFFICE_URL non impostata');
+        return $response->withStatus(500);
+    }
+
+    try {
+        $username = getenv('GOVPAY_USER');
+        $password = getenv('GOVPAY_PASSWORD');
+        $guzzleOptions = [
+            'headers' => [
+                'Accept' => 'application/pdf'
+            ]
+        ];
+        $authMethod = getenv('AUTHENTICATION_GOVPAY');
+        if ($authMethod !== false && strtolower($authMethod) === 'sslheader') {
+            $cert = getenv('GOVPAY_TLS_CERT');
+            $key = getenv('GOVPAY_TLS_KEY');
+            $keyPass = getenv('GOVPAY_TLS_KEY_PASSWORD') ?: null;
+            if (!empty($cert) && !empty($key)) {
+                $guzzleOptions['cert'] = $cert;
+                $guzzleOptions['ssl_key'] = $keyPass ? [$key, $keyPass] : $key;
+            } else {
+                $response->getBody()->write('mTLS abilitato ma GOVPAY_TLS_CERT/GOVPAY_TLS_KEY non impostati');
+                return $response->withStatus(500);
+            }
+        }
+        if ($username !== false && $password !== false && $username !== '' && $password !== '') {
+            $guzzleOptions['auth'] = [$username, $password];
+        }
+
+        $http = new \GuzzleHttp\Client($guzzleOptions);
+        $url = rtrim($backofficeUrl, '/') . '/avvisi/' . rawurlencode($idDominio) . '/' . rawurlencode($numeroAvviso);
+        $resp = $http->request('GET', $url);
+        $contentType = $resp->getHeaderLine('Content-Type');
+        $pdf = (string)$resp->getBody();
+        $filename = 'avviso-' . $idDominio . '-' . $numeroAvviso . '.pdf';
+        $response = $response
+            ->withHeader('Content-Type', $contentType ?: 'application/pdf')
+            ->withHeader('Content-Disposition', 'attachment; filename="' . $filename . '"')
+            ->withHeader('Cache-Control', 'no-store');
+        $response->getBody()->write($pdf);
+        return $response;
+    } catch (\GuzzleHttp\Exception\ClientException $ce) {
+        $code = $ce->getResponse() ? $ce->getResponse()->getStatusCode() : 0;
+        $msg = $code === 404 ? 'Avviso non trovato' : ('Errore client avviso: ' . $ce->getMessage());
+        $response->getBody()->write($msg);
+        return $response->withStatus($code ?: 500);
+    } catch (\Throwable $e) {
+        $response->getBody()->write('Errore scaricamento avviso: ' . $e->getMessage());
+        return $response->withStatus(500);
+    }
+});
+
+// Download Ricevuta di pagamento (PDF): /pagamenti/ricevute/{idDominio}/{iuv}/{idRicevuta}
+$app->get('/pagamenti/ricevute/{idDominio}/{iuv}/{idRicevuta}', function($request, $response, $args) {
+    $idDominio = $args['idDominio'] ?? '';
+    $iuv = $args['iuv'] ?? '';
+    $idRicevuta = $args['idRicevuta'] ?? '';
+    if ($idDominio === '' || $iuv === '' || $idRicevuta === '') {
+        $response->getBody()->write('Parametri mancanti');
+        return $response->withStatus(400);
+    }
+
+    $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
+    if (empty($backofficeUrl)) {
+        $response->getBody()->write('GOVPAY_BACKOFFICE_URL non impostata');
+        return $response->withStatus(500);
+    }
+
+    try {
+        $username = getenv('GOVPAY_USER');
+        $password = getenv('GOVPAY_PASSWORD');
+        $guzzleOptions = [
+            'headers' => [
+                'Accept' => 'application/pdf'
+            ]
+        ];
+        $authMethod = getenv('AUTHENTICATION_GOVPAY');
+        if ($authMethod !== false && strtolower($authMethod) === 'sslheader') {
+            $cert = getenv('GOVPAY_TLS_CERT');
+            $key = getenv('GOVPAY_TLS_KEY');
+            $keyPass = getenv('GOVPAY_TLS_KEY_PASSWORD') ?: null;
+            if (!empty($cert) && !empty($key)) {
+                $guzzleOptions['cert'] = $cert;
+                $guzzleOptions['ssl_key'] = $keyPass ? [$key, $keyPass] : $key;
+            } else {
+                $response->getBody()->write('mTLS abilitato ma GOVPAY_TLS_CERT/GOVPAY_TLS_KEY non impostati');
+                return $response->withStatus(500);
+            }
+        }
+        if ($username !== false && $password !== false && $username !== '' && $password !== '') {
+            $guzzleOptions['auth'] = [$username, $password];
+        }
+
+        $http = new \GuzzleHttp\Client($guzzleOptions);
+        $url = rtrim($backofficeUrl, '/') . '/pagamenti/ricevute/'
+            . rawurlencode($idDominio) . '/' . rawurlencode($iuv) . '/' . rawurlencode($idRicevuta);
+        $resp = $http->request('GET', $url);
+        $contentType = $resp->getHeaderLine('Content-Type');
+        $pdf = (string)$resp->getBody();
+        $filename = 'ricevuta-' . $iuv . '-' . $idRicevuta . '.pdf';
+        $response = $response
+            ->withHeader('Content-Type', $contentType ?: 'application/pdf')
+            ->withHeader('Content-Disposition', 'attachment; filename="' . $filename . '"')
+            ->withHeader('Cache-Control', 'no-store');
+        $response->getBody()->write($pdf);
+        return $response;
+    } catch (\GuzzleHttp\Exception\ClientException $ce) {
+        $code = $ce->getResponse() ? $ce->getResponse()->getStatusCode() : 0;
+        $msg = $code === 404 ? 'Ricevuta non trovata' : ('Errore client ricevuta: ' . $ce->getMessage());
+        $response->getBody()->write($msg);
+        return $response->withStatus($code ?: 500);
+    } catch (\Throwable $e) {
+        $response->getBody()->write('Errore scaricamento ricevuta: ' . $e->getMessage());
+        return $response->withStatus(500);
+    }
 });
 
 // Profile
