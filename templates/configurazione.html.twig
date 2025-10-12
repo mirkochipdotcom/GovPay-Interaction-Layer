@@ -185,11 +185,14 @@
                   <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse_{{ eid }}" aria-expanded="false" aria-controls="collapse_{{ eid }}">
                     <div class="d-flex w-100 align-items-center justify-content-between">
                       <span class="me-3">{{ descr }}</span>
-                      <span class="form-check form-switch m-0">
-                        {% set ab = e.abilitato|default(false) %}
-                        <input class="form-check-input" type="checkbox" role="switch" disabled {{ ab ? 'checked' : '' }}>
-                        <label class="form-check-label small ms-1">{{ ab ? 'Attivo' : 'Disattivo' }}</label>
-                      </span>
+                      {% set ab = e.abilitato|default(false) %}
+                      <div class="d-flex align-items-center justify-content-end ms-2" style="width: 160px;">
+                        <span class="small text-nowrap me-2 d-none d-sm-inline-block" style="width: 80px; text-align: right;">{{ ab ? 'Attivo' : 'Disattivo' }}</span>
+                        <span class="form-check form-switch m-0">
+                          <input class="form-check-input" type="checkbox" role="switch" disabled {{ ab ? 'checked' : '' }}>
+                          <label class="form-check-label visually-hidden">{{ ab ? 'Attivo' : 'Disattivo' }}</label>
+                        </span>
+                      </div>
                     </div>
                   </button>
                 </h2>
