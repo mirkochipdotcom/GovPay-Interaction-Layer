@@ -25,6 +25,7 @@ use App\Middleware\AuthMiddleware;
 use App\Middleware\FlashMiddleware;
 use App\Middleware\CurrentPathMiddleware;
 use App\Auth\UserRepository;
+use App\Database\EntrateRepository;
 
 $app = AppFactory::create();
 $app->setBasePath('');
@@ -714,7 +715,7 @@ $app->get('/configurazione', function($request, $response) use ($twig) {
                     $errors[] = 'Errore lettura applicazioni: ' . $e->getMessage();
                 }
 
-                // Backoffice - Entrate (tipologie di entrata)
+                // Backoffice - Entrate (tipologie di entrata) + Sync DB locale
                 try {
                     if (class_exists('GovPay\\Backoffice\\Api\\EntiCreditoriApi')) {
                         $entrApi = new \GovPay\Backoffice\Api\EntiCreditoriApi($httpClient, $config);
@@ -732,8 +733,29 @@ $app->get('/configurazione', function($request, $response) use ($twig) {
                             $entrateSource = '/entrate';
                         }
                         $entrData = \GovPay\Backoffice\ObjectSerializer::sanitizeForSerialization($entrRes);
+                        // Serializza e riconverte per ottenere un array associativo stabile
                         $entrateJson = json_encode($entrData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-                        $entrateArr = $entrData;
+                        $entrateArr = json_decode($entrateJson, true);
+                        if (!is_array($entrateArr)) { $entrateArr = []; }
+
+                        // Sync su DB locale se ho ID_DOMINIO
+                        if (!empty($idDominioEnv)) {
+                            try {
+                                $repoEntr = new EntrateRepository();
+                                $rows = $entrateArr['risultati'] ?? [];
+                                foreach ($rows as $row) {
+                                    $repoEntr->upsertFromBackoffice($idDominio, $row);
+                                }
+                                // Leggi back dal DB per UI (stati effettivi)
+                                $entrateEff = $repoEntr->listByDominio($idDominio);
+                                // Costruisci una mappa id->effective_enabled per usarla in template
+                                $effMap = [];
+                                foreach ($entrateEff as $r) { $effMap[$r['id_entrata']] = (int)$r['effective_enabled'] === 1; }
+                                $entrateArr['_effective_map'] = $effMap;
+                            } catch (\Throwable $e) {
+                                $errors[] = 'Sync DB entrate fallito: ' . $e->getMessage();
+                            }
+                        }
                     } else {
                         $errors[] = 'Client Backoffice EntiCreditori non disponibile';
                     }
@@ -846,6 +868,37 @@ $app->get('/configurazione', function($request, $response) use ($twig) {
         'backoffice_base' => rtrim($backofficeUrl, '/'),
         'tab' => $tab,
     ]);
+});
+
+// Endpoint per override locale tipologie (solo superadmin)
+$app->post('/configurazione/tipologie/{idEntrata}/override', function($request, $response, $args) use ($twig) {
+    $u = $_SESSION['user'] ?? null;
+    if (!$u || ($u['role'] ?? '') !== 'superadmin') {
+        $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Accesso negato'];
+        return $response->withHeader('Location', '/configurazione?tab=tipologie')->withStatus(302);
+    }
+    $idEntrata = $args['idEntrata'] ?? '';
+    $idDominio = getenv('ID_DOMINIO') ?: '';
+    if ($idEntrata === '' || $idDominio === '') {
+        $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Parametri mancanti'];
+        return $response->withHeader('Location', '/configurazione?tab=tipologie')->withStatus(302);
+    }
+    $data = (array)($request->getParsedBody() ?? []);
+    // Valori attesi: enable=1/0 oppure action=reset
+    $override = null;
+    if (isset($data['action']) && $data['action'] === 'reset') {
+        $override = null; // rimuovi override
+    } elseif (isset($data['enable'])) {
+        $override = (string)$data['enable'] === '1';
+    }
+    try {
+        $repo = new EntrateRepository();
+        $repo->setOverride($idDominio, $idEntrata, $override);
+        $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Impostazione salvata'];
+    } catch (\Throwable $e) {
+        $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Errore salvataggio: ' . $e->getMessage()];
+    }
+    return $response->withHeader('Location', '/configurazione?tab=tipologie')->withStatus(302);
 });
 
 // Users management (admin/superadmin)
