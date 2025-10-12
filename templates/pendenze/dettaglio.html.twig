@@ -18,6 +18,42 @@
     {% set r = pendenza %}
     <div class="card mb-3">
       <div class="card-body">
+        {# Prepara dominio e identificativi per i bottoni in alto #}
+        {% set idDom = id_dominio|default(pendenza.idDominio|default('')) %}
+        {% set topIuv = '' %}
+        {% set topCcp = '' %}
+        {% if r.rpp is defined and (r.rpp is iterable) and (r.rpp|length > 0) %}
+          {% for rr in r.rpp %}
+            {% set selectedRt = null %}
+            {% if rr.rt is defined and rr.rt[0] is defined %}
+              {% set selectedRt = rr.rt|last %}
+            {% elseif rr.rt is defined and rr.rt %}
+              {% set selectedRt = rr.rt %}
+            {% endif %}
+            {% set ok = false %}
+            {% if selectedRt and selectedRt.datiPagamento is defined %}
+              {% if selectedRt.datiPagamento.codiceEsitoPagamento is defined and selectedRt.datiPagamento.codiceEsitoPagamento == '0' %}
+                {% set ok = true %}
+              {% elseif selectedRt.datiPagamento.datiSingoloPagamento is defined and selectedRt.datiPagamento.datiSingoloPagamento|length > 0 and selectedRt.datiPagamento.datiSingoloPagamento[0].esitoSingoloPagamento is defined and selectedRt.datiPagamento.datiSingoloPagamento[0].esitoSingoloPagamento == 'ESEGUITO' %}
+                {% set ok = true %}
+              {% endif %}
+            {% endif %}
+            {% if ok %}
+              {% set ccpTop = (rr.rpt is defined and rr.rpt.datiVersamento is defined and rr.rpt.datiVersamento.codiceContestoPagamento is defined) ? rr.rpt.datiVersamento.codiceContestoPagamento : '' %}
+              {% set iuvTop = '' %}
+              {% if selectedRt and selectedRt.datiPagamento is defined and selectedRt.datiPagamento.identificativoUnivocoVersamento is defined and selectedRt.datiPagamento.identificativoUnivocoVersamento %}
+                {% set iuvTop = selectedRt.datiPagamento.identificativoUnivocoVersamento %}
+              {% elseif rr.rpt is defined and rr.rpt.datiVersamento is defined and rr.rpt.datiVersamento.identificativoUnivocoVersamento is defined %}
+                {% set iuvTop = rr.rpt.datiVersamento.identificativoUnivocoVersamento %}
+              {% endif %}
+              {% if ccpTop and iuvTop %}
+                {% set topIuv = iuvTop %}
+                {% set topCcp = ccpTop %}
+              {% endif %}
+            {% endif %}
+          {% endfor %}
+        {% endif %}
+
         <div class="d-flex flex-wrap align-items-center gap-3">
           <div>
             <div class="text-muted small">Stato</div>
@@ -34,6 +70,11 @@
             <div class="h5 mb-0">{{ r.importo is defined ? (r.importo|number_format(2, ',', '.')) ~ ' €' : '—' }}</div>
           </div>
           <div>
+            <div class="text-muted small">Data avviso</div>
+            {% set da = r.dataCaricamento|default('') %}
+            <div class="mb-0">{{ da ? (da|date('d/m/Y')) : '—' }}</div>
+          </div>
+          <div>
             <div class="text-muted small">Scadenza</div>
             {% set ds = r.dataScadenza|default('') %}
             <div class="mb-0">{{ ds ? (ds|date('d/m/Y')) : '—' }}</div>
@@ -43,21 +84,27 @@
             {% set dv = r.dataValidita|default('') %}
             <div class="mb-0">{{ dv ? (dv|date('d/m/Y')) : '—' }}</div>
           </div>
-          {% if r.dataPagamento is defined and r.dataPagamento %}
           <div>
             <div class="text-muted small">Pagamento</div>
-            <div class="mb-0">{{ r.dataPagamento|date('d/m/Y') }}</div>
+            {% set dp = r.dataPagamento|default('') %}
+            <div class="mb-0">{{ dp ? (dp|date('d/m/Y')) : '—' }}</div>
+          </div>
+          {# Bottoni in alto, accanto alla zona pagamento #}
+          {% if idDom and (r.numeroAvviso or (topIuv and topCcp)) %}
+          <div class="d-flex align-items-center gap-2 ms-auto">
+            {% if idDom and r.numeroAvviso %}
+              <a class="btn btn-primary btn-sm" href="/avvisi/{{ idDom|url_encode }}/{{ r.numeroAvviso|url_encode }}" target="_blank" rel="noopener" title="Scarica avviso (PDF)">
+                <i class="fas fa-file-pdf me-1"></i> Avviso
+              </a>
+            {% endif %}
+            {% if idDom and topIuv and topCcp %}
+              <a class="btn btn-outline-primary btn-sm" href="/pendenze/rpp/{{ idDom|url_encode }}/{{ topIuv|url_encode }}/{{ topCcp|url_encode }}/rt" target="_blank" rel="noopener" title="Scarica ricevuta (IUV {{ topIuv }}, CCP {{ topCcp }})">
+                <i class="fas fa-file-pdf me-1"></i> Ricevuta
+              </a>
+            {% endif %}
           </div>
           {% endif %}
         </div>
-        {% set idDom = id_dominio|default(pendenza.idDominio|default('')) %}
-        {% if idDom and pendenza.numeroAvviso %}
-          <div class="d-flex justify-content-end mt-3">
-            <a class="btn btn-primary" href="/avvisi/{{ idDom|url_encode }}/{{ pendenza.numeroAvviso|url_encode }}" target="_blank" rel="noopener" title="Scarica avviso (PDF)">
-              <i class="fas fa-file-pdf me-1"></i> Scarica avviso
-            </a>
-          </div>
-        {% endif %}
       </div>
     </div>
 
@@ -117,8 +164,8 @@
       {% if rppCount > 0 %}
       <div class="collapse" id="rtCollapse">
         <div class="card-body">
-              <div class="table-responsive">
-                <table class="table table-striped align-middle">
+              <div class="table-responsive small">
+                <table class="table table-striped table-sm align-middle">
                   <thead>
                     <tr>
                       <th>Identificativo pagamento</th>
@@ -205,12 +252,16 @@
                       <td>{{ abi ?: '—' }}</td>
                       <td>{{ istituto ?: '—' }}</td>
                       <td class="text-center">
-                        {% if esitoOk and idDom and iuv and ccp %}
-                          <a class="btn btn-outline-primary btn-sm px-2 py-0" href="/pendenze/rpp/{{ idDom|url_encode }}/{{ iuv|url_encode }}/{{ ccp|url_encode }}/rt" title="Scarica ricevuta (IUV {{ iuv }}, CCP {{ ccp }})" aria-label="Scarica ricevuta">
+                        {% set hasLink = idDom and iuv and ccp %}
+                        {% set btnClass = esitoOk ? 'btn-success' : 'btn-outline-secondary' %}
+                        {% if hasLink %}
+                          <a class="btn {{ btnClass }} btn-sm px-2 py-0" href="/pendenze/rpp/{{ idDom|url_encode }}/{{ iuv|url_encode }}/{{ ccp|url_encode }}/rt" title="Scarica ricevuta (IUV {{ iuv }}, CCP {{ ccp }})" aria-label="Scarica ricevuta">
                             <i class="fas fa-file-pdf"></i>
                           </a>
                         {% else %}
-                          <span class="text-muted">—</span>
+                          <button class="btn btn-outline-secondary btn-sm px-2 py-0" type="button" disabled title="Ricevuta non disponibile">
+                            <i class="fas fa-file-pdf"></i>
+                          </button>
                         {% endif %}
                       </td>
                     </tr>
