@@ -19,18 +19,20 @@ class EntrateRepository
     public function upsertFromBackoffice(string $idDominio, array $e): void
     {
         $idEntrata = $e['idEntrata'] ?? ($e['tipoEntrata']['idEntrata'] ?? null);
-        if (!$idEntrata) { return; }
+        if (!$idEntrata) {
+            return;
+        }
+
         $descrizione = $e['tipoEntrata']['descrizione'] ?? null;
         $iban = $e['ibanAccredito'] ?? null;
         $codiceCont = $e['codiceContabilita'] ?? ($e['tipoEntrata']['codiceContabilita'] ?? null);
         $abilitatoBo = !empty($e['abilitato']);
         $now = date('Y-m-d H:i:s');
 
-        $sql = 'INSERT INTO entrate_tipologie (id_dominio, id_entrata, descrizione, iban_accredito, codice_contabilita, abilitato_backoffice, effective_enabled, sorgente, created_at, updated_at)
-                VALUES (:id_dominio, :id_entrata, :descrizione, :iban, :codice, :bo, :eff, "backoffice", :now, :now)
-                ON DUPLICATE KEY UPDATE descrizione = VALUES(descrizione), iban_accredito = VALUES(iban_accredito), codice_contabilita = VALUES(codice_contabilita), abilitato_backoffice = VALUES(abilitato_backoffice), updated_at = VALUES(updated_at), effective_enabled = IF(override_locale IS NULL, VALUES(effective_enabled), effective_enabled)';
+        $sql = 'INSERT INTO entrate_tipologie (id_dominio, id_entrata, descrizione, iban_accredito, codice_contabilita, abilitato_backoffice, sorgente, created_at, updated_at)
+                VALUES (:id_dominio, :id_entrata, :descrizione, :iban, :codice, :bo, "backoffice", :now_created, :now_updated)
+                ON DUPLICATE KEY UPDATE descrizione = VALUES(descrizione), iban_accredito = VALUES(iban_accredito), codice_contabilita = VALUES(codice_contabilita), abilitato_backoffice = VALUES(abilitato_backoffice), updated_at = VALUES(updated_at)';
         $stmt = $this->pdo->prepare($sql);
-        $eff = $abilitatoBo ? 1 : 0;
         $stmt->execute([
             ':id_dominio' => $idDominio,
             ':id_entrata' => $idEntrata,
@@ -38,40 +40,62 @@ class EntrateRepository
             ':iban' => $iban,
             ':codice' => $codiceCont,
             ':bo' => $abilitatoBo ? 1 : 0,
-            ':eff' => $eff,
-            ':now' => $now,
+            ':now_created' => $now,
+            ':now_updated' => $now,
         ]);
     }
 
     /**
-     * Ritorna l’elenco tipologie per dominio con stato effettivo
+     * Ritorna l’elenco tipologie per dominio
      * @return array<int,array>
      */
     public function listByDominio(string $idDominio): array
     {
-        $stmt = $this->pdo->prepare('SELECT id_entrata, descrizione, iban_accredito, codice_contabilita, abilitato_backoffice, override_locale, effective_enabled FROM entrate_tipologie WHERE id_dominio = :id ORDER BY id_entrata ASC');
+        $stmt = $this->pdo->prepare('SELECT id_entrata, descrizione, iban_accredito, codice_contabilita, abilitato_backoffice, override_locale, external_url FROM entrate_tipologie WHERE id_dominio = :id ORDER BY id_entrata ASC');
         $stmt->execute([':id' => $idDominio]);
         return $stmt->fetchAll();
     }
 
-    /** Imposta override locale (true/false) e aggiorna effective_enabled di conseguenza */
+    /** @return array{id_entrata:string,abilitato_backoffice:int,override_locale:?int,external_url:?string}|null */
+    public function findOne(string $idDominio, string $idEntrata): ?array
+    {
+        $stmt = $this->pdo->prepare('SELECT id_entrata, abilitato_backoffice, override_locale, external_url FROM entrate_tipologie WHERE id_dominio = :dom AND id_entrata = :ent LIMIT 1');
+        $stmt->execute([':dom' => $idDominio, ':ent' => $idEntrata]);
+        $row = $stmt->fetch();
+        return $row ?: null;
+    }
+
+    /** Imposta override locale (true/false) */
     public function setOverride(string $idDominio, string $idEntrata, ?bool $override): void
     {
-        // Se override è null: rimuovi override e riallinea a abilitato_backoffice
+        $now = date('Y-m-d H:i:s');
         if ($override === null) {
-            $sql = 'UPDATE entrate_tipologie SET override_locale = NULL, effective_enabled = abilitato_backoffice, updated_at = :now WHERE id_dominio = :dom AND id_entrata = :ent';
+            $sql = 'UPDATE entrate_tipologie SET override_locale = NULL, updated_at = :now WHERE id_dominio = :dom AND id_entrata = :ent';
             $stmt = $this->pdo->prepare($sql);
-            $stmt->execute([':now' => date('Y-m-d H:i:s'), ':dom' => $idDominio, ':ent' => $idEntrata]);
+            $stmt->execute([':now' => $now, ':dom' => $idDominio, ':ent' => $idEntrata]);
             return;
         }
-        $sql = 'UPDATE entrate_tipologie SET override_locale = :ovr, effective_enabled = :eff, updated_at = :now WHERE id_dominio = :dom AND id_entrata = :ent';
+        $sql = 'UPDATE entrate_tipologie SET override_locale = :ovr, updated_at = :now WHERE id_dominio = :dom AND id_entrata = :ent';
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute([
             ':ovr' => $override ? 1 : 0,
-            ':eff' => $override ? 1 : 0,
+            ':now' => $now,
+            ':dom' => $idDominio,
+            ':ent' => $idEntrata,
+        ]);
+    }
+
+    /** Imposta l'URL esterna per la tipologia */
+    public function setExternalUrl(string $idDominio, string $idEntrata, ?string $url): void
+    {
+        $sql = 'UPDATE entrate_tipologie SET external_url = :url, updated_at = :now WHERE id_dominio = :dom AND id_entrata = :ent';
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([
+            ':url' => ($url === null || $url === '') ? null : $url,
             ':now' => date('Y-m-d H:i:s'),
             ':dom' => $idDominio,
             ':ent' => $idEntrata,
         ]);
     }
+
 }

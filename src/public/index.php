@@ -746,12 +746,20 @@ $app->get('/configurazione', function($request, $response) use ($twig) {
                                 foreach ($rows as $row) {
                                     $repoEntr->upsertFromBackoffice($idDominio, $row);
                                 }
-                                // Leggi back dal DB per UI (stati effettivi)
+                                // Leggi back dal DB per UI (mappe varie)
                                 $entrateEff = $repoEntr->listByDominio($idDominio);
-                                // Costruisci una mappa id->effective_enabled per usarla in template
-                                $effMap = [];
-                                foreach ($entrateEff as $r) { $effMap[$r['id_entrata']] = (int)$r['effective_enabled'] === 1; }
-                                $entrateArr['_effective_map'] = $effMap;
+                                $boMap = [];
+                                $ovrMap = [];
+                                $urlMap = [];
+                                foreach ($entrateEff as $r) {
+                                    $idE = $r['id_entrata'];
+                                    $boMap[$idE] = (int)$r['abilitato_backoffice'] === 1;
+                                    $ovrMap[$idE] = isset($r['override_locale']) ? ((int)$r['override_locale'] === 1 ? 1 : 0) : null;
+                                    $urlMap[$idE] = $r['external_url'] ?? null;
+                                }
+                                $entrateArr['_bo_map'] = $boMap;
+                                $entrateArr['_override_map'] = $ovrMap;
+                                $entrateArr['_exturl_map'] = $urlMap;
                             } catch (\Throwable $e) {
                                 $errors[] = 'Sync DB entrate fallito: ' . $e->getMessage();
                             }
@@ -897,6 +905,175 @@ $app->post('/configurazione/tipologie/{idEntrata}/override', function($request, 
         $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Impostazione salvata'];
     } catch (\Throwable $e) {
         $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Errore salvataggio: ' . $e->getMessage()];
+    }
+    return $response->withHeader('Location', '/configurazione?tab=tipologie')->withStatus(302);
+});
+
+// Endpoint per salvare l'URL esterna di una tipologia (solo superadmin)
+$app->post('/configurazione/tipologie/{idEntrata}/url', function($request, $response, $args) use ($twig) {
+    $u = $_SESSION['user'] ?? null;
+    if (!$u || ($u['role'] ?? '') !== 'superadmin') {
+        $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Accesso negato'];
+        return $response->withHeader('Location', '/configurazione?tab=tipologie')->withStatus(302);
+    }
+    $idEntrata = $args['idEntrata'] ?? '';
+    $idDominio = getenv('ID_DOMINIO') ?: '';
+    if ($idEntrata === '' || $idDominio === '') {
+        $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Parametri mancanti'];
+        return $response->withHeader('Location', '/configurazione?tab=tipologie')->withStatus(302);
+    }
+    $data = (array)($request->getParsedBody() ?? []);
+    $url = trim((string)($data['external_url'] ?? ''));
+    if ($url === '') { $url = null; }
+    try {
+        $repo = new EntrateRepository();
+        $repo->setExternalUrl($idDominio, $idEntrata, $url);
+        $_SESSION['flash'][] = ['type' => 'success', 'text' => 'URL esterna salvata'];
+    } catch (\Throwable $e) {
+        $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Errore salvataggio URL: ' . $e->getMessage()];
+    }
+    return $response->withHeader('Location', '/configurazione?tab=tipologie')->withStatus(302);
+});
+
+// Endpoint per attivare/disattivare la tipologia direttamente su GovPay (solo superadmin)
+$app->post('/configurazione/tipologie/{idEntrata}/govpay', function($request, $response, $args) use ($twig) {
+    $u = $_SESSION['user'] ?? null;
+    if (!$u || ($u['role'] ?? '') !== 'superadmin') {
+        $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Accesso negato'];
+        return $response->withHeader('Location', '/configurazione?tab=tipologie')->withStatus(302);
+    }
+    $idEntrata = $args['idEntrata'] ?? '';
+    $idDominio = getenv('ID_DOMINIO') ?: '';
+    if ($idEntrata === '' || $idDominio === '') {
+        $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Parametri mancanti'];
+        return $response->withHeader('Location', '/configurazione?tab=tipologie')->withStatus(302);
+    }
+    $data = (array)($request->getParsedBody() ?? []);
+    $enable = isset($data['enable']) ? ((string)$data['enable'] === '1') : null;
+    if ($enable === null) {
+        $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Parametro enable mancante'];
+        return $response->withHeader('Location', '/configurazione?tab=tipologie')->withStatus(302);
+    }
+
+    $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
+    if (empty($backofficeUrl)) {
+        $_SESSION['flash'][] = ['type' => 'error', 'text' => 'GOVPAY_BACKOFFICE_URL non impostata'];
+        return $response->withHeader('Location', '/configurazione?tab=tipologie')->withStatus(302);
+    }
+
+    try {
+        // Configurazione autenticazione
+        $username = getenv('GOVPAY_USER');
+        $password = getenv('GOVPAY_PASSWORD');
+        $guzzleOptions = ['headers' => ['Accept' => 'application/json']];
+        $authMethod = getenv('AUTHENTICATION_GOVPAY');
+        if ($authMethod !== false && strtolower($authMethod) === 'sslheader') {
+            $cert = getenv('GOVPAY_TLS_CERT');
+            $key = getenv('GOVPAY_TLS_KEY');
+            $keyPass = getenv('GOVPAY_TLS_KEY_PASSWORD') ?: null;
+            if (!empty($cert) && !empty($key)) {
+                $guzzleOptions['cert'] = $cert;
+                $guzzleOptions['ssl_key'] = $keyPass ? [$key, $keyPass] : $key;
+            } else {
+                $_SESSION['flash'][] = ['type' => 'error', 'text' => 'mTLS abilitato ma certificati non impostati'];
+                return $response->withHeader('Location', '/configurazione?tab=tipologie')->withStatus(302);
+            }
+        }
+        if ($username !== false && $password !== false && $username !== '' && $password !== '') {
+            // I client generatori usano basicAuth
+        }
+
+        // Usa client Backoffice generato
+        if (!class_exists('GovPay\\Backoffice\\Api\\EntiCreditoriApi')) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Client Backoffice non disponibile'];
+            return $response->withHeader('Location', '/configurazione?tab=tipologie')->withStatus(302);
+        }
+        $config = new \GovPay\Backoffice\Configuration();
+        $config->setHost(rtrim($backofficeUrl, '/'));
+        if ($username !== false && $password !== false && $username !== '' && $password !== '') {
+            $config->setUsername($username);
+            $config->setPassword($password);
+        }
+        $httpClient = new \GuzzleHttp\Client($guzzleOptions);
+        $entiApi = new \GovPay\Backoffice\Api\EntiCreditoriApi($httpClient, $config);
+
+        // Per aggiornare abilitato su una entrata dominio, si usa addEntrataDominio(put) con EntrataPost
+        // È necessario fornire almeno l'IBAN di accredito richiesto dal modello
+        // Recuperiamo i dati correnti della entrata dominio per leggere l'IBAN
+        $curr = $entiApi->getEntrataDominio($idDominio, $idEntrata);
+        // Estrai valori in modo robusto (getter -> property -> array associativo)
+        $ibanAccredito = null;
+        $codiceCont = null;
+        if (is_object($curr)) {
+            if (method_exists($curr, 'getIbanAccredito')) { $ibanAccredito = $curr->getIbanAccredito(); }
+            if (method_exists($curr, 'getCodiceContabilita')) { $codiceCont = $curr->getCodiceContabilita(); }
+            if ($ibanAccredito === null || $codiceCont === null) {
+                // Fallback: serializza e decodifica come array associativo
+                $currData = json_decode(json_encode($curr), true);
+                if (is_array($currData)) {
+                    if ($ibanAccredito === null) { $ibanAccredito = $currData['ibanAccredito'] ?? null; }
+                    if ($codiceCont === null) { $codiceCont = $currData['codiceContabilita'] ?? null; }
+                }
+            }
+        } else {
+            // Se non è oggetto, prova via sanitize + json
+            $currData = \GovPay\Backoffice\ObjectSerializer::sanitizeForSerialization($curr);
+            $currArr = json_decode(json_encode($currData), true);
+            if (is_array($currArr)) {
+                $ibanAccredito = $currArr['ibanAccredito'] ?? null;
+                $codiceCont = $currArr['codiceContabilita'] ?? null;
+            }
+        }
+        if (empty($ibanAccredito)) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'IBAN mancante sulla tipologia: impossibile aggiornare'];
+            return $response->withHeader('Location', '/configurazione?tab=tipologie')->withStatus(302);
+        }
+        $body = new \GovPay\Backoffice\Model\EntrataPost([
+            'iban_accredito' => $ibanAccredito,
+            // manteniamo abilitato secondo richiesta
+            'abilitato' => $enable,
+        ]);
+        // Se disponibile, proviamo a propagare il codice contabilità esistente
+        if (!empty($codiceCont)) {
+            $body->setCodiceContabilita($codiceCont);
+        }
+        $entiApi->addEntrataDominio($idDominio, $idEntrata, $body);
+
+        $_SESSION['flash'][] = ['type' => 'success', 'text' => ($enable ? 'Abilitata' : 'Disabilitata') . ' su GovPay'];
+    } catch (\GuzzleHttp\Exception\ClientException $ce) {
+        $code = $ce->getResponse() ? $ce->getResponse()->getStatusCode() : 0;
+        $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Errore GovPay (' . $code . '): ' . $ce->getMessage()];
+    } catch (\Throwable $e) {
+        $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Errore aggiornamento GovPay: ' . $e->getMessage()];
+    }
+    return $response->withHeader('Location', '/configurazione?tab=tipologie')->withStatus(302);
+});
+
+// Endpoint reset: cancella URL esterno e, se GovPay è attivo, riallinea lo stato locale a GovPay (override=null)
+$app->post('/configurazione/tipologie/{idEntrata}/reset', function($request, $response, $args) use ($twig) {
+    $u = $_SESSION['user'] ?? null;
+    if (!$u || ($u['role'] ?? '') !== 'superadmin') {
+        $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Accesso negato'];
+        return $response->withHeader('Location', '/configurazione?tab=tipologie')->withStatus(302);
+    }
+    $idEntrata = $args['idEntrata'] ?? '';
+    $idDominio = getenv('ID_DOMINIO') ?: '';
+    if ($idEntrata === '' || $idDominio === '') {
+        $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Parametri mancanti'];
+        return $response->withHeader('Location', '/configurazione?tab=tipologie')->withStatus(302);
+    }
+    try {
+        $repo = new EntrateRepository();
+        $row = $repo->findOne($idDominio, $idEntrata);
+        // Cancella sempre l'URL esterno
+        $repo->setExternalUrl($idDominio, $idEntrata, null);
+        // Se GovPay è attivo, allinea lo stato effettivo a GovPay rimuovendo override
+        if ($row && ((int)$row['abilitato_backoffice'] === 1)) {
+            $repo->setOverride($idDominio, $idEntrata, null);
+        }
+        $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Reset eseguito'];
+    } catch (\Throwable $e) {
+        $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Errore reset: ' . $e->getMessage()];
     }
     return $response->withHeader('Location', '/configurazione?tab=tipologie')->withStatus(302);
 });

@@ -44,12 +44,23 @@ function migrate(): void {
         codice_contabilita VARCHAR(128) NULL,
         abilitato_backoffice TINYINT(1) NOT NULL DEFAULT 0,
         override_locale TINYINT(1) NULL,
+        external_url VARCHAR(500) NULL,
         effective_enabled TINYINT(1) NOT NULL DEFAULT 0,
         sorgente VARCHAR(32) NOT NULL DEFAULT "backoffice",
         updated_at DATETIME NOT NULL,
         created_at DATETIME NOT NULL,
         UNIQUE KEY uniq_dom_entrata (id_dominio, id_entrata)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;');
+
+    // Per retrocompatibilità su installazioni già esistenti, prova ad aggiungere la colonna se manca
+    try {
+        $pdo->exec('ALTER TABLE entrate_tipologie ADD COLUMN IF NOT EXISTS external_url VARCHAR(500) NULL AFTER override_locale');
+    } catch (Throwable $e) {
+        // ignora: potrebbe non essere supportato "IF NOT EXISTS" in alcune versioni; in tal caso assumiamo già presente
+    }
+
+    // Aggiunge colonna external_url se non presente (per redirect esterno quando GovPay è disattivo)
+    $pdo->exec('ALTER TABLE entrate_tipologie ADD COLUMN IF NOT EXISTS external_url VARCHAR(500) NULL AFTER effective_enabled');
 
     // Seed superadmin if env provided
     $adminEmail = getenv('ADMIN_EMAIL') ?: '';
