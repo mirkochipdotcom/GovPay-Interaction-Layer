@@ -52,6 +52,21 @@ function migrate(): void {
         UNIQUE KEY uniq_dom_entrata (id_dominio, id_entrata)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;');
 
+    // Tipologie di pagamento esterne gestite localmente (solo descrizione + URL)
+    $pdo->exec('CREATE TABLE IF NOT EXISTS tipologie_pagamento_esterne (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        descrizione VARCHAR(255) NOT NULL,
+        url VARCHAR(500) NOT NULL,
+        created_at DATETIME NOT NULL,
+        updated_at DATETIME NOT NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;');
+
+    try {
+        $pdo->exec('DROP INDEX uniq_url ON tipologie_pagamento_esterne');
+    } catch (Throwable $e) {
+        // L'indice potrebbe non esistere: ignora l'errore
+    }
+
     // Per retrocompatibilità su installazioni già esistenti, prova ad aggiungere la colonna se manca
     try {
         $pdo->exec('ALTER TABLE entrate_tipologie ADD COLUMN IF NOT EXISTS external_url VARCHAR(500) NULL AFTER override_locale');
