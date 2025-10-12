@@ -3,8 +3,12 @@
 {% block title %}Configurazione - GovPay{% endblock %}
 
 {% block content %}
-  <h1 class="it-title">Configurazione Backoffice</h1>
-  <p class="text-muted">Risultato API: <code>/configurazioni</code></p>
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h1 class="h4 mb-0">Configurazione</h1>
+    <div>
+      <a class="btn btn-outline-secondary" href="/">&laquo; Torna alla home</a>
+    </div>
+  </div>
 
   {% if errors is defined and errors|length > 0 %}
     <div class="alert alert-warning">
@@ -16,9 +20,214 @@
     </div>
   {% endif %}
 
-  {% if cfg_json %}
-    <pre>{{ cfg_json }}</pre>
-  {% else %}
-    <p class="text-muted">Nessun dato disponibile.</p>
-  {% endif %}
+  <div class="card">
+    <div class="card-header">
+      <ul class="nav nav-tabs card-header-tabs">
+        {% set current = tab|default('principali') %}
+        <li class="nav-item"><a class="nav-link {{ current == 'principali' ? 'active' : '' }}" href="/configurazione?tab=principali">Dati principali</a></li>
+        <li class="nav-item"><a class="nav-link {{ current == 'tipologie' ? 'active' : '' }}" href="/configurazione?tab=tipologie">Tipologie di pendenze</a></li>
+        <li class="nav-item"><a class="nav-link {{ current == 'gestionali' ? 'active' : '' }}" href="/configurazione?tab=gestionali">Gestionali</a></li>
+  <li class="nav-item"><a class="nav-link {{ current == 'applicazioni' ? 'active' : '' }}" href="/configurazione?tab=applicazioni">Applicazioni</a></li>
+  <li class="nav-item"><a class="nav-link {{ current == 'confapi' ? 'active' : '' }}" href="/configurazione?tab=confapi">Configurazioni</a></li>
+      </ul>
+    </div>
+    <div class="card-body">
+      {% set c = cfg|default({}) %}
+      {% if current == 'principali' %}
+        <h2 class="h5">Dati principali</h2>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <div><span class="text-muted">Ente:</span> {{ (c.ente is defined and c.ente and c.ente.denominazione is defined) ? c.ente.denominazione : '—' }}</div>
+            <div><span class="text-muted">ID Dominio:</span> {{ (c.ente is defined and c.ente and c.ente.identificativoDominio is defined) ? c.ente.identificativoDominio : '—' }}</div>
+          </div>
+          <div class="col-md-6">
+            <div><span class="text-muted">Ambiente:</span> {{ c.ambiente|default('—') }}</div>
+            <div><span class="text-muted">Versione:</span> {{ c.versione|default('—') }}</div>
+          </div>
+        </div>
+      {% elseif current == 'tipologie' %}
+        <h2 class="h5">Tipologie di pendenze</h2>
+  {% set tipi = c.tipologiePendenze|default([]) %}
+        {% if tipi and tipi|length > 0 %}
+          <div class="table-responsive small">
+            <table class="table table-striped table-sm align-middle">
+              <thead>
+                <tr>
+                  <th>Codice</th>
+                  <th>Descrizione</th>
+                  <th>Abilitato</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for t in tipi %}
+                  <tr>
+                    <td>{{ t.codice|default('—') }}</td>
+                    <td>{{ t.descrizione|default('—') }}</td>
+                    <td>{{ (t.attivo ?? t.abilitato ?? false) ? 'Sì' : 'No' }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="text-muted mb-0">Nessuna tipologia disponibile.</p>
+        {% endif %}
+
+        <hr>
+        <div class="d-flex justify-content-between align-items-center">
+          <div class="text-muted small">Backoffice: /entrate (Elenco tipologie di entrata)</div>
+          {% if entrate_json %}
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#rawEntrate" aria-expanded="false" aria-controls="rawEntrate">Mostra JSON</button>
+          {% endif %}
+        </div>
+        {% if entrate_json %}
+          <div class="collapse mt-2" id="rawEntrate">
+            <pre class="mb-0">{{ entrate_json }}</pre>
+          </div>
+        {% else %}
+          <p class="text-muted small mb-0">Nessun dato entrate disponibile.</p>
+        {% endif %}
+      {% elseif current == 'gestionali' %}
+        <h2 class="h5">Gestionali</h2>
+        {% set gest = c.gestionali|default([]) %}
+        {% if gest and gest|length > 0 %}
+          <div class="table-responsive small">
+            <table class="table table-striped table-sm align-middle">
+              <thead>
+                <tr>
+                  <th>Nome</th>
+                  <th>Vendor</th>
+                  <th>Versione</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for g in gest %}
+                  <tr>
+                    <td>{{ g.nome|default('—') }}</td>
+                    <td>{{ g.vendor|default('—') }}</td>
+                    <td>{{ g.versione|default('—') }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="text-muted mb-0">Nessun gestionale configurato.</p>
+        {% endif %}
+          {% elseif current == 'applicazioni' %}
+            <h2 class="h5">Dati applicazioni</h2>
+            {% set a2a = idA2A|default('') %}
+            {% set appSel = app|default(null) %}
+
+            <div class="row g-3 mb-3">
+              <div class="col-md-6">
+                <div><span class="text-muted">ID A2A:</span> {{ a2a ? a2a : '—' }}</div>
+                {% if appSel %}
+                  <div><span class="text-muted">Nome:</span> {{ appSel.nome|default(appSel.denominazione|default('—')) }}</div>
+                  <div><span class="text-muted">Descrizione:</span> {{ appSel.descrizione|default('—') }}</div>
+                {% endif %}
+              </div>
+              <div class="col-md-6">
+                {% if appSel %}
+                  <div><span class="text-muted">Stato:</span> {{ (appSel.attivo ?? appSel.abilitato ?? false) ? 'Attiva' : 'Disattiva' }}</div>
+                {% endif %}
+              </div>
+            </div>
+
+            {% if appSel %}
+              {% set roles = [] %}
+              {% if appSel.ruoli is defined and appSel.ruoli %}
+                {% set roles = appSel.ruoli %}
+              {% elseif appSel.acl is defined and appSel.acl.ruoli is defined %}
+                {% set roles = appSel.acl.ruoli %}
+              {% elseif appSel.profili is defined %}
+                {% set roles = appSel.profili %}
+              {% endif %}
+
+              <h3 class="h6">Ruoli e ACL</h3>
+              {% if roles and roles|length > 0 %}
+                <div class="row g-3">
+                  {% for r in roles %}
+                    {% set roleName = r.nome|default(r.codice|default(r.id|default('Ruolo'))) %}
+                    {% set perms = r.permessi|default(r.autorizzazioni|default(r.azioni|default([]))) %}
+                    <div class="col-lg-4 col-md-6">
+                      <div class="border rounded h-100 p-2">
+                        <div class="d-flex align-items-center justify-content-between">
+                          <strong class="small">{{ roleName }}</strong>
+                          {% if r.attivo is defined %}
+                            <span class="badge {{ r.attivo ? 'bg-success' : 'bg-secondary' }}">{{ r.attivo ? 'Attivo' : 'No' }}</span>
+                          {% endif %}
+                        </div>
+                        {% if perms and perms|length > 0 %}
+                          <div class="mt-2 d-flex flex-wrap gap-1">
+                            {% for p in perms %}
+                              {% set pName = (p.nome ?? p.codice ?? p.azione ?? p) %}
+                              {% set enabled = (p.abilitato ?? p.attivo ?? (p.concesso ?? true)) %}
+                              <span class="badge {{ enabled ? 'bg-primary' : 'bg-light text-muted border' }}">{{ pName }}</span>
+                            {% endfor %}
+                          </div>
+                        {% else %}
+                          <div class="text-muted small mt-2">Nessuna permission associata.</div>
+                        {% endif %}
+                      </div>
+                    </div>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <p class="text-muted">Nessun ruolo/ACL disponibile per questa applicazione.</p>
+              {% endif %}
+            {% else %}
+              <p class="text-muted">Nessuna applicazione selezionata o non trovata per l'ID A2A configurato.</p>
+            {% endif %}
+
+            <hr>
+            <div class="d-flex flex-wrap gap-2">
+              {% if apps_json %}
+                <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#rawApps" aria-expanded="false" aria-controls="rawApps">Mostra JSON - Lista applicazioni</button>
+              {% endif %}
+              {% if app_json %}
+                <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#rawAppDet" aria-expanded="false" aria-controls="rawAppDet">Mostra JSON - Applicazione {{ a2a }}</button>
+              {% endif %}
+            </div>
+            {% if apps_json %}
+              <div class="collapse mt-2" id="rawApps">
+                <pre class="mb-0">{{ apps_json }}</pre>
+              </div>
+            {% endif %}
+            {% if app_json %}
+              <div class="collapse mt-2" id="rawAppDet">
+                <pre class="mb-0">{{ app_json }}</pre>
+              </div>
+            {% endif %}
+            {% elseif current == 'confapi' %}
+              <h2 class="h5">Configurazioni (API Backoffice)</h2>
+              <div class="d-flex justify-content-between align-items-center">
+                <div class="text-muted small">Fonte dati: Backoffice /configurazioni</div>
+                {% if cfg_json %}
+                  <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#rawCfgApi" aria-expanded="false" aria-controls="rawCfgApi">Mostra JSON</button>
+                {% endif %}
+              </div>
+              {% if cfg_json %}
+                <div class="collapse mt-2" id="rawCfgApi">
+                  <pre class="mb-0">{{ cfg_json }}</pre>
+                </div>
+              {% else %}
+                <p class="text-muted">Nessun dato configurazioni disponibile.</p>
+              {% endif %}
+      {% endif %}
+
+      <hr>
+      <div class="d-flex justify-content-between align-items-center">
+        <div class="text-muted small">Fonte dati: Backoffice /configurazioni</div>
+        {% if cfg_json %}
+          <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#rawCfg" aria-expanded="false" aria-controls="rawCfg">Mostra JSON</button>
+        {% endif %}
+      </div>
+      {% if cfg_json %}
+      <div class="collapse mt-2" id="rawCfg">
+        <pre class="mb-0">{{ cfg_json }}</pre>
+      </div>
+      {% endif %}
+    </div>
+  </div>
 {% endblock %}

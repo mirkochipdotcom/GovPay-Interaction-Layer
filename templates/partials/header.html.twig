@@ -79,7 +79,17 @@
                         <li class="nav-item"><a class="nav-link {{ current_path starts with '/users' ? 'active' : '' }}" href="/users">Utenti</a></li>
                       {% endif %}
                       {% if current_user.role == 'superadmin' %}
-                        <li class="nav-item"><a class="nav-link {{ current_path == '/configurazione' ? 'active' : '' }}" href="/configurazione">Configurazione</a></li>
+                        {% set in_config = current_path starts with '/configurazione' %}
+                        <li class="nav-item dropdown {{ in_config ? 'active' : '' }}">
+                          <a class="nav-link dropdown-toggle {{ in_config ? 'active' : '' }}" href="#" id="configDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            Configurazione
+                          </a>
+                          <div class="dropdown-menu" aria-labelledby="configDropdown">
+                            <a class="dropdown-item {{ current_path == '/configurazione' or (current_path == '/configurazione' and (query.tab|default('principali') == 'principali')) ? 'active' : '' }}" href="/configurazione?tab=principali">Dati principali</a>
+                            <a class="dropdown-item {{ current_path == '/configurazione' and (query.tab|default('principali') == 'tipologie') ? 'active' : '' }}" href="/configurazione?tab=tipologie">Tipologie di pendenze</a>
+                            <a class="dropdown-item {{ current_path == '/configurazione' and (query.tab|default('principali') == 'gestionali') ? 'active' : '' }}" href="/configurazione?tab=gestionali">Gestionali</a>
+                          </div>
+                        </li>
                       {% endif %}
                     {% endif %}
                     {% if not current_user %}

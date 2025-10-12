@@ -483,6 +483,13 @@ $app->get('/configurazione', function($request, $response) use ($twig) {
 
     $errors = [];
     $cfgJson = null;
+    $cfgArr = null;
+    $appsJson = null;
+    $appsArr = null;
+    $profiloJson = null;
+    $entrateJson = null;
+    $pagamentiProfiloJson = null;
+    $tab = $request->getQueryParams()['tab'] ?? 'principali';
     $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
     if (class_exists('\\GovPay\\Backoffice\\Api\\ConfigurazioniApi')) {
         if (!empty($backofficeUrl)) {
@@ -512,10 +519,95 @@ $app->get('/configurazione', function($request, $response) use ($twig) {
                 }
 
                 $httpClient = new \GuzzleHttp\Client($guzzleOptions);
+                // Configurazioni
                 $api = new \GovPay\Backoffice\Api\ConfigurazioniApi($httpClient, $config);
                 $result = $api->getConfigurazioni();
                 $data = \GovPay\Backoffice\ObjectSerializer::sanitizeForSerialization($result);
                 $cfgJson = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+                $cfgArr = $data;
+
+                // Applicazioni (lista) e dettaglio applicazione per idA2A (per vista Tipologie)
+                try {
+                    $appApi = new \GovPay\Backoffice\Api\ApplicazioniApi($httpClient, $config);
+                    $apps = $appApi->findApplicazioni(1, 100, '+idA2A', null, null, null, null, true, true);
+                    $appsData = \GovPay\Backoffice\ObjectSerializer::sanitizeForSerialization($apps);
+                    $appsJson = json_encode($appsData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+                    $appsArr = $appsData;
+
+                    // Dettaglio applicazione da ID_A2A
+                    $idA2A = getenv('ID_A2A') ?: '';
+                    if ($idA2A !== '') {
+                        try {
+                            $appDet = $appApi->getApplicazione($idA2A);
+                            $appDetData = \GovPay\Backoffice\ObjectSerializer::sanitizeForSerialization($appDet);
+                            $appJson = json_encode($appDetData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+                            $appArr = $appDetData;
+                        } catch (\Throwable $e) {
+                            $errors[] = 'Errore lettura applicazione ' . $idA2A . ': ' . $e->getMessage();
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    $errors[] = 'Errore lettura applicazioni: ' . $e->getMessage();
+                }
+
+                // Backoffice - Entrate (tipologie di entrata)
+                try {
+                    if (class_exists('GovPay\\Backoffice\\Api\\EntrateApi')) {
+                        $entrApi = new \GovPay\Backoffice\Api\EntrateApi($httpClient, $config);
+                        // pagina 1, 100 per pagina, ordinamento per codice (asc)
+                        $entrRes = $entrApi->findEntrate(1, 100, '+codice', null, null, null, null, true, true);
+                        $entrData = \GovPay\Backoffice\ObjectSerializer::sanitizeForSerialization($entrRes);
+                        $entrateJson = json_encode($entrData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+                    } else {
+                        $errors[] = 'Client Backoffice Entrate non disponibile';
+                    }
+                } catch (\Throwable $e) {
+                    $errors[] = 'Errore lettura entrate: ' . $e->getMessage();
+                }
+
+                // Pendenze - Profilo (raw JSON per tab Tipologie)
+                try {
+                    if (class_exists('GovPay\\Pendenze\\Api\\ProfiloApi')) {
+                        $pendHost = getenv('GOVPAY_PENDENZE_URL') ?: '';
+                        if (!empty($pendHost)) {
+                            $pendCfg = new \GovPay\Pendenze\Configuration();
+                            $pendCfg->setHost(rtrim($pendHost, '/'));
+                            if ($username !== false && $password !== false && $username !== '' && $password !== '') {
+                                $pendCfg->setUsername($username);
+                                $pendCfg->setPassword($password);
+                            }
+                            $pendClient = new \GuzzleHttp\Client($guzzleOptions);
+                            $profApi = new \GovPay\Pendenze\Api\ProfiloApi($pendClient, $pendCfg);
+                            $profRes = $profApi->getProfilo();
+                            $profData = \GovPay\Pendenze\ObjectSerializer::sanitizeForSerialization($profRes);
+                            $profiloJson = json_encode($profData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+                        } else {
+                            $errors[] = 'Variabile GOVPAY_PENDENZE_URL non impostata';
+                        }
+                    } else {
+                        $errors[] = 'Client Pendenze non disponibile (namespace GovPay\\Pendenze)';
+                    }
+                } catch (\Throwable $e) {
+                    $errors[] = 'Errore lettura profilo Pendenze: ' . $e->getMessage();
+                }
+
+                // Pagamenti - Profilo (raw JSON per tab Tipologie)
+                try {
+                    $pagHost = getenv('GOVPAY_PAGAMENTI_URL') ?: '';
+                    if (!empty($pagHost)) {
+                        $headers = ['Accept' => 'application/json'];
+                        if ($username !== false && $password !== false && $username !== '' && $password !== '') {
+                            $headers['Authorization'] = 'Basic ' . base64_encode($username . ':' . $password);
+                        }
+                        $http = new \GuzzleHttp\Client($guzzleOptions);
+                        $resp = $http->request('GET', rtrim($pagHost, '/') . '/profilo', [ 'headers' => $headers ]);
+                        $pagamentiProfiloJson = (string)$resp->getBody();
+                    } else {
+                        $errors[] = 'Variabile GOVPAY_PAGAMENTI_URL non impostata';
+                    }
+                } catch (\Throwable $e) {
+                    $errors[] = 'Errore lettura profilo Pagamenti: ' . $e->getMessage();
+                }
             } catch (\Throwable $e) {
                 $errors[] = 'Errore chiamata Backoffice: ' . $e->getMessage();
             }
@@ -529,6 +621,16 @@ $app->get('/configurazione', function($request, $response) use ($twig) {
     return $twig->render($response, 'configurazione.html.twig', [
         'errors' => $errors,
         'cfg_json' => $cfgJson,
+        'cfg' => $cfgArr,
+        'apps_json' => $appsJson,
+        'apps' => $appsArr,
+        'app_json' => $appJson ?? null,
+        'app' => $appArr ?? null,
+        'idA2A' => getenv('ID_A2A') ?: null,
+        'profilo_json' => $profiloJson,
+        'entrate_json' => $entrateJson,
+        'pagamenti_profilo_json' => $pagamentiProfiloJson,
+        'tab' => $tab,
     ]);
 });
 
