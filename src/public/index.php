@@ -461,6 +461,156 @@ $app->get('/pendenze/rpp/{idDominio}/{iuv}/{ccp}/rt', function($request, $respon
     }
 });
 
+// Dominio - Logo proxy: scarica il logo del dominio dal Backoffice (o decodifica base64)
+$app->get('/domini/{idDominio}/logo', function($request, $response, $args) {
+    $idDominio = $args['idDominio'] ?? '';
+    if ($idDominio === '') {
+        $response->getBody()->write('Parametri mancanti');
+        return $response->withStatus(400);
+    }
+
+    $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
+    if (empty($backofficeUrl)) {
+        $response->getBody()->write('GOVPAY_BACKOFFICE_URL non impostata');
+        return $response->withStatus(500);
+    }
+
+    $username = getenv('GOVPAY_USER');
+    $password = getenv('GOVPAY_PASSWORD');
+    $guzzleOptions = [
+        'headers' => [
+            'Accept' => 'image/avif,image/webp,image/apng,image/svg+xml,image/*;q=0.8,*/*;q=0.5'
+        ]
+    ];
+    $authMethod = getenv('AUTHENTICATION_GOVPAY');
+    if ($authMethod !== false && strtolower($authMethod) === 'sslheader') {
+        $cert = getenv('GOVPAY_TLS_CERT');
+        $key = getenv('GOVPAY_TLS_KEY');
+        $keyPass = getenv('GOVPAY_TLS_KEY_PASSWORD') ?: null;
+        if (!empty($cert) && !empty($key)) {
+            $guzzleOptions['cert'] = $cert;
+            $guzzleOptions['ssl_key'] = $keyPass ? [$key, $keyPass] : $key;
+        } else {
+            $response->getBody()->write('mTLS abilitato ma GOVPAY_TLS_CERT/GOVPAY_TLS_KEY non impostati');
+            return $response->withStatus(500);
+        }
+    }
+    if ($username !== false && $password !== false && $username !== '' && $password !== '') {
+        $guzzleOptions['auth'] = [$username, $password];
+    }
+
+    // Primo tentativo: endpoint dedicato del backoffice /domini/{idDominio}/logo
+    try {
+        $http = new \GuzzleHttp\Client($guzzleOptions);
+        $url = rtrim($backofficeUrl, '/') . '/domini/' . rawurlencode($idDominio) . '/logo';
+        $resp = $http->request('GET', $url);
+        $contentType = $resp->getHeaderLine('Content-Type') ?: 'image/png';
+        $bytes = (string)$resp->getBody();
+        $filename = 'logo-' . $idDominio;
+        $response = $response
+            ->withHeader('Content-Type', $contentType)
+            ->withHeader('Content-Disposition', 'inline; filename="' . $filename . '"')
+            ->withHeader('Cache-Control', 'no-store');
+        $response->getBody()->write($bytes);
+        return $response;
+    } catch (\GuzzleHttp\Exception\ClientException $ce) {
+        // Se 404 o altro, prova fallback via getDominio e campo base64
+    } catch (\Throwable $e) {
+        // fallback sotto
+    }
+
+    // Fallback: recupera il dominio e prova a decodificare il campo logo base64 o data URL
+    try {
+        if (class_exists('GovPay\\Backoffice\\Api\\EntiCreditoriApi')) {
+            $config = new \GovPay\Backoffice\Configuration();
+            $config->setHost(rtrim($backofficeUrl, '/'));
+            if ($username !== false && $password !== false && $username !== '' && $password !== '') {
+                $config->setUsername($username);
+                $config->setPassword($password);
+            }
+            $httpClient = new \GuzzleHttp\Client($guzzleOptions);
+            $entiApi = new \GovPay\Backoffice\Api\EntiCreditoriApi($httpClient, $config);
+            $domRes = $entiApi->getDominio($idDominio);
+            // Recupera il valore del logo in modo robusto (getter -> property -> array conversion)
+            $logo = null;
+            if (is_object($domRes)) {
+                if (method_exists($domRes, 'getLogo')) {
+                    $logo = $domRes->getLogo();
+                } elseif (property_exists($domRes, 'logo')) {
+                    $logo = $domRes->logo;
+                }
+            }
+            if ($logo === null) {
+                // fallback: serializza e decodifica ad array associativo
+                $domData = json_decode(json_encode($domRes), true);
+                if (is_array($domData)) {
+                    $logo = $domData['logo'] ?? null;
+                }
+            }
+            if (!$logo || !is_string($logo)) {
+                $response->getBody()->write('Logo non disponibile');
+                return $response->withStatus(404);
+            }
+
+            // data URL pattern: data:image/png;base64,XXXXX
+            if (preg_match('/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/', $logo, $m)) {
+                $ct = $m[1];
+                $b64 = $m[2];
+                $bytes = base64_decode($b64, true);
+                if ($bytes === false) {
+                    $response->getBody()->write('Logo non valido');
+                    return $response->withStatus(415);
+                }
+                $response = $response
+                    ->withHeader('Content-Type', $ct)
+                    ->withHeader('Content-Disposition', 'inline; filename="logo-' . $idDominio . '"')
+                    ->withHeader('Cache-Control', 'no-store');
+                $response->getBody()->write($bytes);
+                return $response;
+            }
+
+            // base64 grezzo (senza data URL) -> assumiamo PNG
+            $bytes = base64_decode($logo, true);
+            if ($bytes !== false && $bytes !== '') {
+                $response = $response
+                    ->withHeader('Content-Type', 'image/png')
+                    ->withHeader('Content-Disposition', 'inline; filename="logo-' . $idDominio . '.png"')
+                    ->withHeader('Cache-Control', 'no-store');
+                $response->getBody()->write($bytes);
+                return $response;
+            }
+
+            // Se nel logo c'è un path tipo "/domini/{id}/logo", riprova via HTTP come ultima spiaggia
+            if (is_string($logo) && str_starts_with($logo, '/')) {
+                try {
+                    $http = new \GuzzleHttp\Client($guzzleOptions);
+                    $url = rtrim($backofficeUrl, '/') . $logo;
+                    $resp = $http->request('GET', $url);
+                    $contentType = $resp->getHeaderLine('Content-Type') ?: 'image/png';
+                    $bytes = (string)$resp->getBody();
+                    $response = $response
+                        ->withHeader('Content-Type', $contentType)
+                        ->withHeader('Content-Disposition', 'inline; filename="logo-' . $idDominio . '"')
+                        ->withHeader('Cache-Control', 'no-store');
+                    $response->getBody()->write($bytes);
+                    return $response;
+                } catch (\Throwable $e2) {
+                    // prosegui a 404
+                }
+            }
+
+            $response->getBody()->write('Logo non disponibile');
+            return $response->withStatus(404);
+        }
+    } catch (\Throwable $e) {
+        $response->getBody()->write('Errore recupero logo: ' . $e->getMessage());
+        return $response->withStatus(500);
+    }
+
+    $response->getBody()->write('Logo non disponibile');
+    return $response->withStatus(404);
+});
+
 // Profile
 $app->get('/profile', function($request, $response) use ($twig) {
     if (isset($_SESSION['user'])) {
@@ -488,7 +638,13 @@ $app->get('/configurazione', function($request, $response) use ($twig) {
     $appsArr = null;
     $profiloJson = null;
     $entrateJson = null;
+    $entrateArr = null;
+    $entrateSource = null;
     $pagamentiProfiloJson = null;
+    $infoJson = null;
+    $infoArr = null;
+    $dominioJson = null;
+    $dominioArr = null;
     $tab = $request->getQueryParams()['tab'] ?? 'principali';
     $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
     if (class_exists('\\GovPay\\Backoffice\\Api\\ConfigurazioniApi')) {
@@ -552,14 +708,26 @@ $app->get('/configurazione', function($request, $response) use ($twig) {
 
                 // Backoffice - Entrate (tipologie di entrata)
                 try {
-                    if (class_exists('GovPay\\Backoffice\\Api\\EntrateApi')) {
-                        $entrApi = new \GovPay\Backoffice\Api\EntrateApi($httpClient, $config);
-                        // pagina 1, 100 per pagina, ordinamento per codice (asc)
-                        $entrRes = $entrApi->findEntrate(1, 100, '+codice', null, null, null, null, true, true);
+                    if (class_exists('GovPay\\Backoffice\\Api\\EntiCreditoriApi')) {
+                        $entrApi = new \GovPay\Backoffice\Api\EntiCreditoriApi($httpClient, $config);
+                        $idDominioEnv = getenv('ID_DOMINIO');
+                        $entrateSource = '/entrate';
+                        // Prova prima l'elenco per dominio, se configurato; altrimenti fallback all'elenco globale
+                        if ($idDominioEnv !== false && $idDominioEnv !== '') {
+                            $idDominio = trim($idDominioEnv);
+                            // findEntrateDominio($id_dominio, $pagina, $risultati_per_pagina, $ordinamento, $campi, $abilitato, $descrizione, $metadati_paginazione, $max_risultati)
+                            $entrRes = $entrApi->findEntrateDominio($idDominio, 1, 200, '+idEntrata', null, null, null, true, true);
+                            $entrateSource = '/domini/' . $idDominio . '/entrate';
+                        } else {
+                            // findEntrate($pagina, $risultati_per_pagina, $ordinamento, $campi, $metadati_paginazione, $max_risultati)
+                            $entrRes = $entrApi->findEntrate(1, 200, '+idEntrata', null, true, true);
+                            $entrateSource = '/entrate';
+                        }
                         $entrData = \GovPay\Backoffice\ObjectSerializer::sanitizeForSerialization($entrRes);
                         $entrateJson = json_encode($entrData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+                        $entrateArr = $entrData;
                     } else {
-                        $errors[] = 'Client Backoffice Entrate non disponibile';
+                        $errors[] = 'Client Backoffice EntiCreditori non disponibile';
                     }
                 } catch (\Throwable $e) {
                     $errors[] = 'Errore lettura entrate: ' . $e->getMessage();
@@ -608,6 +776,37 @@ $app->get('/configurazione', function($request, $response) use ($twig) {
                 } catch (\Throwable $e) {
                     $errors[] = 'Errore lettura profilo Pagamenti: ' . $e->getMessage();
                 }
+
+                // Backoffice - Info (/info)
+                try {
+                    if (class_exists('GovPay\\Backoffice\\Api\\InfoApi')) {
+                        $infoApi = new \GovPay\Backoffice\Api\InfoApi($httpClient, $config);
+                        $infoRes = $infoApi->getInfo();
+                        $infoData = \GovPay\Backoffice\ObjectSerializer::sanitizeForSerialization($infoRes);
+                        $infoJson = json_encode($infoData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+                        $infoArr = $infoData;
+                    }
+                } catch (\Throwable $e) {
+                    $errors[] = 'Errore lettura Info: ' . $e->getMessage();
+                }
+
+                // Backoffice - Dominio (/domini/{idDominio})
+                try {
+                    if (class_exists('GovPay\\Backoffice\\Api\\EntiCreditoriApi')) {
+                        $idDom = getenv('ID_DOMINIO') ?: '';
+                        if ($idDom !== '') {
+                            $entiApi = new \GovPay\Backoffice\Api\EntiCreditoriApi($httpClient, $config);
+                            $domRes = $entiApi->getDominio($idDom);
+                            $domData = \GovPay\Backoffice\ObjectSerializer::sanitizeForSerialization($domRes);
+                            $dominioJson = json_encode($domData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+                            $dominioArr = $domData;
+                        } else {
+                            $errors[] = 'Variabile ID_DOMINIO non impostata per lettura dominio';
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    $errors[] = 'Errore lettura dominio beneficiario: ' . $e->getMessage();
+                }
             } catch (\Throwable $e) {
                 $errors[] = 'Errore chiamata Backoffice: ' . $e->getMessage();
             }
@@ -629,7 +828,14 @@ $app->get('/configurazione', function($request, $response) use ($twig) {
         'idA2A' => getenv('ID_A2A') ?: null,
         'profilo_json' => $profiloJson,
         'entrate_json' => $entrateJson,
+            'entrate' => $entrateArr,
+            'entrate_source' => $entrateSource ?? '/entrate',
         'pagamenti_profilo_json' => $pagamentiProfiloJson,
+            'info' => $infoArr,
+            'info_json' => $infoJson,
+            'dominio' => $dominioArr,
+            'dominio_json' => $dominioJson,
+        'backoffice_base' => rtrim($backofficeUrl, '/'),
         'tab' => $tab,
     ]);
 });
