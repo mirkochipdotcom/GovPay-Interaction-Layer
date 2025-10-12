@@ -10,162 +10,156 @@
     </div>
   </div>
 
-  {% if errors is defined and errors|length > 0 %}
-    <div class="alert alert-warning">
-      <ul class="mb-0">
-        {% for e in errors %}
-          <li>{{ e }}</li>
-        {% endfor %}
-      </ul>
-    </div>
+  {% set currentTab = current is defined and current ? current : (tab|default('dominio')) %}
+  {% if currentTab == 'principali' %}
+    {% set currentTab = 'dominio' %}
   {% endif %}
 
-  <div class="card">
-    <div class="card-header">
-      <ul class="nav nav-tabs card-header-tabs">
-        {% set current = tab|default('principali') %}
-        <li class="nav-item"><a class="nav-link {{ current == 'principali' ? 'active' : '' }}" href="/configurazione?tab=principali">Dati principali</a></li>
-        <li class="nav-item"><a class="nav-link {{ current == 'tipologie' ? 'active' : '' }}" href="/configurazione?tab=tipologie">Tipologie di pendenze</a></li>
-  <li class="nav-item"><a class="nav-link {{ current == 'gestionali' ? 'active' : '' }}" href="/configurazione?tab=gestionali">Gestionali</a></li>
-  <li class="nav-item"><a class="nav-link {{ current == 'info' ? 'active' : '' }}" href="/configurazione?tab=info">Info</a></li>
-  <li class="nav-item"><a class="nav-link {{ current == 'applicazioni' ? 'active' : '' }}" href="/configurazione?tab=applicazioni">Applicazioni</a></li>
-  <li class="nav-item"><a class="nav-link {{ current == 'confapi' ? 'active' : '' }}" href="/configurazione?tab=confapi">Configurazioni</a></li>
-      </ul>
+  <div class="row g-3 mb-4">
+    <div class="col-lg-3">
+      <nav class="nav nav-pills flex-column" aria-label="Sezioni configurazione">
+        <a class="nav-link {{ currentTab == 'dominio' ? 'active' : '' }}" href="/configurazione?tab=dominio"><i class="fas fa-building me-2"></i>Dominio</a>
+  <a class="nav-link {{ currentTab == 'tipologie' ? 'active' : '' }}" href="/configurazione?tab=tipologie"><i class="fas fa-list me-2"></i>Tipologie</a>
+        <a class="nav-link {{ currentTab == 'gestionali' ? 'active' : '' }}" href="/configurazione?tab=gestionali"><i class="fas fa-cog me-2"></i>Gestionali</a>
+        <a class="nav-link {{ currentTab == 'info' ? 'active' : '' }}" href="/configurazione?tab=info"><i class="fas fa-info-circle me-2"></i>Info</a>
+        <a class="nav-link {{ currentTab == 'applicazioni' ? 'active' : '' }}" href="/configurazione?tab=applicazioni"><i class="fas fa-puzzle-piece me-2"></i>Applicazioni</a>
+        <a class="nav-link {{ currentTab == 'confapi' ? 'active' : '' }}" href="/configurazione?tab=confapi"><i class="fas fa-code me-2"></i>Config API</a>
+      </nav>
     </div>
-    <div class="card-body">
-      {% set c = cfg|default({}) %}
-      {% set d = dominio|default({}) %}
-      {% if current == 'principali' %}
-        <h2 class="h5">Dati principali</h2>
-        <div class="row g-3">
-          <div class="col-lg-6">
-            <div class="mb-2"><span class="text-muted">Ente:</span> {{ d.ragioneSociale|default((c.ente is defined and c.ente.denominazione is defined) ? c.ente.denominazione : '—') }}</div>
-            <div class="mb-2"><span class="text-muted">ID Dominio:</span> {{ d.idDominio|default((c.ente is defined and c.ente.identificativoDominio is defined) ? c.ente.identificativoDominio : '—') }}</div>
-            <div class="mb-2"><span class="text-muted">Indirizzo:</span>
-              {% set addr = [d.indirizzo|default(null), d.civico|default(null)]|filter(v=>v)|join(' ') %}
-              {{ addr and addr|length > 0 ? addr : '—' }}
-            </div>
-            <div class="mb-2"><span class="text-muted">CAP / Località (Provincia):</span>
-              {% set loc = [d.cap|default(null), d.localita|default(null)]|filter(v=>v)|join(' ') %}
-              {% set prov = d.provincia|default(null) %}
-              {{ loc ? loc : '—' }}{{ prov ? ' (' ~ prov ~ ')' : '' }}
-            </div>
-            <div class="mb-2"><span class="text-muted">Nazione:</span> {{ d.nazione|default('—') }}</div>
-            <div class="mb-2"><span class="text-muted">Telefono:</span> {{ d.tel|default('—') }}</div>
-            <div class="mb-2"><span class="text-muted">Sito web:</span>
-              {% if d.web is defined and d.web %}
-                {% set webUrl = d.web starts with 'http' ? d.web : 'http://' ~ d.web %}
-                <a href="{{ webUrl }}" target="_blank" rel="noopener">{{ d.web }}</a>
-              {% else %}
-                —
-              {% endif %}
-            </div>
-            <div class="mb-2"><span class="text-muted">CBILL:</span> {{ d.cbill|default('—') }}</div>
-            <div class="mb-2"><span class="text-muted">Stazione:</span> {{ d.stazione|default('—') }}</div>
-            <div class="mb-2"><span class="text-muted">GLN:</span> {{ d.gln|default('—') }}</div>
-            <div class="mb-2"><span class="text-muted">Aux digit / Segregation code:</span>
-              {% set aux = d.auxDigit|default(null) %}
-              {% set seg = d.segregationCode|default(null) %}
-              {{ aux or seg ? (aux|default('—') ~ ' / ' ~ seg|default('—')) : '—' }}
-            </div>
-            <div class="mb-2"><span class="text-muted">Abilitato:</span>
-              {% if d.abilitato is defined %}
-                <span class="badge {{ d.abilitato ? 'bg-success' : 'bg-secondary' }}">{{ d.abilitato ? 'Sì' : 'No' }}</span>
-              {% else %}
-                —
-              {% endif %}
-            </div>
-            <div class="mb-2"><span class="text-muted">Intermediato:</span>
-              {% if d.intermediato is defined %}
-                <span class="badge {{ d.intermediato ? 'bg-info text-dark' : 'bg-light text-muted border' }}">{{ d.intermediato ? 'Sì' : 'No' }}</span>
-              {% else %}
-                —
-              {% endif %}
-            </div>
-            <div class="mb-2"><span class="text-muted">Aut. Stampa Poste Italiane:</span> {{ d.autStampaPosteItaliane|default('—') }}</div>
-            <div class="mb-2"><span class="text-muted">Logo:</span>
-              {% if d.logo is defined and d.logo %}
-                {% set logoVal = d.logo %}
-                {% set isDataUrl = logoVal starts with 'data:image/' %}
-                {% set isBase64Only = (not isDataUrl) and (logoVal matches '#^[A-Za-z0-9+/=]+$#' and (logoVal|length) > 64) %}
-                {% if isDataUrl %}
-                  <img src="{{ logoVal }}" alt="Logo dominio" style="max-height:48px" class="align-text-bottom border rounded">
-                {% elseif isBase64Only %}
-                  <img src="{{ ('data:image/png;base64,' ~ logoVal) }}" alt="Logo dominio" style="max-height:48px" class="align-text-bottom border rounded">
+    <div class="col-lg-9">
+      {% if currentTab == 'dominio' %}
+        <h2 class="h5">Dominio dell'ente</h2>
+        {% set d = dominio %}
+        {% if d %}
+          <div class="row g-3">
+            <div class="col-lg-6">
+              <div class="mb-2"><span class="text-muted">ID Dominio:</span> <span class="font-monospace">{{ d.idDominio|default('—') }}</span></div>
+              <div class="mb-2"><span class="text-muted">Denominazione:</span> {{ d.ragioneSociale|default('—') }}</div>
+              <div class="mb-2"><span class="text-muted">Indirizzo:</span> {{ d.indirizzo|default('—') }}</div>
+              <div class="mb-2"><span class="text-muted">Località:</span> {{ d.localita|default('—') }}</div>
+              <div class="mb-2"><span class="text-muted">Provincia:</span> {{ d.provincia|default('—') }}</div>
+              <div class="mb-2"><span class="text-muted">CAP:</span> {{ d.cap|default('—') }}</div>
+              <div class="mb-2"><span class="text-muted">Nazione:</span> {{ d.nazione|default('—') }}</div>
+              <div class="mb-2"><span class="text-muted">Email:</span> {{ d.email|default('—') }}</div>
+              <div class="mb-2"><span class="text-muted">PEC:</span> {{ d.pec|default('—') }}</div>
+              <div class="mb-2"><span class="text-muted">Telefono:</span> {{ d.tel|default('—') }}</div>
+              <div class="mb-2"><span class="text-muted">Sito web:</span>
+                {% if d.web is defined and d.web %}
+                  {% set webUrl = d.web starts with 'http' ? d.web : 'http://' ~ d.web %}
+                  <a href="{{ webUrl }}" target="_blank" rel="noopener">{{ d.web }}</a>
                 {% else %}
-                  <span class="font-monospace small">{{ logoVal }}</span>
+                  —
                 {% endif %}
+              </div>
+              <div class="mb-2"><span class="text-muted">CBILL:</span> {{ d.cbill|default('—') }}</div>
+              <div class="mb-2"><span class="text-muted">Stazione:</span> {{ d.stazione|default('—') }}</div>
+              <div class="mb-2"><span class="text-muted">GLN:</span> {{ d.gln|default('—') }}</div>
+              <div class="mb-2"><span class="text-muted">Aux digit / Segregation code:</span>
+                {% set aux = d.auxDigit|default(null) %}
+                {% set seg = d.segregationCode|default(null) %}
+                {{ aux or seg ? (aux|default('—') ~ ' / ' ~ seg|default('—')) : '—' }}
+              </div>
+              <div class="mb-2"><span class="text-muted">Abilitato:</span>
+                {% if d.abilitato is defined %}
+                  <span class="badge {{ d.abilitato ? 'bg-success' : 'bg-secondary' }}">{{ d.abilitato ? 'Sì' : 'No' }}</span>
+                {% else %}
+                  —
+                {% endif %}
+              </div>
+              <div class="mb-2"><span class="text-muted">Intermediato:</span>
+                {% if d.intermediato is defined %}
+                  <span class="badge {{ d.intermediato ? 'bg-info text-dark' : 'bg-light text-muted border' }}">{{ d.intermediato ? 'Sì' : 'No' }}</span>
+                {% else %}
+                  —
+                {% endif %}
+              </div>
+              <div class="mb-2"><span class="text-muted">Aut. Stampa Poste Italiane:</span> {{ d.autStampaPosteItaliane|default('—') }}</div>
+              <div class="mb-2"><span class="text-muted">Logo:</span>
+                {% if d.logo is defined and d.logo %}
+                  {% set logoVal = d.logo %}
+                  {% set isDataUrl = logoVal starts with 'data:image/' %}
+                  {% set isBase64Only = (not isDataUrl) and (logoVal matches '#^[A-Za-z0-9+/=]+$#' and (logoVal|length) > 64) %}
+                  {% if isDataUrl %}
+                    <img src="{{ logoVal }}" alt="Logo dominio" style="max-height:48px" class="align-text-bottom border rounded">
+                  {% elseif isBase64Only %}
+                    <img src="{{ ('data:image/png;base64,' ~ logoVal) }}" alt="Logo dominio" style="max-height:48px" class="align-text-bottom border rounded">
+                  {% else %}
+                    <span class="font-monospace small">{{ logoVal }}</span>
+                  {% endif %}
+                {% else %}
+                  —
+                {% endif %}
+              </div>
+            </div>
+            <div class="col-lg-6">
+              <h3 class="h6 mt-3 mt-lg-0">Conti di accredito</h3>
+              {% set conti = d.contiAccredito|default([]) %}
+              {% if conti and conti|length > 0 %}
+                <div class="table-responsive small">
+                  <table class="table table-sm table-striped align-middle">
+                    <thead>
+                      <tr>
+                        <th>IBAN</th>
+                        <th>Descrizione</th>
+                        <th>Postale</th>
+                        <th>MyBank</th>
+                        <th>Abilitato</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for cc in conti %}
+                        <tr>
+                          <td class="font-monospace">{{ cc.iban|default('—') }}</td>
+                          <td>{{ cc.descrizione|default('—') }}</td>
+                          <td>{{ cc.postale is defined and cc.postale ? 'Sì' : 'No' }}</td>
+                          <td>{{ cc.mybank is defined and cc.mybank ? 'Sì' : 'No' }}</td>
+                          <td>
+                            {% if cc.abilitato is defined %}
+                              <span class="badge {{ cc.abilitato ? 'bg-success' : 'bg-secondary' }}">{{ cc.abilitato ? 'Sì' : 'No' }}</span>
+                            {% else %}
+                              —
+                            {% endif %}
+                          </td>
+                        </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
               {% else %}
-                —
+                <p class="text-muted small mb-2">Nessun conto di accredito configurato.</p>
+              {% endif %}
+
+              <h3 class="h6 mt-3">Unità operative</h3>
+              {% set uo = d.unitaOperative|default([]) %}
+              {% if uo and uo|length > 0 %}
+                <ul class="small mb-0">
+                  {% for u in uo %}
+                    <li>{{ u.denominazione|default(u.idUnitaOperativa|default('Unità')) }}</li>
+                  {% endfor %}
+                </ul>
+              {% else %}
+                <p class="text-muted small mb-0">Nessuna unità operativa.</p>
               {% endif %}
             </div>
           </div>
-          <div class="col-lg-6">
-            <h3 class="h6 mt-3">Conti di accredito</h3>
-            {% set conti = d.contiAccredito|default([]) %}
-            {% if conti and conti|length > 0 %}
-              <div class="table-responsive small">
-                <table class="table table-sm table-striped align-middle">
-                  <thead>
-                    <tr>
-                      <th>IBAN</th>
-                      <th>Descrizione</th>
-                      <th>Postale</th>
-                      <th>MyBank</th>
-                      <th>Abilitato</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {% for cc in conti %}
-                      <tr>
-                        <td class="font-monospace">{{ cc.iban|default('—') }}</td>
-                        <td>{{ cc.descrizione|default('—') }}</td>
-                        <td>{{ cc.postale is defined and cc.postale ? 'Sì' : 'No' }}</td>
-                        <td>{{ cc.mybank is defined and cc.mybank ? 'Sì' : 'No' }}</td>
-                        <td>
-                          {% if cc.abilitato is defined %}
-                            <span class="badge {{ cc.abilitato ? 'bg-success' : 'bg-secondary' }}">{{ cc.abilitato ? 'Sì' : 'No' }}</span>
-                          {% else %}
-                            —
-                          {% endif %}
-                        </td>
-                      </tr>
-                    {% endfor %}
-                  </tbody>
-                </table>
+
+          {% if app_debug and dominio_json %}
+            <hr>
+            <div class="d-flex justify-content-between align-items-center">
+              <div class="text-muted small">Backoffice: /domini/{{ d.idDominio|default('idDominio') }}</div>
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-warning text-dark">Debug</span>
+                <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#rawDominio" aria-expanded="false" aria-controls="rawDominio">Mostra JSON</button>
               </div>
-            {% else %}
-              <p class="text-muted small mb-2">Nessun conto di accredito configurato.</p>
-            {% endif %}
-
-            <h3 class="h6 mt-3">Unità operative</h3>
-            {% set uo = d.unitaOperative|default([]) %}
-            {% if uo and uo|length > 0 %}
-              <ul class="small mb-0">
-                {% for u in uo %}
-                  <li>{{ u.denominazione|default(u.idUnitaOperativa|default('Unità')) }}</li>
-                {% endfor %}
-              </ul>
-            {% else %}
-              <p class="text-muted small mb-0">Nessuna unità operativa.</p>
-            {% endif %}
-
-          </div>
-        </div>
-        {% if app_debug and dominio_json %}
-          <hr>
-          <div class="d-flex justify-content-between align-items-center">
-            <div class="text-muted small">Backoffice: /domini/{{ d.idDominio|default('idDominio') }}</div>
-            <div class="d-flex align-items-center gap-2">
-              <span class="badge bg-warning text-dark">Debug</span>
-              <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#rawDominio" aria-expanded="false" aria-controls="rawDominio">Mostra JSON</button>
             </div>
-          </div>
-          <div class="collapse mt-2" id="rawDominio">
-            <pre class="mb-0">{{ dominio_json }}</pre>
-          </div>
+            <div class="collapse mt-2" id="rawDominio">
+              <pre class="mb-0">{{ dominio_json }}</pre>
+            </div>
+          {% endif %}
+        {% else %}
+          <p class="text-muted mb-0">Dati dominio non disponibili.</p>
         {% endif %}
-      {% elseif current == 'tipologie' %}
+  {% elseif currentTab == 'tipologie' %}
         <h2 class="h5">Tipologie di entrata del dominio</h2>
         {% set elenco = entrate.risultati|default([]) %}
         {% if elenco and elenco|length > 0 %}
@@ -180,22 +174,40 @@
             {% for e in elenco %}
               {% set descr = e.tipoEntrata.descrizione|default(e.idEntrata|default('Tipologia')) %}
               {% set eid = 'entrata_' ~ (e.idEntrata|default(loop.index)) %}
-              {% set effMap = entrate._effective_map|default({}) %}
+              {% set boMap = entrate._bo_map|default({}) %}
+              {% set ovrMap = entrate._override_map|default({}) %}
+              {% set urlMap = entrate._exturl_map|default({}) %}
               {% set idEnt = e.idEntrata|default(e.tipoEntrata.idEntrata|default('')) %}
-              {% set eff = effMap[idEnt]|default(e.abilitato|default(false)) %}
+              {% set bo = (boMap[idEnt] is defined) ? boMap[idEnt] : (e.abilitato|default(false)) %}
+              {% set ovr = ovrMap[idEnt]|default(null) %}
+              {% set urlVal = urlMap[idEnt]|default('') %}
               <div class="accordion-item">
                 <h2 class="accordion-header" id="heading_{{ eid }}">
                   <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse_{{ eid }}" aria-expanded="false" aria-controls="collapse_{{ eid }}">
-                    <div class="d-flex w-100 align-items-center justify-content-between">
-                      <span class="me-3">{{ descr }}</span>
-                      {% set ab = eff %}
-                      <div class="d-flex align-items-center justify-content-end ms-2" style="width: 160px;">
-                        <span class="small text-nowrap me-2 d-none d-sm-inline-block" style="width: 80px; text-align: right;">{{ ab ? 'Attivo' : 'Disattivo' }}</span>
-                        <span class="form-check form-switch m-0">
-                          <input class="form-check-input" type="checkbox" role="switch" disabled {{ ab ? 'checked' : '' }}>
-                          <label class="form-check-label visually-hidden">{{ ab ? 'Attivo' : 'Disattivo' }}</label>
-                        </span>
-                      </div>
+                    <div class="d-flex w-100 align-items-center justify-content-start">
+                      <span class="me-3 d-flex align-items-center gap-2">
+                        <span>{{ descr }}</span>
+                        {% set localeAttivo = (ovr is same as(null)) or (ovr == true) %}
+                        {% set localeDisattivo = (ovr is not same as(null)) and (ovr == false) %}
+                        {% set urlPresente = urlVal is not empty %}
+                        {% if localeDisattivo %}
+                          <span class="badge bg-warning text-dark small d-none d-md-inline-flex align-items-center">
+                            <i class="fas fa-ban me-1"></i> Disattivo locale
+                          </span>
+                        {% elseif localeAttivo and urlPresente %}
+                          <span class="badge bg-primary small d-none d-md-inline-flex align-items-center">
+                            <i class="fas fa-external-link-alt me-1"></i> Instradato esterno
+                          </span>
+                        {% elseif bo and localeAttivo and not urlPresente %}
+                          <span class="badge bg-success small d-none d-md-inline-flex align-items-center">
+                            <i class="fas fa-check me-1"></i> Attivo GovPay
+                          </span>
+                        {% else %}
+                          <span class="badge bg-secondary small d-none d-md-inline-flex align-items-center">
+                            <i class="fas fa-power-off me-1"></i> Disabilitato GovPay
+                          </span>
+                        {% endif %}
+                      </span>
                     </div>
                   </button>
                 </h2>
@@ -215,19 +227,83 @@
                         <div class="fw-semibold">{{ idEnt|default('—') }}</div>
                       </div>
                     </div>
+                    <div class="row g-3 small mt-1">
+                      <div class="col-md-6">
+                        <div class="text-muted">Stato Backoffice</div>
+                        <div>
+                          <span class="badge {{ bo ? 'bg-secondary' : 'bg-light text-muted border' }}">{{ bo ? 'Abilitato' : 'Disabilitato' }}</span>
+                        </div>
+                      </div>
+                      <div class="col-md-6">
+                        <div class="text-muted">Override locale</div>
+                        <div>
+                          {% if ovr is same as(null) %}
+                            <span class="badge bg-light text-muted border">Nessun override</span>
+                          {% elseif ovr %}
+                            <span class="badge bg-success">Forzato attivo</span>
+                          {% else %}
+                            <span class="badge bg-warning text-dark">Forzato disattivo</span>
+                          {% endif %}
+                        </div>
+                      </div>
+                    </div>
                     {% if current_user and current_user.role == 'superadmin' and idEnt %}
                       <hr>
-                      <div class="d-flex flex-wrap gap-2 align-items-center">
-                        <form method="post" action="/configurazione/tipologie/{{ idEnt }}/override" class="m-0">
-                          <input type="hidden" name="enable" value="{{ eff ? 0 : 1 }}">
-                          <button type="submit" class="btn btn-sm {{ eff ? 'btn-outline-danger' : 'btn-outline-success' }}">
-                            {{ eff ? 'Disattiva localmente' : 'Attiva localmente' }}
-                          </button>
-                        </form>
-                        <form method="post" action="/configurazione/tipologie/{{ idEnt }}/override" class="m-0">
-                          <input type="hidden" name="action" value="reset">
-                          <button type="submit" class="btn btn-sm btn-outline-secondary">Ripristina da Backoffice</button>
-                        </form>
+                      <div class="d-flex flex-column gap-3">
+                        <div class="d-flex flex-wrap gap-2 align-items-center">
+                          {% if bo %}
+                            <form method="post" action="/configurazione/tipologie/{{ idEnt }}/govpay" class="m-0">
+                              <input type="hidden" name="enable" value="{{ bo ? 0 : 1 }}">
+                              <button type="submit" class="btn btn-sm {{ bo ? 'btn-warning' : 'btn-success' }}">
+                                {{ bo ? 'Disabilita su GovPay' : 'Abilita su GovPay' }}
+                              </button>
+                            </form>
+                            {% if ovr is same as(null) or ovr == true %}
+                              <form method="post" action="/configurazione/tipologie/{{ idEnt }}/override" class="m-0">
+                                <input type="hidden" name="enable" value="0">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Disattiva localmente</button>
+                              </form>
+                            {% elseif ovr == false %}
+                              <form method="post" action="/configurazione/tipologie/{{ idEnt }}/override" class="m-0">
+                                <input type="hidden" name="enable" value="1">
+                                <button type="submit" class="btn btn-sm btn-outline-success">Attiva localmente</button>
+                              </form>
+                              {% if urlPresente %}
+                                <form method="post" action="/configurazione/tipologie/{{ idEnt }}/url" class="m-0">
+                                  <input type="hidden" name="external_url" value="">
+                                  <button type="submit" class="btn btn-sm btn-outline-secondary">Reset URL</button>
+                                </form>
+                              {% endif %}
+                            {% endif %}
+                          {% else %}
+                            <form method="post" action="/configurazione/tipologie/{{ idEnt }}/govpay" class="m-0">
+                              <input type="hidden" name="enable" value="1">
+                              <button type="submit" class="btn btn-sm btn-success">Abilita su GovPay</button>
+                            </form>
+                            {% if urlVal %}
+                              <form method="post" action="/configurazione/tipologie/{{ idEnt }}/override" class="m-0">
+                                <input type="hidden" name="enable" value="{{ ovr == true ? 0 : 1 }}">
+                                <button type="submit" class="btn btn-sm {{ ovr == true ? 'btn-outline-danger' : 'btn-outline-success' }}">
+                                  {{ ovr == true ? 'Disattiva localmente' : 'Attiva localmente' }}
+                                </button>
+                              </form>
+                            {% endif %}
+                          {% endif %}
+                          {% if not (ovr is same as(null) or ovr == false) and urlPresente %}
+                            <form method="post" action="/configurazione/tipologie/{{ idEnt }}/url" class="m-0">
+                              <input type="hidden" name="external_url" value="">
+                              <button type="submit" class="btn btn-sm btn-outline-secondary">Reset URL</button>
+                            </form>
+                          {% endif %}
+                          <form method="post" action="/configurazione/tipologie/{{ idEnt }}/url" class="m-0 d-flex align-items-center gap-2">
+                            <label for="exturl_{{ eid }}" class="small text-muted">URL esterno</label>
+                            <input id="exturl_{{ eid }}" name="external_url" type="url" class="form-control form-control-sm" style="max-width:420px" placeholder="https://..." value="{{ urlVal }}">
+                            <button type="submit" class="btn btn-sm btn-primary">Salva</button>
+                          </form>
+                        </div>
+                        {% if not bo and not urlVal %}
+                          <span class="text-danger small d-flex align-items-center"><i class="fas fa-info-circle me-1"></i> Imposta un URL esterno per poter attivare localmente quando GovPay è disattivo.</span>
+                        {% endif %}
                       </div>
                     {% endif %}
                   </div>
@@ -266,7 +342,6 @@
               };
               q.addEventListener('input', filter);
               clearBtn && clearBtn.addEventListener('click', () => { q.value = ''; q.focus(); filter(); });
-              // Init
               filter();
             })();
           </script>
@@ -288,7 +363,7 @@
             <pre class="mb-0">{{ entrate_json }}</pre>
           </div>
         {% endif %}
-      {% elseif current == 'gestionali' %}
+  {% elseif currentTab == 'gestionali' %}
         <h2 class="h5">Gestionali</h2>
         {% set gest = c.gestionali|default([]) %}
         {% if gest and gest|length > 0 %}
@@ -315,7 +390,7 @@
         {% else %}
           <p class="text-muted mb-0">Nessun gestionale configurato.</p>
         {% endif %}
-      {% elseif current == 'info' %}
+  {% elseif currentTab == 'info' %}
         <h2 class="h5">Info GovPay</h2>
         {% set i = info|default({}) %}
         <div class="row g-3">
@@ -376,110 +451,112 @@
             <pre class="mb-0">{{ info_json }}</pre>
           </div>
         {% endif %}
-          {% elseif current == 'applicazioni' %}
-            <h2 class="h5">Dati applicazioni</h2>
-            {% set a2a = idA2A|default('') %}
-            {% set appSel = app|default(null) %}
+  {% elseif currentTab == 'applicazioni' %}
+        <h2 class="h5">Dati applicazioni</h2>
+        {% set a2a = idA2A|default('') %}
+        {% set appSel = app|default(null) %}
 
-            <div class="row g-3 mb-3">
-              <div class="col-md-6">
-                <div><span class="text-muted">ID A2A:</span> {{ a2a ? a2a : '—' }}</div>
-                {% if appSel %}
-                  <div><span class="text-muted">Nome:</span> {{ appSel.nome|default(appSel.denominazione|default('—')) }}</div>
-                  <div><span class="text-muted">Descrizione:</span> {{ appSel.descrizione|default('—') }}</div>
-                {% endif %}
-              </div>
-              <div class="col-md-6">
-                {% if appSel %}
-                  <div><span class="text-muted">Stato:</span> {{ (appSel.attivo ?? appSel.abilitato ?? false) ? 'Attiva' : 'Disattiva' }}</div>
-                {% endif %}
-              </div>
-            </div>
-
+        <div class="row g-3 mb-3">
+          <div class="col-md-6">
+            <div><span class="text-muted">ID A2A:</span> {{ a2a ? a2a : '—' }}</div>
             {% if appSel %}
-              {% set roles = [] %}
-              {% if appSel.ruoli is defined and appSel.ruoli %}
-                {% set roles = appSel.ruoli %}
-              {% elseif appSel.acl is defined and appSel.acl.ruoli is defined %}
-                {% set roles = appSel.acl.ruoli %}
-              {% elseif appSel.profili is defined %}
-                {% set roles = appSel.profili %}
-              {% endif %}
+              <div><span class="text-muted">Nome:</span> {{ appSel.nome|default(appSel.denominazione|default('—')) }}</div>
+              <div><span class="text-muted">Descrizione:</span> {{ appSel.descrizione|default('—') }}</div>
+            {% endif %}
+          </div>
+          <div class="col-md-6">
+            {% if appSel %}
+              <div><span class="text-muted">Stato:</span> {{ (appSel.attivo ?? appSel.abilitato ?? false) ? 'Attiva' : 'Disattiva' }}</div>
+            {% endif %}
+          </div>
+        </div>
 
-              <h3 class="h6">Ruoli e ACL</h3>
-              {% if roles and roles|length > 0 %}
-                <div class="row g-3">
-                  {% for r in roles %}
-                    {% set roleName = r.nome|default(r.codice|default(r.id|default('Ruolo'))) %}
-                    {% set perms = r.permessi|default(r.autorizzazioni|default(r.azioni|default([]))) %}
-                    <div class="col-lg-4 col-md-6">
-                      <div class="border rounded h-100 p-2">
-                        <div class="d-flex align-items-center justify-content-between">
-                          <strong class="small">{{ roleName }}</strong>
-                          {% if r.attivo is defined %}
-                            <span class="badge {{ r.attivo ? 'bg-success' : 'bg-secondary' }}">{{ r.attivo ? 'Attivo' : 'No' }}</span>
-                          {% endif %}
-                        </div>
-                        {% if perms and perms|length > 0 %}
-                          <div class="mt-2 d-flex flex-wrap gap-1">
-                            {% for p in perms %}
-                              {% set pName = (p.nome ?? p.codice ?? p.azione ?? p) %}
-                              {% set enabled = (p.abilitato ?? p.attivo ?? (p.concesso ?? true)) %}
-                              <span class="badge {{ enabled ? 'bg-primary' : 'bg-light text-muted border' }}">{{ pName }}</span>
-                            {% endfor %}
-                          </div>
-                        {% else %}
-                          <div class="text-muted small mt-2">Nessuna permission associata.</div>
-                        {% endif %}
-                      </div>
+        {% if appSel %}
+          {% set roles = [] %}
+          {% if appSel.ruoli is defined and appSel.ruoli %}
+            {% set roles = appSel.ruoli %}
+          {% elseif appSel.acl is defined and appSel.acl.ruoli is defined %}
+            {% set roles = appSel.acl.ruoli %}
+          {% elseif appSel.profili is defined %}
+            {% set roles = appSel.profili %}
+          {% endif %}
+
+          <h3 class="h6">Ruoli e ACL</h3>
+          {% if roles and roles|length > 0 %}
+            <div class="row g-3">
+              {% for r in roles %}
+                {% set roleName = r.nome|default(r.codice|default(r.id|default('Ruolo'))) %}
+                {% set perms = r.permessi|default(r.autorizzazioni|default(r.azioni|default([]))) %}
+                <div class="col-lg-4 col-md-6">
+                  <div class="border rounded h-100 p-2">
+                    <div class="d-flex align-items-center justify-content-between">
+                      <strong class="small">{{ roleName }}</strong>
+                      {% if r.attivo is defined %}
+                        <span class="badge {{ r.attivo ? 'bg-success' : 'bg-secondary' }}">{{ r.attivo ? 'Attivo' : 'No' }}</span>
+                      {% endif %}
                     </div>
-                  {% endfor %}
-                </div>
-              {% else %}
-                <p class="text-muted">Nessun ruolo/ACL disponibile per questa applicazione.</p>
-              {% endif %}
-            {% else %}
-              <p class="text-muted">Nessuna applicazione selezionata o non trovata per l'ID A2A configurato.</p>
-            {% endif %}
-
-            {% if app_debug %}
-              <hr>
-              <div class="d-flex flex-wrap gap-2 align-items-center">
-                <span class="badge bg-warning text-dark">Debug</span>
-                {% if apps_json %}
-                  <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#rawApps" aria-expanded="false" aria-controls="rawApps">Mostra JSON - Lista applicazioni</button>
-                {% endif %}
-                {% if app_json %}
-                  <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#rawAppDet" aria-expanded="false" aria-controls="rawAppDet">Mostra JSON - Applicazione {{ a2a }}</button>
-                {% endif %}
-              </div>
-              {% if apps_json %}
-                <div class="collapse mt-2" id="rawApps">
-                  <pre class="mb-0">{{ apps_json }}</pre>
-                </div>
-              {% endif %}
-              {% if app_json %}
-                <div class="collapse mt-2" id="rawAppDet">
-                  <pre class="mb-0">{{ app_json }}</pre>
-                </div>
-              {% endif %}
-            {% endif %}
-            {% elseif current == 'confapi' %}
-              <h2 class="h5">Configurazioni (API Backoffice)</h2>
-              {% if app_debug and cfg_json %}
-                <div class="d-flex justify-content-between align-items-center">
-                  <div class="text-muted small">Fonte dati: Backoffice /configurazioni</div>
-                  <div class="d-flex align-items-center gap-2">
-                    <span class="badge bg-warning text-dark">Debug</span>
-                    <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#rawCfgApi" aria-expanded="false" aria-controls="rawCfgApi">Mostra JSON</button>
+                    {% if perms and perms|length > 0 %}
+                      <div class="mt-2 d-flex flex-wrap gap-1">
+                        {% for p in perms %}
+                          {% set pName = (p.nome ?? p.codice ?? p.azione ?? p) %}
+                          {% set enabled = (p.abilitato ?? p.attivo ?? (p.concesso ?? true)) %}
+                          <span class="badge {{ enabled ? 'bg-primary' : 'bg-light text-muted border' }}">{{ pName }}</span>
+                        {% endfor %}
+                      </div>
+                    {% else %}
+                      <div class="text-muted small mt-2">Nessuna permission associata.</div>
+                    {% endif %}
                   </div>
                 </div>
-                <div class="collapse mt-2" id="rawCfgApi">
-                  <pre class="mb-0">{{ cfg_json }}</pre>
-                </div>
-              {% else %}
-                <p class="text-muted">Nessun dettaglio JSON disponibile.</p>
-              {% endif %}
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="text-muted">Nessun ruolo/ACL disponibile per questa applicazione.</p>
+          {% endif %}
+        {% else %}
+          <p class="text-muted">Nessuna applicazione selezionata o non trovata per l'ID A2A configurato.</p>
+        {% endif %}
+
+        {% if app_debug %}
+          <hr>
+          <div class="d-flex flex-wrap gap-2 align-items-center">
+            <span class="badge bg-warning text-dark">Debug</span>
+            {% if apps_json %}
+              <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#rawApps" aria-expanded="false" aria-controls="rawApps">Mostra JSON - Lista applicazioni</button>
+            {% endif %}
+            {% if app_json %}
+              <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#rawAppDet" aria-expanded="false" aria-controls="rawAppDet">Mostra JSON - Applicazione {{ a2a }}</button>
+            {% endif %}
+          </div>
+          {% if apps_json %}
+            <div class="collapse mt-2" id="rawApps">
+              <pre class="mb-0">{{ apps_json }}</pre>
+            </div>
+          {% endif %}
+          {% if app_json %}
+            <div class="collapse mt-2" id="rawAppDet">
+              <pre class="mb-0">{{ app_json }}</pre>
+            </div>
+          {% endif %}
+        {% endif %}
+  {% elseif currentTab == 'confapi' %}
+        <h2 class="h5">Configurazioni (API Backoffice)</h2>
+        {% if app_debug and cfg_json %}
+          <div class="d-flex justify-content-between align-items-center">
+            <div class="text-muted small">Fonte dati: Backoffice /configurazioni</div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="badge bg-warning text-dark">Debug</span>
+              <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#rawCfgApi" aria-expanded="false" aria-controls="rawCfgApi">Mostra JSON</button>
+            </div>
+          </div>
+          <div class="collapse mt-2" id="rawCfgApi">
+            <pre class="mb-0">{{ cfg_json }}</pre>
+          </div>
+        {% else %}
+          <p class="text-muted">Nessun dettaglio JSON disponibile.</p>
+        {% endif %}
+      {% else %}
+        <p class="text-muted mb-0">Seleziona una sezione dalla navigazione.</p>
       {% endif %}
 
       {% if false %}{# eliminato blocco raw globale configurazioni #}{% endif %}
