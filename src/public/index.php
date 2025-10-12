@@ -26,6 +26,7 @@ use App\Middleware\FlashMiddleware;
 use App\Middleware\CurrentPathMiddleware;
 use App\Auth\UserRepository;
 use App\Database\EntrateRepository;
+use App\Database\ExternalPaymentTypeRepository;
 
 $app = AppFactory::create();
 $app->setBasePath('');
@@ -855,6 +856,14 @@ $app->get('/configurazione', function($request, $response) use ($twig) {
         $errors[] = 'Client Backoffice non disponibile (namespace GovPay\\Backoffice)';
     }
 
+    $externalTypes = [];
+    try {
+        $extRepo = new ExternalPaymentTypeRepository();
+        $externalTypes = $extRepo->listAll();
+    } catch (\Throwable $e) {
+        $errors[] = 'Errore lettura tipologie esterne: ' . $e->getMessage();
+    }
+
     return $twig->render($response, 'configurazione.html.twig', [
         'errors' => $errors,
         'cfg_json' => $cfgJson,
@@ -866,16 +875,75 @@ $app->get('/configurazione', function($request, $response) use ($twig) {
         'idA2A' => getenv('ID_A2A') ?: null,
         'profilo_json' => $profiloJson,
         'entrate_json' => $entrateJson,
-            'entrate' => $entrateArr,
-            'entrate_source' => $entrateSource ?? '/entrate',
+        'entrate' => $entrateArr,
+        'entrate_source' => $entrateSource ?? '/entrate',
         'pagamenti_profilo_json' => $pagamentiProfiloJson,
-            'info' => $infoArr,
-            'info_json' => $infoJson,
-            'dominio' => $dominioArr,
-            'dominio_json' => $dominioJson,
+        'info' => $infoArr,
+        'info_json' => $infoJson,
+        'dominio' => $dominioArr,
+        'dominio_json' => $dominioJson,
+        'tipologie_esterne' => $externalTypes,
         'backoffice_base' => rtrim($backofficeUrl, '/'),
         'tab' => $tab,
     ]);
+});
+
+// Tipologie di pagamento esterne - crea
+$app->post('/configurazione/tipologie-esterne', function($request, $response) {
+    $u = $_SESSION['user'] ?? null;
+    if (!$u || ($u['role'] ?? '') !== 'superadmin') {
+        $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Accesso negato'];
+        return $response->withHeader('Location', '/configurazione?tab=tipologie_esterne')->withStatus(302);
+    }
+
+    $data = (array)($request->getParsedBody() ?? []);
+    $descrizione = trim((string)($data['descrizione'] ?? ''));
+    $url = trim((string)($data['url'] ?? ''));
+
+    if ($descrizione === '' || $url === '') {
+        $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Compila descrizione e URL'];
+        return $response->withHeader('Location', '/configurazione?tab=tipologie_esterne')->withStatus(302);
+    }
+
+    if (!filter_var($url, FILTER_VALIDATE_URL)) {
+        $_SESSION['flash'][] = ['type' => 'error', 'text' => 'URL non valido'];
+        return $response->withHeader('Location', '/configurazione?tab=tipologie_esterne')->withStatus(302);
+    }
+
+    try {
+        $repo = new ExternalPaymentTypeRepository();
+        $repo->create($descrizione, $url);
+        $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Tipologia esterna salvata'];
+    } catch (\Throwable $e) {
+        $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Errore salvataggio tipologia esterna: ' . $e->getMessage()];
+    }
+
+    return $response->withHeader('Location', '/configurazione?tab=tipologie_esterne')->withStatus(302);
+});
+
+// Tipologie di pagamento esterne - elimina
+$app->post('/configurazione/tipologie-esterne/{id}/delete', function($request, $response, $args) {
+    $u = $_SESSION['user'] ?? null;
+    if (!$u || ($u['role'] ?? '') !== 'superadmin') {
+        $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Accesso negato'];
+        return $response->withHeader('Location', '/configurazione?tab=tipologie_esterne')->withStatus(302);
+    }
+
+    $id = isset($args['id']) ? (int)$args['id'] : 0;
+    if ($id <= 0) {
+        $_SESSION['flash'][] = ['type' => 'error', 'text' => 'ID tipologia non valido'];
+        return $response->withHeader('Location', '/configurazione?tab=tipologie_esterne')->withStatus(302);
+    }
+
+    try {
+        $repo = new ExternalPaymentTypeRepository();
+        $repo->delete($id);
+        $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Tipologia esterna rimossa'];
+    } catch (\Throwable $e) {
+        $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Errore eliminazione tipologia esterna: ' . $e->getMessage()];
+    }
+
+    return $response->withHeader('Location', '/configurazione?tab=tipologie_esterne')->withStatus(302);
 });
 
 // Endpoint per override locale tipologie (solo superadmin)
