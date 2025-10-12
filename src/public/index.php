@@ -72,8 +72,8 @@ $pendenzaStates = [
 ];
 $twig->getEnvironment()->addGlobal('pendenza_states', $pendenzaStates);
 $app->add(TwigMiddleware::create($app, $twig));
-// Public paths: login, logout, assets, debug
-$publicPaths = ['/login', '/logout', '/assets/*', '/debug/*'];
+// Public paths: login, logout, assets, debug, guida
+$publicPaths = ['/login', '/logout', '/assets/*', '/debug/*', '/guida'];
 // LIFO execution: add Auth, then Flash, then Session so execution is Session -> Flash -> Auth
 $app->add(new AuthMiddleware($publicPaths));
 $app->add(new FlashMiddleware($twig));
@@ -174,6 +174,14 @@ $app->get('/', function ($request, $response, $args) use ($twig) {
         'stats_json' => $statsJson,
         'errors' => $errors,
     ]);
+});
+
+// Guida rapida
+$app->get('/guida', function($request, $response) use ($twig) {
+    if (isset($_SESSION['user'])) {
+        $twig->getEnvironment()->addGlobal('current_user', $_SESSION['user']);
+    }
+    return $twig->render($response, 'guida.html.twig');
 });
 
 // Pendenze route
