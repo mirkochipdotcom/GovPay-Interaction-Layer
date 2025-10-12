@@ -34,6 +34,23 @@ function migrate(): void {
         updated_at DATETIME NOT NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;');
 
+    // Tipologie di entrata (override locale rispetto a Backoffice)
+    $pdo->exec('CREATE TABLE IF NOT EXISTS entrate_tipologie (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        id_dominio VARCHAR(64) NOT NULL,
+        id_entrata VARCHAR(128) NOT NULL,
+        descrizione VARCHAR(255) NULL,
+        iban_accredito VARCHAR(34) NULL,
+        codice_contabilita VARCHAR(128) NULL,
+        abilitato_backoffice TINYINT(1) NOT NULL DEFAULT 0,
+        override_locale TINYINT(1) NULL,
+        effective_enabled TINYINT(1) NOT NULL DEFAULT 0,
+        sorgente VARCHAR(32) NOT NULL DEFAULT "backoffice",
+        updated_at DATETIME NOT NULL,
+        created_at DATETIME NOT NULL,
+        UNIQUE KEY uniq_dom_entrata (id_dominio, id_entrata)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;');
+
     // Seed superadmin if env provided
     $adminEmail = getenv('ADMIN_EMAIL') ?: '';
     $adminPassword = getenv('ADMIN_PASSWORD') ?: '';
