@@ -14,10 +14,6 @@ certificate/*
 debug/*
 !debug/README.md
 
-# Rimosso vecchio public/debug; se la cartella public ricompare localmente ignorala
-public/
-src/test.php
-
 # Ignore composer vendor directory
 vendor/
 
