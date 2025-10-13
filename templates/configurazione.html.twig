@@ -523,19 +523,104 @@
         <div class="row g-3 mb-3">
           <div class="col-md-6">
             <div><span class="text-muted">ID A2A:</span> {{ a2a ? a2a : '—' }}</div>
-            {% if appSel %}
-              <div><span class="text-muted">Nome:</span> {{ appSel.nome|default(appSel.denominazione|default('—')) }}</div>
-              <div><span class="text-muted">Descrizione:</span> {{ appSel.descrizione|default('—') }}</div>
-            {% endif %}
-          </div>
-          <div class="col-md-6">
-            {% if appSel %}
-              <div><span class="text-muted">Stato:</span> {{ (appSel.attivo ?? appSel.abilitato ?? false) ? 'Attiva' : 'Disattiva' }}</div>
-            {% endif %}
           </div>
         </div>
 
         {% if appSel %}
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <div class="border rounded p-3 h-100">
+                <div class="text-muted small">Principal</div>
+                <div class="fw-semibold">{{ appSel.principal|default('—') }}</div>
+                <div class="mt-2 text-muted small">Password configurata</div>
+                {% set pwd = appSel.password|default(false) %}
+                <span class="badge {{ pwd ? 'bg-success' : 'bg-secondary' }}">{{ pwd ? 'Sì' : 'No' }}</span>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="border rounded p-3 h-100">
+                <div class="text-muted small mb-2">Abilitazioni API</div>
+                <div class="d-flex flex-wrap gap-2">
+                  {% set apiFlags = {
+                    'Pagamenti': appSel.apiPagamenti|default(false),
+                    'Pendenze': appSel.apiPendenze|default(false),
+                    'Ragioneria': appSel.apiRagioneria|default(false)
+                  } %}
+                  {% for label, enabled in apiFlags %}
+                    <span class="badge {{ enabled ? 'bg-primary' : 'bg-light text-muted border' }}">API {{ label }}</span>
+                  {% endfor %}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {% set domini = appSel.domini|default([]) %}
+          {% if domini and domini|length > 0 %}
+            <div class="mb-3">
+              <h3 class="h6">Domini abilitati</h3>
+              <div class="table-responsive small">
+                <table class="table table-sm table-striped align-middle">
+                  <thead>
+                    <tr>
+                      <th>ID Dominio</th>
+                      <th>Ragione sociale</th>
+                      <th>Unità operative</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for dom in domini %}
+                      {% set unita = dom.unitaOperative|default([]) %}
+                      <tr>
+                        <td class="font-monospace">{{ dom.idDominio|default('—') }}</td>
+                        <td>{{ dom.ragioneSociale|default('—') }}</td>
+                        <td>
+                          {% if unita and unita|length > 0 %}
+                            <ul class="list-unstyled mb-0">
+                              {% for u in unita %}
+                                <li>{{ u.ragioneSociale|default(u.idUnita|default('Unità')) }}</li>
+                              {% endfor %}
+                            </ul>
+                          {% else %}
+                            <span class="text-muted">—</span>
+                          {% endif %}
+                        </td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          {% endif %}
+
+          {% set tipi = appSel.tipiPendenza|default([]) %}
+          {% if tipi and tipi|length > 0 %}
+            <div class="mb-3">
+              <h3 class="h6">Tipologie di pendenza</h3>
+              <div class="table-responsive small">
+                <table class="table table-sm table-striped align-middle">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Descrizione</th>
+                      <th>Abilitato</th>
+                      <th>Paga terzi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for tp in tipi %}
+                      <tr>
+                        <td class="font-monospace">{{ tp.idTipoPendenza|default(tp.id|default('—')) }}</td>
+                        <td>{{ tp.descrizione|default('—') }}</td>
+                        <td><span class="badge {{ tp.abilitato|default(false) ? 'bg-success' : 'bg-secondary' }}">{{ tp.abilitato|default(false) ? 'Sì' : 'No' }}</span></td>
+                        <td><span class="badge {{ tp.pagaTerzi|default(false) ? 'bg-info text-dark' : 'bg-light text-muted border' }}">{{ tp.pagaTerzi|default(false) ? 'Sì' : 'No' }}</span></td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          {% endif %}
+
           {% set roles = [] %}
           {% if appSel.ruoli is defined and appSel.ruoli %}
             {% set roles = appSel.ruoli %}
@@ -551,6 +636,7 @@
               {% for r in roles %}
                 {% set roleName = r.nome|default(r.codice|default(r.id|default('Ruolo'))) %}
                 {% set perms = r.permessi|default(r.autorizzazioni|default(r.azioni|default([]))) %}
+                {% set aclEntries = r.acl is defined and r.acl is iterable ? r.acl : [] %}
                 <div class="col-lg-4 col-md-6">
                   <div class="border rounded h-100 p-2">
                     <div class="d-flex align-items-center justify-content-between">
@@ -559,11 +645,31 @@
                         <span class="badge {{ r.attivo ? 'bg-success' : 'bg-secondary' }}">{{ r.attivo ? 'Attivo' : 'No' }}</span>
                       {% endif %}
                     </div>
-                    {% if perms and perms|length > 0 %}
+                    {% if aclEntries and aclEntries|length > 0 %}
+                      <div class="mt-2 d-flex flex-column gap-2">
+                        {% for entry in aclEntries %}
+                          {% set servizio = entry.servizio|default(entry.nome|default(entry.codice|default('Servizio'))) %}
+                          {% set rawActions = entry.autorizzazioni|default(entry.azioni|default(entry.permessi|default([]))) %}
+                          {% set actions = rawActions is iterable ? rawActions : (rawActions ? [rawActions] : []) %}
+                          <div class="border border-light rounded p-2 bg-light-subtle">
+                            <div class="small fw-semibold">{{ servizio }}</div>
+                            {% if actions and actions|length > 0 %}
+                              <div class="mt-1 d-flex flex-wrap gap-1">
+                                {% for az in actions %}
+                                  <span class="badge bg-primary">{{ az }}</span>
+                                {% endfor %}
+                              </div>
+                            {% else %}
+                              <div class="text-muted small mt-1">Nessuna azione</div>
+                            {% endif %}
+                          </div>
+                        {% endfor %}
+                      </div>
+                    {% elseif perms and perms|length > 0 %}
                       <div class="mt-2 d-flex flex-wrap gap-1">
                         {% for p in perms %}
-                          {% set pName = (p.nome ?? p.codice ?? p.azione ?? p) %}
-                          {% set enabled = (p.abilitato ?? p.attivo ?? (p.concesso ?? true)) %}
+                          {% set pName = p.nome|default(p.codice|default(p.azione|default(p))) %}
+                          {% set enabled = p.abilitato|default(p.attivo|default(p.concesso|default(true))) %}
                           <span class="badge {{ enabled ? 'bg-primary' : 'bg-light text-muted border' }}">{{ pName }}</span>
                         {% endfor %}
                       </div>
@@ -585,9 +691,6 @@
           <hr>
           <div class="d-flex flex-wrap gap-2 align-items-center">
             <span class="badge bg-warning text-dark">Debug</span>
-            {% if apps_json %}
-              <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#rawApps" aria-expanded="false" aria-controls="rawApps">Mostra JSON - Lista applicazioni</button>
-            {% endif %}
             {% if app_json %}
               <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#rawAppDet" aria-expanded="false" aria-controls="rawAppDet">Mostra JSON - Applicazione {{ a2a }}</button>
             {% endif %}

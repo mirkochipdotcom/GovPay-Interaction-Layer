@@ -646,6 +646,8 @@ $app->get('/configurazione', function($request, $response) use ($twig) {
     $cfgArr = null;
     $appsJson = null;
     $appsArr = null;
+    $appJson = null;
+    $appArr = null;
     $profiloJson = null;
     $entrateJson = null;
     $entrateArr = null;
@@ -697,17 +699,24 @@ $app->get('/configurazione', function($request, $response) use ($twig) {
                     $appApi = new \GovPay\Backoffice\Api\ApplicazioniApi($httpClient, $config);
                     $apps = $appApi->findApplicazioni(1, 100, '+idA2A', null, null, null, null, true, true);
                     $appsData = \GovPay\Backoffice\ObjectSerializer::sanitizeForSerialization($apps);
-                    $appsJson = json_encode($appsData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-                    $appsArr = $appsData;
+                    $appsArr = is_array($appsData)
+                        ? $appsData
+                        : (json_decode(json_encode($appsData, JSON_UNESCAPED_SLASHES), true) ?: []);
+
+                    $idA2A = getenv('ID_A2A') ?: '';
+
+                    $appsJson = json_encode($appsArr, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
 
                     // Dettaglio applicazione da ID_A2A
-                    $idA2A = getenv('ID_A2A') ?: '';
                     if ($idA2A !== '') {
                         try {
                             $appDet = $appApi->getApplicazione($idA2A);
                             $appDetData = \GovPay\Backoffice\ObjectSerializer::sanitizeForSerialization($appDet);
                             $appJson = json_encode($appDetData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-                            $appArr = $appDetData;
+                            $appArr = json_decode($appJson, true);
+                            if (!is_array($appArr)) {
+                                $appArr = is_array($appDetData) ? $appDetData : [];
+                            }
                         } catch (\Throwable $e) {
                             $errors[] = 'Errore lettura applicazione ' . $idA2A . ': ' . $e->getMessage();
                         }
