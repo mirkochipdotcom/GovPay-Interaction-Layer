@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Auth\UserRepository;
 use App\Controllers\ConfigurazioneController;
+use App\Controllers\HomeController;
 use App\Controllers\PendenzeController;
 use App\Controllers\UsersController;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -15,536 +16,57 @@ use Slim\Views\Twig;
 
 return function (App $app, Twig $twig): void {
     // Basic route
-    $app->get('/', function ($request, $response, $args) use ($twig) {
-        // Prepare a small debug string (legacy diagnostics)
-        $debug = "";
-        $api_class = 'GovPay\\Pendenze\\Api\\PendenzeApi';
-        if (class_exists($api_class)) {
-            $debug .= "Classe trovata: $api_class\n";
-            try {
-                $g = new \GuzzleHttp\Client();
-                $client = new $api_class($g, new GovPay\Pendenze\Configuration());
-                $debug .= "Istanza API creata con successo.\n";
-            } catch (\Throwable $e) {
-                $debug .= "Errore: " . $e->getMessage() . "\n";
-            }
-        } else {
-            $debug .= "Classe API non trovata.\n";
-        }
-
-        // Backoffice stats: /quadrature/riscossioni -> stampa JSON grezzo
-        $errors = [];
-        $statsJson = null;
-        $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
-        if (class_exists('\\GovPay\\Backoffice\\Api\\ReportisticaApi')) {
-            if (!empty($backofficeUrl)) {
-                try {
-                    // Configurazione client Backoffice
-                    $config = new \GovPay\Backoffice\Configuration();
-                    $config->setHost(rtrim($backofficeUrl, '/'));
-
-                    $username = getenv('GOVPAY_USER');
-                    $password = getenv('GOVPAY_PASSWORD');
-                    if ($username !== false && $password !== false && $username !== '' && $password !== '') {
-                        $config->setUsername($username);
-                        $config->setPassword($password);
-                    }
-
-                    // Opzioni Guzzle per mTLS se richiesto
-                    $guzzleOptions = [];
-                    $authMethod = getenv('AUTHENTICATION_GOVPAY');
-                    if ($authMethod !== false && strtolower($authMethod) === 'sslheader') {
-                        $cert = getenv('GOVPAY_TLS_CERT');
-                        $key = getenv('GOVPAY_TLS_KEY');
-                        $keyPass = getenv('GOVPAY_TLS_KEY_PASSWORD') ?: null;
-                        if (!empty($cert) && !empty($key)) {
-                            $guzzleOptions['cert'] = $cert;
-                            $guzzleOptions['ssl_key'] = $keyPass ? [$key, $keyPass] : $key;
-                        } else {
-                            $errors[] = 'mTLS abilitato ma GOVPAY_TLS_CERT/GOVPAY_TLS_KEY non impostati';
-                        }
-                    }
-
-                    $httpClient = new \GuzzleHttp\Client($guzzleOptions);
-                    $api = new \GovPay\Backoffice\Api\ReportisticaApi($httpClient, $config);
-
-                    // Almeno un gruppo è richiesto dall'API: usiamo DOMINIO di default
-                    $gruppi = [\GovPay\Backoffice\Model\RaggruppamentoStatistica::DOMINIO];
-                    // Se configurato in .env, filtra per ID_DOMINIO
-                    $idDominioEnv = getenv('ID_DOMINIO');
-                    if ($idDominioEnv !== false && $idDominioEnv !== '') {
-                        $idDominio = trim($idDominioEnv);
-                        // Parametri: gruppi, pagina, risultati_per_pagina, data_da, data_a, id_dominio
-                        $result = $api->findQuadratureRiscossioni($gruppi, 1, 10, null, null, $idDominio);
-                    } else {
-                        $result = $api->findQuadratureRiscossioni($gruppi, 1, 10);
-                    }
-
-                    // Serializza il modello in JSON leggibile
-                    $data = \GovPay\Backoffice\ObjectSerializer::sanitizeForSerialization($result);
-                    $statsJson = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-                } catch (\Throwable $e) {
-                    $errors[] = 'Errore chiamata Backoffice: ' . $e->getMessage();
-                }
-            } else {
-                $errors[] = 'Variabile GOVPAY_BACKOFFICE_URL non impostata';
-            }
-        } else {
-            $errors[] = 'Client Backoffice non disponibile (namespace GovPay\\Backoffice)';
-        }
-
-        // ensure user available in this request too
-        if (isset($_SESSION['user'])) {
-            $twig->getEnvironment()->addGlobal('current_user', $_SESSION['user']);
-        }
-        return $twig->render($response, 'home.html.twig', [
-            'debug' => nl2br(htmlspecialchars($debug)),
-            'stats_json' => $statsJson,
-            'errors' => $errors,
-        ]);
+    $app->get('/', function (Request $request, Response $response) use ($twig): Response {
+        $controller = new HomeController($twig);
+        return $controller->index($request, $response);
     });
 
     // Guida rapida
-    $app->get('/guida', function($request, $response) use ($twig) {
-        if (isset($_SESSION['user'])) {
-            $twig->getEnvironment()->addGlobal('current_user', $_SESSION['user']);
-        }
-        return $twig->render($response, 'guida.html.twig');
+    $app->get('/guida', function(Request $request, Response $response) use ($twig): Response {
+        $controller = new HomeController($twig);
+        return $controller->guida($request, $response);
     });
 
-    // Pendenze route
-    $app->any('/pendenze', function ($request, $response) use ($twig) {
-        $debug = '';
-        try {
-            $controller = new PendenzeController();
-            $req = $controller->index($request, $response, []);
-            $debug = $req->getAttribute('debug', '');
-        } catch (\Throwable $e) {
-            $debug .= "Errore controller: " . $e->getMessage();
-        }
-        try {
-            if (isset($_SESSION['user'])) {
-                $twig->getEnvironment()->addGlobal('current_user', $_SESSION['user']);
-            }
-            return $twig->render($response, 'pendenze.html.twig', ['debug' => nl2br(htmlspecialchars($debug))]);
-        } catch (\Throwable $e) {
-            // Fallback minimale in caso di template non trovato
-            $response->getBody()->write('<h1>Pendenze</h1><pre>' . htmlspecialchars($debug . "\n" . $e->getMessage()) . '</pre>');
-            return $response->withStatus(500);
-        }
+    // Pendenze
+    $app->any('/pendenze', function(Request $request, Response $response) use ($twig): Response {
+        $controller = new PendenzeController($twig);
+        return $controller->index($request, $response);
     });
 
-    // Pendenze - sottosezioni placeholder
-    $app->get('/pendenze/ricerca', function($request, $response) use ($twig) {
-        $controller = new PendenzeController();
-        $req = $controller->search($request, $response);
-        $filters = $req->getAttribute('filters', []);
-        $errors = $req->getAttribute('errors', []);
-        $allowedStates = $req->getAttribute('allowed_states', []);
-        $results = $req->getAttribute('results');
-        $numPagine = $req->getAttribute('num_pagine');
-        $numRisultati = $req->getAttribute('num_risultati');
-        $queryMade = $req->getAttribute('query_made');
-        $prevUrl = $req->getAttribute('prev_url');
-        $nextUrl = $req->getAttribute('next_url');
-        // ID pendenza da evidenziare (ritorno dal dettaglio)
-        $highlightId = $request->getQueryParams()['highlight'] ?? null;
-        if (isset($_SESSION['user'])) {
-            $twig->getEnvironment()->addGlobal('current_user', $_SESSION['user']);
-        }
-        // Costruisce l'URL di ritorno alla ricerca preservando la query corrente
-        $qs = $request->getUri()->getQuery();
-        $returnUrl = '/pendenze/ricerca' . ($qs ? ('?' . $qs) : '');
-        return $twig->render($response, 'pendenze/ricerca.html.twig', [
-            'filters' => $filters,
-            'errors' => $errors,
-            'allowed_states' => $allowedStates,
-            'results' => $results,
-            'num_pagine' => $numPagine,
-            'num_risultati' => $numRisultati,
-            'query_made' => $queryMade,
-            'prev_url' => $prevUrl,
-            'next_url' => $nextUrl,
-            'return_url' => $returnUrl,
-            'highlight_id' => $highlightId,
-        ]);
+    $app->get('/pendenze/ricerca', function(Request $request, Response $response) use ($twig): Response {
+        $controller = new PendenzeController($twig);
+        return $controller->search($request, $response);
     });
 
-    $app->get('/pendenze/inserimento', function($request, $response) use ($twig) {
-        if (isset($_SESSION['user'])) {
-            $twig->getEnvironment()->addGlobal('current_user', $_SESSION['user']);
-        }
-        return $twig->render($response, 'pendenze/inserimento.html.twig');
+    $app->get('/pendenze/inserimento', function(Request $request, Response $response) use ($twig): Response {
+        $controller = new PendenzeController($twig);
+        return $controller->showInsert($request, $response);
     });
 
-    $app->get('/pendenze/inserimento-massivo', function($request, $response) use ($twig) {
-        if (isset($_SESSION['user'])) {
-            $twig->getEnvironment()->addGlobal('current_user', $_SESSION['user']);
-        }
-        return $twig->render($response, 'pendenze/inserimento_massivo.html.twig');
+    $app->get('/pendenze/inserimento-massivo', function(Request $request, Response $response) use ($twig): Response {
+        $controller = new PendenzeController($twig);
+        return $controller->showBulkInsert($request, $response);
     });
 
-    // Dettaglio pendenza (API: /pendenze/{idA2A}/{idPendenza})
-    $app->get('/pendenze/dettaglio/{idPendenza}', function($request, $response, $args) use ($twig) {
-        if (isset($_SESSION['user'])) {
-            $twig->getEnvironment()->addGlobal('current_user', $_SESSION['user']);
-        }
-        $idPendenza = $args['idPendenza'] ?? '';
-        $q = $request->getQueryParams();
-        $ret = $q['return'] ?? '/pendenze/ricerca';
-        // Whitelisting: consenti solo ritorni verso /pendenze/ricerca
-        if (strpos($ret, '/pendenze/ricerca') !== 0) {
-            $ret = '/pendenze/ricerca';
-        }
-
-        $error = null;
-        $pendenza = null;
-
-        $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
-        $idA2A = getenv('ID_A2A') ?: '';
-        if ($idPendenza === '') {
-            $error = 'ID pendenza non specificato';
-        } elseif (empty($backofficeUrl)) {
-            $error = 'Variabile GOVPAY_BACKOFFICE_URL non impostata';
-        } elseif ($idA2A === '') {
-            $error = 'Variabile ID_A2A non impostata nel file .env';
-        } else {
-            try {
-                // Config client (basic/mTLS come altrove)
-                $username = getenv('GOVPAY_USER');
-                $password = getenv('GOVPAY_PASSWORD');
-                $guzzleOptions = [
-                    'headers' => ['Accept' => 'application/json']
-                ];
-                $authMethod = getenv('AUTHENTICATION_GOVPAY');
-                if ($authMethod !== false && strtolower($authMethod) === 'sslheader') {
-                    $cert = getenv('GOVPAY_TLS_CERT');
-                    $key = getenv('GOVPAY_TLS_KEY');
-                    $keyPass = getenv('GOVPAY_TLS_KEY_PASSWORD') ?: null;
-                    if (!empty($cert) && !empty($key)) {
-                        $guzzleOptions['cert'] = $cert;
-                        $guzzleOptions['ssl_key'] = $keyPass ? [$key, $keyPass] : $key;
-                    } else {
-                        $error = 'mTLS abilitato ma GOVPAY_TLS_CERT/GOVPAY_TLS_KEY non impostati';
-                    }
-                }
-                if (!$error && $username !== false && $password !== false && $username !== '' && $password !== '') {
-                    $guzzleOptions['auth'] = [$username, $password];
-                }
-
-                if (!$error) {
-                    $http = new \GuzzleHttp\Client($guzzleOptions);
-                    $url = rtrim($backofficeUrl, '/') . '/pendenze/' . rawurlencode($idA2A) . '/' . rawurlencode($idPendenza);
-                    $resp = $http->request('GET', $url);
-                    $json = (string)$resp->getBody();
-                    $data = json_decode($json, true);
-                    if (json_last_error() !== JSON_ERROR_NONE) {
-                        throw new \RuntimeException('Parsing JSON fallito: ' . json_last_error_msg());
-                    }
-                    $pendenza = $data;
-                }
-            } catch (\GuzzleHttp\Exception\ClientException $ce) {
-                $code = $ce->getResponse() ? $ce->getResponse()->getStatusCode() : 0;
-                if ($code === 404) {
-                    $error = 'Pendenza non trovata (404)';
-                } else {
-                    $error = 'Errore client nella chiamata pendenza: ' . $ce->getMessage();
-                }
-            } catch (\Throwable $e) {
-                $error = 'Errore chiamata pendenza: ' . $e->getMessage();
-            }
-        }
-
-        return $twig->render($response, 'pendenze/dettaglio.html.twig', [
-            'idPendenza' => $idPendenza,
-            'return_url' => $ret,
-            'pendenza' => $pendenza,
-            'error' => $error,
-            // For download avviso
-            'id_dominio' => ($pendenza['idDominio'] ?? (getenv('ID_DOMINIO') ?: '')),
-        ]);
+    $app->get('/pendenze/dettaglio/{idPendenza}', function(Request $request, Response $response, array $args) use ($twig): Response {
+        $controller = new PendenzeController($twig);
+        return $controller->showDetail($request, $response, $args);
     });
 
-    // Download Avviso (PDF): /avvisi/{idDominio}/{numeroAvviso}
-    $app->get('/avvisi/{idDominio}/{numeroAvviso}', function($request, $response, $args) {
-        $idDominio = $args['idDominio'] ?? '';
-        $numeroAvviso = $args['numeroAvviso'] ?? '';
-        if ($idDominio === '' || $numeroAvviso === '') {
-            $response->getBody()->write('Parametri mancanti');
-            return $response->withStatus(400);
-        }
-
-        $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
-        if (empty($backofficeUrl)) {
-            $response->getBody()->write('GOVPAY_BACKOFFICE_URL non impostata');
-            return $response->withStatus(500);
-        }
-
-        try {
-            $username = getenv('GOVPAY_USER');
-            $password = getenv('GOVPAY_PASSWORD');
-            $guzzleOptions = [
-                'headers' => [
-                    'Accept' => 'application/pdf'
-                ]
-            ];
-            $authMethod = getenv('AUTHENTICATION_GOVPAY');
-            if ($authMethod !== false && strtolower($authMethod) === 'sslheader') {
-                $cert = getenv('GOVPAY_TLS_CERT');
-                $key = getenv('GOVPAY_TLS_KEY');
-                $keyPass = getenv('GOVPAY_TLS_KEY_PASSWORD') ?: null;
-                if (!empty($cert) && !empty($key)) {
-                    $guzzleOptions['cert'] = $cert;
-                    $guzzleOptions['ssl_key'] = $keyPass ? [$key, $keyPass] : $key;
-                } else {
-                    $response->getBody()->write('mTLS abilitato ma GOVPAY_TLS_CERT/GOVPAY_TLS_KEY non impostati');
-                    return $response->withStatus(500);
-                }
-            }
-            if ($username !== false && $password !== false && $username !== '' && $password !== '') {
-                $guzzleOptions['auth'] = [$username, $password];
-            }
-
-            $http = new \GuzzleHttp\Client($guzzleOptions);
-            $url = rtrim($backofficeUrl, '/') . '/avvisi/' . rawurlencode($idDominio) . '/' . rawurlencode($numeroAvviso);
-            $resp = $http->request('GET', $url);
-            $contentType = $resp->getHeaderLine('Content-Type');
-            $pdf = (string)$resp->getBody();
-            $filename = 'avviso-' . $idDominio . '-' . $numeroAvviso . '.pdf';
-            $response = $response
-                ->withHeader('Content-Type', $contentType ?: 'application/pdf')
-                ->withHeader('Content-Disposition', 'attachment; filename="' . $filename . '"')
-                ->withHeader('Cache-Control', 'no-store');
-            $response->getBody()->write($pdf);
-            return $response;
-        } catch (\GuzzleHttp\Exception\ClientException $ce) {
-            $code = $ce->getResponse() ? $ce->getResponse()->getStatusCode() : 0;
-            $msg = $code === 404 ? 'Avviso non trovato' : ('Errore client avviso: ' . $ce->getMessage());
-            $response->getBody()->write($msg);
-            return $response->withStatus($code ?: 500);
-        } catch (\Throwable $e) {
-            $response->getBody()->write('Errore scaricamento avviso: ' . $e->getMessage());
-            return $response->withStatus(500);
-        }
+    $app->get('/avvisi/{idDominio}/{numeroAvviso}', function(Request $request, Response $response, array $args) use ($twig): Response {
+        $controller = new PendenzeController($twig);
+        return $controller->downloadAvviso($request, $response, $args);
     });
 
-    // Download Ricevuta Telematica (RT) via API Pendenze: /pendenze/rpp/{idDominio}/{iuv}/{ccp}/rt
-    $app->get('/pendenze/rpp/{idDominio}/{iuv}/{ccp}/rt', function($request, $response, $args) {
-        $idDominio = $args['idDominio'] ?? '';
-        $iuv = $args['iuv'] ?? '';
-        $ccp = $args['ccp'] ?? '';
-        if ($idDominio === '' || $iuv === '' || $ccp === '') {
-            $response->getBody()->write('Parametri mancanti');
-            return $response->withStatus(400);
-        }
-
-        // Usa l'API Pendenze per recuperare la RT del tentativo RPP
-        $pendenzeUrl = getenv('GOVPAY_PENDENZE_URL') ?: '';
-        if (empty($pendenzeUrl)) {
-            $response->getBody()->write('GOVPAY_PENDENZE_URL non impostata');
-            return $response->withStatus(500);
-        }
-
-        try {
-            $username = getenv('GOVPAY_USER');
-            $password = getenv('GOVPAY_PASSWORD');
-            $guzzleOptions = [
-                'headers' => [
-                    'Accept' => 'application/pdf'
-                ]
-            ];
-            $authMethod = getenv('AUTHENTICATION_GOVPAY');
-            if ($authMethod !== false && strtolower($authMethod) === 'sslheader') {
-                $cert = getenv('GOVPAY_TLS_CERT');
-                $key = getenv('GOVPAY_TLS_KEY');
-                $keyPass = getenv('GOVPAY_TLS_KEY_PASSWORD') ?: null;
-                if (!empty($cert) && !empty($key)) {
-                    $guzzleOptions['cert'] = $cert;
-                    $guzzleOptions['ssl_key'] = $keyPass ? [$key, $keyPass] : $key;
-                } else {
-                    $response->getBody()->write('mTLS abilitato ma GOVPAY_TLS_CERT/GOVPAY_TLS_KEY non impostati');
-                    return $response->withStatus(500);
-                }
-            }
-            if ($username !== false && $password !== false && $username !== '' && $password !== '') {
-                $guzzleOptions['auth'] = [$username, $password];
-            }
-
-            $http = new \GuzzleHttp\Client($guzzleOptions);
-            // Endpoint Pendenze: /rpp/{idDominio}/{iuv}/{ccp}/rt
-            $url = rtrim($pendenzeUrl, '/') . '/rpp/'
-                . rawurlencode($idDominio) . '/' . rawurlencode($iuv) . '/' . rawurlencode($ccp) . '/rt';
-
-            // (debug headers rimossi)
-            $resp = $http->request('GET', $url);
-            $contentType = $resp->getHeaderLine('Content-Type');
-            $pdf = (string)$resp->getBody();
-            $filename = 'rt-' . $iuv . '-' . $ccp . '.pdf';
-            $response = $response
-                ->withHeader('Content-Type', $contentType ?: 'application/pdf')
-                ->withHeader('Content-Disposition', 'attachment; filename="' . $filename . '"')
-                ->withHeader('Cache-Control', 'no-store');
-            $response->getBody()->write($pdf);
-            return $response;
-        } catch (\GuzzleHttp\Exception\ClientException $ce) {
-            $code = $ce->getResponse() ? $ce->getResponse()->getStatusCode() : 0;
-            $msg = $code === 404 ? 'Ricevuta non trovata' : ('Errore client ricevuta: ' . $ce->getMessage());
-            $response->getBody()->write($msg);
-            return $response->withStatus($code ?: 500);
-        } catch (\Throwable $e) {
-            $response->getBody()->write('Errore scaricamento ricevuta: ' . $e->getMessage());
-            return $response->withStatus(500);
-        }
+    $app->get('/pendenze/rpp/{idDominio}/{iuv}/{ccp}/rt', function(Request $request, Response $response, array $args) use ($twig): Response {
+        $controller = new PendenzeController($twig);
+        return $controller->downloadRicevuta($request, $response, $args);
     });
 
     // Dominio - Logo proxy: scarica il logo del dominio dal Backoffice (o decodifica base64)
-    $app->get('/domini/{idDominio}/logo', function($request, $response, $args) {
-        $idDominio = $args['idDominio'] ?? '';
-        if ($idDominio === '') {
-            $response->getBody()->write('Parametri mancanti');
-            return $response->withStatus(400);
-        }
-
-        $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
-        if (empty($backofficeUrl)) {
-            $response->getBody()->write('GOVPAY_BACKOFFICE_URL non impostata');
-            return $response->withStatus(500);
-        }
-
-        $username = getenv('GOVPAY_USER');
-        $password = getenv('GOVPAY_PASSWORD');
-        $guzzleOptions = [
-            'headers' => [
-                'Accept' => 'image/avif,image/webp,image/apng,image/svg+xml,image/*;q=0.8,*/*;q=0.5'
-            ]
-        ];
-        $authMethod = getenv('AUTHENTICATION_GOVPAY');
-        if ($authMethod !== false && strtolower($authMethod) === 'sslheader') {
-            $cert = getenv('GOVPAY_TLS_CERT');
-            $key = getenv('GOVPAY_TLS_KEY');
-            $keyPass = getenv('GOVPAY_TLS_KEY_PASSWORD') ?: null;
-            if (!empty($cert) && !empty($key)) {
-                $guzzleOptions['cert'] = $cert;
-                $guzzleOptions['ssl_key'] = $keyPass ? [$key, $keyPass] : $key;
-            } else {
-                $response->getBody()->write('mTLS abilitato ma GOVPAY_TLS_CERT/GOVPAY_TLS_KEY non impostati');
-                return $response->withStatus(500);
-            }
-        }
-        if ($username !== false && $password !== false && $username !== '' && $password !== '') {
-            $guzzleOptions['auth'] = [$username, $password];
-        }
-
-        // Primo tentativo: endpoint dedicato del backoffice /domini/{idDominio}/logo
-        try {
-            $http = new \GuzzleHttp\Client($guzzleOptions);
-            $url = rtrim($backofficeUrl, '/') . '/domini/' . rawurlencode($idDominio) . '/logo';
-            $resp = $http->request('GET', $url);
-            $contentType = $resp->getHeaderLine('Content-Type') ?: 'image/png';
-            $bytes = (string)$resp->getBody();
-            $filename = 'logo-' . $idDominio;
-            $response = $response
-                ->withHeader('Content-Type', $contentType)
-                ->withHeader('Content-Disposition', 'inline; filename="' . $filename . '"')
-                ->withHeader('Cache-Control', 'no-store');
-            $response->getBody()->write($bytes);
-            return $response;
-        } catch (\GuzzleHttp\Exception\ClientException $ce) {
-            // Se 404 o altro, prova fallback via getDominio e campo base64
-        } catch (\Throwable $e) {
-            // fallback sotto
-        }
-
-        // Fallback: recupera il dominio e prova a decodificare il campo logo base64 o data URL
-        try {
-            if (class_exists('GovPay\\Backoffice\\Api\\EntiCreditoriApi')) {
-                $config = new \GovPay\Backoffice\Configuration();
-                $config->setHost(rtrim($backofficeUrl, '/'));
-                if ($username !== false && $password !== false && $username !== '' && $password !== '') {
-                    $config->setUsername($username);
-                    $config->setPassword($password);
-                }
-                $httpClient = new \GuzzleHttp\Client($guzzleOptions);
-                $entiApi = new \GovPay\Backoffice\Api\EntiCreditoriApi($httpClient, $config);
-                $domRes = $entiApi->getDominio($idDominio);
-                // Recupera il valore del logo in modo robusto (getter -> property -> array conversion)
-                $logo = null;
-                if (is_object($domRes)) {
-                    if (method_exists($domRes, 'getLogo')) {
-                        $logo = $domRes->getLogo();
-                    } elseif (property_exists($domRes, 'logo')) {
-                        $logo = $domRes->logo;
-                    }
-                }
-                if ($logo === null) {
-                    // fallback: serializza e decodifica ad array associativo
-                    $domData = json_decode(json_encode($domRes), true);
-                    if (is_array($domData)) {
-                        $logo = $domData['logo'] ?? null;
-                    }
-                }
-                if (!$logo || !is_string($logo)) {
-                    $response->getBody()->write('Logo non disponibile');
-                    return $response->withStatus(404);
-                }
-
-                // data URL pattern: data:image/png;base64,XXXXX
-                if (preg_match('/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/', $logo, $m)) {
-                    $ct = $m[1];
-                    $b64 = $m[2];
-                    $bytes = base64_decode($b64, true);
-                    if ($bytes === false) {
-                        $response->getBody()->write('Logo non valido');
-                        return $response->withStatus(415);
-                    }
-                    $response = $response
-                        ->withHeader('Content-Type', $ct)
-                        ->withHeader('Content-Disposition', 'inline; filename="logo-' . $idDominio . '"')
-                        ->withHeader('Cache-Control', 'no-store');
-                    $response->getBody()->write($bytes);
-                    return $response;
-                }
-
-                // base64 grezzo (senza data URL) -> assumiamo PNG
-                $bytes = base64_decode($logo, true);
-                if ($bytes !== false && $bytes !== '') {
-                    $response = $response
-                        ->withHeader('Content-Type', 'image/png')
-                        ->withHeader('Content-Disposition', 'inline; filename="logo-' . $idDominio . '.png"')
-                        ->withHeader('Cache-Control', 'no-store');
-                    $response->getBody()->write($bytes);
-                    return $response;
-                }
-
-                // Se nel logo c'è un path tipo "/domini/{id}/logo", riprova via HTTP come ultima spiaggia
-                if (is_string($logo) && str_starts_with($logo, '/')) {
-                    try {
-                        $http = new \GuzzleHttp\Client($guzzleOptions);
-                        $url = rtrim($backofficeUrl, '/') . $logo;
-                        $resp = $http->request('GET', $url);
-                        $contentType = $resp->getHeaderLine('Content-Type') ?: 'image/png';
-                        $bytes = (string)$resp->getBody();
-                        $response = $response
-                            ->withHeader('Content-Type', $contentType)
-                            ->withHeader('Content-Disposition', 'inline; filename="logo-' . $idDominio . '"')
-                            ->withHeader('Cache-Control', 'no-store');
-                        $response->getBody()->write($bytes);
-                        return $response;
-                    } catch (\Throwable $e2) {
-                        // prosegui a 404
-                    }
-                }
-
-                $response->getBody()->write('Logo non disponibile');
-                return $response->withStatus(404);
-            }
-        } catch (\Throwable $e) {
-            $response->getBody()->write('Errore recupero logo: ' . $e->getMessage());
-            return $response->withStatus(500);
-        }
-
-        $response->getBody()->write('Logo non disponibile');
-        return $response->withStatus(404);
+    $app->get('/domini/{idDominio}/logo', function(Request $request, Response $response, array $args) use ($twig): Response {
+        $controller = new PendenzeController($twig);
+        return $controller->downloadDominioLogo($request, $response, $args);
     });
 
     // Profile

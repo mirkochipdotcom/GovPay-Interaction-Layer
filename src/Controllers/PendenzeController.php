@@ -1,39 +1,116 @@
 <?php
+
+declare(strict_types=1);
+
 namespace App\Controllers;
 
-use Psr\Http\Message\ServerRequestInterface as Request;
+use GuzzleHttp\Client;
+use GuzzleHttp\Exception\ClientException;
+use GovPay\Backoffice\Api\PendenzeApi as BackofficePendenzeApi;
+use GovPay\Backoffice\Configuration as BackofficeConfiguration;
+use GovPay\Backoffice\Model\RaggruppamentoStatistica;
+use GovPay\Backoffice\Model\StatoPendenza;
+use GovPay\Backoffice\ObjectSerializer as BackofficeSerializer;
+use GovPay\Pendenze\Api\PendenzeApi;
+use GovPay\Pendenze\Configuration as PendenzeConfiguration;
 use Psr\Http\Message\ResponseInterface as Response;
+use Psr\Http\Message\ServerRequestInterface as Request;
+use Slim\Views\Twig;
 
 class PendenzeController
 {
-    public function index(Request $request, Response $response, $args)
+    public function __construct(private readonly Twig $twig)
     {
-        // Minimal controller: prepare debug string and render via Twig later in route
+    }
+
+    public function index(Request $request, Response $response): Response
+    {
         $debug = '';
-        $api_class = 'GovPay\\Pendenze\\Api\\PendenzeApi';
-        if (class_exists($api_class)) {
-            $debug .= "Classe trovata: $api_class\n";
+        $apiClass = PendenzeApi::class;
+        if (class_exists($apiClass)) {
+            $debug .= "Classe trovata: {$apiClass}\n";
+            try {
+                $client = new Client();
+                new PendenzeApi($client, new PendenzeConfiguration());
+                $debug .= "Istanza API creata con successo.\n";
+            } catch (\Throwable $e) {
+                $debug .= 'Errore: ' . $e->getMessage() . "\n";
+            }
         } else {
             $debug .= "Classe API non trovata.\n";
         }
-        // Store debug in request attribute for the route middleware to use
-        return $request->withAttribute('debug', $debug);
+
+        $errors = [];
+        $statsJson = null;
+        $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
+        if (class_exists(BackofficePendenzeApi::class)) {
+            if (!empty($backofficeUrl)) {
+                try {
+                    $config = new BackofficeConfiguration();
+                    $config->setHost(rtrim($backofficeUrl, '/'));
+
+                    $username = getenv('GOVPAY_USER');
+                    $password = getenv('GOVPAY_PASSWORD');
+                    if ($username !== false && $password !== false && $username !== '' && $password !== '') {
+                        $config->setUsername($username);
+                        $config->setPassword($password);
+                    }
+
+                    $guzzleOptions = [];
+                    $authMethod = getenv('AUTHENTICATION_GOVPAY');
+                    if ($authMethod !== false && strtolower((string)$authMethod) === 'sslheader') {
+                        $cert = getenv('GOVPAY_TLS_CERT');
+                        $key = getenv('GOVPAY_TLS_KEY');
+                        $keyPass = getenv('GOVPAY_TLS_KEY_PASSWORD') ?: null;
+                        if (!empty($cert) && !empty($key)) {
+                            $guzzleOptions['cert'] = $cert;
+                            $guzzleOptions['ssl_key'] = $keyPass ? [$key, $keyPass] : $key;
+                        } else {
+                            $errors[] = 'mTLS abilitato ma GOVPAY_TLS_CERT/GOVPAY_TLS_KEY non impostati';
+                        }
+                    }
+
+                    $httpClient = new Client($guzzleOptions);
+                    $api = new BackofficePendenzeApi($httpClient, $config);
+
+                    $gruppi = [RaggruppamentoStatistica::DOMINIO];
+                    $idDominioEnv = getenv('ID_DOMINIO');
+                    if ($idDominioEnv !== false && $idDominioEnv !== '') {
+                        $stats = $api->findQuadratureRiscossioni($gruppi, 1, 10, null, null, trim((string)$idDominioEnv));
+                    } else {
+                        $stats = $api->findQuadratureRiscossioni($gruppi, 1, 10);
+                    }
+
+                    $data = BackofficeSerializer::sanitizeForSerialization($stats);
+                    $statsJson = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+                } catch (\Throwable $e) {
+                    $errors[] = 'Errore chiamata Backoffice: ' . $e->getMessage();
+                }
+            } else {
+                $errors[] = 'Variabile GOVPAY_BACKOFFICE_URL non impostata';
+            }
+        } else {
+            $errors[] = 'Client Backoffice non disponibile (namespace GovPay\\Backoffice)';
+        }
+
+        $this->exposeCurrentUser();
+
+        return $this->twig->render($response, 'pendenze.html.twig', [
+            'debug' => nl2br(htmlspecialchars($debug, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')),
+            'stats_json' => $statsJson,
+            'errors' => $errors,
+        ]);
     }
 
-    public function search(Request $request, Response $response)
+    public function search(Request $request, Response $response): Response
     {
         $params = (array)($request->getQueryParams() ?? []);
         $errors = [];
 
-        // Stato pendenza enum (per select)
-        $allowedStates = [];
-        if (class_exists('\\GovPay\\Backoffice\\Model\\StatoPendenza')) {
-            $allowedStates = \GovPay\Backoffice\Model\StatoPendenza::getAllowableEnumValues();
-        }
+        $allowedStates = class_exists(StatoPendenza::class)
+            ? StatoPendenza::getAllowableEnumValues()
+            : [];
 
-        // Filtri con default leggeri
-        // Ordinamento: singolo toggle ordRecentiPrima (checked => recenti prima).
-        // Se il form è stato inviato (q=1) e la checkbox non è presente => vecchie prima.
         $formSubmitted = array_key_exists('q', $params);
         if (array_key_exists('ordRecentiPrima', $params)) {
             $ordinamento = '-dataCaricamento';
@@ -47,7 +124,6 @@ class PendenzeController
             'q' => isset($params['q']) ? (string)$params['q'] : null,
             'pagina' => max(1, (int)($params['pagina'] ?? 1)),
             'risultatiPerPagina' => min(200, max(1, (int)($params['risultatiPerPagina'] ?? 25))),
-            // Ordinamento di default: più recenti prima
             'ordinamento' => $ordinamento,
             'idDominio' => (string)($params['idDominio'] ?? (getenv('ID_DOMINIO') ?: '')),
             'idA2A' => (string)($params['idA2A'] ?? ''),
@@ -62,7 +138,6 @@ class PendenzeController
             'iuv' => (string)($params['iuv'] ?? ''),
         ];
 
-        // Normalizza stato
         if ($filters['stato'] !== '' && !in_array($filters['stato'], $allowedStates, true)) {
             $errors[] = 'Valore "stato" non valido';
             $filters['stato'] = '';
@@ -75,22 +150,18 @@ class PendenzeController
         $prevUrl = null;
         $nextUrl = null;
 
-        // Esegui la ricerca solo se richiesto esplicitamente (q=1)
         if (($filters['q'] ?? null) !== null) {
             $queryMade = true;
-
-            // Controlli di configurazione
             $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
-            if (!class_exists('\\GovPay\\Backoffice\\Api\\PendenzeApi')) {
+            if (!class_exists(BackofficePendenzeApi::class)) {
                 $errors[] = 'Client Backoffice non disponibile (namespace GovPay\\Backoffice)';
             } elseif (empty($backofficeUrl)) {
                 $errors[] = 'Variabile GOVPAY_BACKOFFICE_URL non impostata';
             } else {
                 try {
-                    $config = new \GovPay\Backoffice\Configuration();
+                    $config = new BackofficeConfiguration();
                     $config->setHost(rtrim($backofficeUrl, '/'));
 
-                    // Basic auth opzionale
                     $username = getenv('GOVPAY_USER');
                     $password = getenv('GOVPAY_PASSWORD');
                     if ($username !== false && $password !== false && $username !== '' && $password !== '') {
@@ -98,10 +169,9 @@ class PendenzeController
                         $config->setPassword($password);
                     }
 
-                    // mTLS opzionale
                     $guzzleOptions = [];
                     $authMethod = getenv('AUTHENTICATION_GOVPAY');
-                    if ($authMethod !== false && strtolower($authMethod) === 'sslheader') {
+                    if ($authMethod !== false && strtolower((string)$authMethod) === 'sslheader') {
                         $cert = getenv('GOVPAY_TLS_CERT');
                         $key = getenv('GOVPAY_TLS_KEY');
                         $keyPass = getenv('GOVPAY_TLS_KEY_PASSWORD') ?: null;
@@ -113,14 +183,12 @@ class PendenzeController
                         }
                     }
 
-                    $httpClient = new \GuzzleHttp\Client($guzzleOptions);
-                    $api = new \GovPay\Backoffice\Api\PendenzeApi($httpClient, $config);
+                    $httpClient = new Client($guzzleOptions);
+                    $api = new BackofficePendenzeApi($httpClient, $config);
 
-                    // Mappa parametri verso l'SDK
                     $pagina = $filters['pagina'];
                     $rpp = $filters['risultatiPerPagina'];
                     $ordinamento = $filters['ordinamento'];
-                    $campi = null; // non usato per ora
                     $idDominio = $filters['idDominio'] !== '' ? $filters['idDominio'] : null;
                     $idA2A = $filters['idA2A'] !== '' ? $filters['idA2A'] : null;
                     $idDebitore = $filters['idDebitore'] !== '' ? $filters['idDebitore'] : null;
@@ -129,7 +197,6 @@ class PendenzeController
                     $idPendenza = $filters['idPendenza'] !== '' ? $filters['idPendenza'] : null;
                     $dataDa = $filters['dataDa'] !== '' ? $filters['dataDa'] : null;
                     $dataA = $filters['dataA'] !== '' ? $filters['dataA'] : null;
-                    $idTipoPendenza = null; // multi-value, per ora non esposto
                     $direzione = $filters['direzione'] !== '' ? $filters['direzione'] : null;
                     $divisione = $filters['divisione'] !== '' ? $filters['divisione'] : null;
                     $iuv = $filters['iuv'] !== '' ? $filters['iuv'] : null;
@@ -138,12 +205,11 @@ class PendenzeController
                     $maxRisultati = true;
 
                     try {
-                        // 1) Prova via SDK (può fallire per vincoli dei modelli generati)
                         $result = $api->findPendenze(
                             $pagina,
                             $rpp,
                             $ordinamento,
-                            $campi,
+                            null,
                             $idDominio,
                             $idA2A,
                             $idDebitore,
@@ -152,7 +218,7 @@ class PendenzeController
                             $idPendenza,
                             $dataDa,
                             $dataA,
-                            $idTipoPendenza,
+                            null,
                             $direzione,
                             $divisione,
                             $iuv,
@@ -161,25 +227,18 @@ class PendenzeController
                             $maxRisultati
                         );
 
-                        $data = \GovPay\Backoffice\ObjectSerializer::sanitizeForSerialization($result);
-                        $dataArr = is_array($data) ? $data : json_decode(json_encode($data), true);
+                        $data = BackofficeSerializer::sanitizeForSerialization($result);
+                        $dataArr = is_array($data) ? $data : json_decode(json_encode($data, JSON_UNESCAPED_SLASHES), true);
                     } catch (\Throwable $sdkEx) {
-                        // 2) Fallback raw HTTP se l'SDK fallisce per es. "invalid length"
-                        $msg = $sdkEx->getMessage();
-                        $shouldFallback = stripos($msg, 'invalid length') !== false
-                            || stripos($msg, 'must be smaller than or equal to') !== false
-                            || stripos($msg, 'length') !== false;
-                        if (!$shouldFallback) {
-                            throw $sdkEx; // errore diverso: propaga al catch esterno
+                        if (!$this->shouldFallbackToRaw($sdkEx)) {
+                            throw $sdkEx;
                         }
 
-                        // Backoffice findPendenze: path '/pendenze' e parametri in snake_case
                         $url = rtrim($backofficeUrl, '/') . '/pendenze';
                         $query = [
                             'pagina' => $pagina,
                             'risultati_per_pagina' => $rpp,
                             'ordinamento' => $ordinamento,
-                            // 'campi' => $campi, // omesso se null
                             'id_dominio' => $idDominio,
                             'id_a2_a' => $idA2A,
                             'id_debitore' => $idDebitore,
@@ -188,7 +247,6 @@ class PendenzeController
                             'id_pendenza' => $idPendenza,
                             'data_da' => $dataDa,
                             'data_a' => $dataA,
-                            // 'id_tipo_pendenza' => $idTipoPendenza,
                             'direzione' => $direzione,
                             'divisione' => $divisione,
                             'iuv' => $iuv,
@@ -196,7 +254,8 @@ class PendenzeController
                             'metadati_paginazione' => $metadatiPaginazione,
                             'max_risultati' => $maxRisultati,
                         ];
-                        $query = array_filter($query, static function($v) { return $v !== null && $v !== ''; });
+                        $query = array_filter($query, static fn($v) => $v !== null && $v !== '');
+
                         $requestOptions = [
                             'headers' => ['Accept' => 'application/json'],
                             'query' => $query,
@@ -204,6 +263,7 @@ class PendenzeController
                         if ($username !== false && $password !== false && $username !== '' && $password !== '') {
                             $requestOptions['auth'] = [$username, $password];
                         }
+
                         $resp = $httpClient->request('GET', $url, $requestOptions);
                         $json = (string)$resp->getBody();
                         $dataArr = json_decode($json, true);
@@ -212,22 +272,19 @@ class PendenzeController
                         }
                     }
 
-                    // Estraggo info paginazione e imposto risultati
-                    $numPagine = $dataArr['numPagine'] ?? null;
-                    $numRisultati = $dataArr['numRisultati'] ?? null;
+                    $numPagine = isset($dataArr['numPagine']) ? (int)$dataArr['numPagine'] : null;
+                    $numRisultati = isset($dataArr['numRisultati']) ? (int)$dataArr['numRisultati'] : null;
                     $results = $dataArr;
 
-                    // Costruisco prev/next URL
                     $basePath = $request->getUri()->getPath();
                     $qs = $params;
                     $qs['q'] = '1';
                     if ($filters['pagina'] > 1) {
                         $qs['pagina'] = $filters['pagina'] - 1;
-                        // Propaga esplicitamente l'ordinamento calcolato
                         $qs['ordinamento'] = $ordinamento;
                         $prevUrl = $basePath . '?' . http_build_query($qs);
                     }
-                    if ($numPagine !== null && $filters['pagina'] < (int)$numPagine) {
+                    if ($numPagine !== null && $filters['pagina'] < $numPagine) {
                         $qs['pagina'] = $filters['pagina'] + 1;
                         $qs['ordinamento'] = $ordinamento;
                         $nextUrl = $basePath . '?' . http_build_query($qs);
@@ -238,16 +295,397 @@ class PendenzeController
             }
         }
 
-        return $request
-            ->withAttribute('filters', $filters)
-            ->withAttribute('errors', $errors)
-            ->withAttribute('allowed_states', $allowedStates)
-            ->withAttribute('results', $results)
-            ->withAttribute('num_pagine', $numPagine)
-            ->withAttribute('num_risultati', $numRisultati)
-            ->withAttribute('query_made', $queryMade)
-            ->withAttribute('prev_url', $prevUrl)
-            ->withAttribute('next_url', $nextUrl);
+        $highlightId = $params['highlight'] ?? null;
+        $qsCurrent = $request->getUri()->getQuery();
+        $returnUrl = '/pendenze/ricerca' . ($qsCurrent ? ('?' . $qsCurrent) : '');
+
+        $this->exposeCurrentUser();
+
+        return $this->twig->render($response, 'pendenze/ricerca.html.twig', [
+            'filters' => $filters,
+            'errors' => $errors,
+            'allowed_states' => $allowedStates,
+            'results' => $results,
+            'num_pagine' => $numPagine,
+            'num_risultati' => $numRisultati,
+            'query_made' => $queryMade,
+            'prev_url' => $prevUrl,
+            'next_url' => $nextUrl,
+            'return_url' => $returnUrl,
+            'highlight_id' => $highlightId,
+        ]);
+    }
+
+    public function showInsert(Request $request, Response $response): Response
+    {
+        $this->exposeCurrentUser();
+        return $this->twig->render($response, 'pendenze/inserimento.html.twig');
+    }
+
+    public function showBulkInsert(Request $request, Response $response): Response
+    {
+        $this->exposeCurrentUser();
+        return $this->twig->render($response, 'pendenze/inserimento_massivo.html.twig');
+    }
+
+    public function showDetail(Request $request, Response $response, array $args): Response
+    {
+        $this->exposeCurrentUser();
+
+        $idPendenza = $args['idPendenza'] ?? '';
+        $q = $request->getQueryParams();
+        $ret = $q['return'] ?? '/pendenze/ricerca';
+        if (strpos((string)$ret, '/pendenze/ricerca') !== 0) {
+            $ret = '/pendenze/ricerca';
+        }
+
+        $error = null;
+        $pendenza = null;
+
+        $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
+        $idA2A = getenv('ID_A2A') ?: '';
+        if ($idPendenza === '') {
+            $error = 'ID pendenza non specificato';
+        } elseif (empty($backofficeUrl)) {
+            $error = 'Variabile GOVPAY_BACKOFFICE_URL non impostata';
+        } elseif ($idA2A === '') {
+            $error = 'Variabile ID_A2A non impostata nel file .env';
+        } else {
+            try {
+                $username = getenv('GOVPAY_USER');
+                $password = getenv('GOVPAY_PASSWORD');
+                $guzzleOptions = [
+                    'headers' => ['Accept' => 'application/json'],
+                ];
+                $authMethod = getenv('AUTHENTICATION_GOVPAY');
+                if ($authMethod !== false && strtolower((string)$authMethod) === 'sslheader') {
+                    $cert = getenv('GOVPAY_TLS_CERT');
+                    $key = getenv('GOVPAY_TLS_KEY');
+                    $keyPass = getenv('GOVPAY_TLS_KEY_PASSWORD') ?: null;
+                    if (!empty($cert) && !empty($key)) {
+                        $guzzleOptions['cert'] = $cert;
+                        $guzzleOptions['ssl_key'] = $keyPass ? [$key, $keyPass] : $key;
+                    } else {
+                        $error = 'mTLS abilitato ma GOVPAY_TLS_CERT/GOVPAY_TLS_KEY non impostati';
+                    }
+                }
+                if (!$error && $username !== false && $password !== false && $username !== '' && $password !== '') {
+                    $guzzleOptions['auth'] = [$username, $password];
+                }
+
+                if (!$error) {
+                    $http = new Client($guzzleOptions);
+                    $url = rtrim($backofficeUrl, '/') . '/pendenze/' . rawurlencode((string)$idA2A) . '/' . rawurlencode($idPendenza);
+                    $resp = $http->request('GET', $url);
+                    $json = (string)$resp->getBody();
+                    $data = json_decode($json, true);
+                    if (json_last_error() !== JSON_ERROR_NONE) {
+                        throw new \RuntimeException('Parsing JSON fallito: ' . json_last_error_msg());
+                    }
+                    $pendenza = $data;
+                }
+            } catch (ClientException $ce) {
+                $code = $ce->getResponse() ? $ce->getResponse()->getStatusCode() : 0;
+                $error = $code === 404 ? 'Pendenza non trovata (404)' : 'Errore client nella chiamata pendenza: ' . $ce->getMessage();
+            } catch (\Throwable $e) {
+                $error = 'Errore chiamata pendenza: ' . $e->getMessage();
+            }
+        }
+
+        return $this->twig->render($response, 'pendenze/dettaglio.html.twig', [
+            'idPendenza' => $idPendenza,
+            'return_url' => $ret,
+            'pendenza' => $pendenza,
+            'error' => $error,
+            'id_dominio' => $pendenza['idDominio'] ?? (getenv('ID_DOMINIO') ?: ''),
+        ]);
+    }
+
+    public function downloadAvviso(Request $request, Response $response, array $args): Response
+    {
+        $idDominio = $args['idDominio'] ?? '';
+        $numeroAvviso = $args['numeroAvviso'] ?? '';
+        if ($idDominio === '' || $numeroAvviso === '') {
+            $response->getBody()->write('Parametri mancanti');
+            return $response->withStatus(400);
+        }
+
+        $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
+        if (empty($backofficeUrl)) {
+            $response->getBody()->write('GOVPAY_BACKOFFICE_URL non impostata');
+            return $response->withStatus(500);
+        }
+
+        try {
+            $username = getenv('GOVPAY_USER');
+            $password = getenv('GOVPAY_PASSWORD');
+            $guzzleOptions = [
+                'headers' => ['Accept' => 'application/pdf'],
+            ];
+            $authMethod = getenv('AUTHENTICATION_GOVPAY');
+            if ($authMethod !== false && strtolower((string)$authMethod) === 'sslheader') {
+                $cert = getenv('GOVPAY_TLS_CERT');
+                $key = getenv('GOVPAY_TLS_KEY');
+                $keyPass = getenv('GOVPAY_TLS_KEY_PASSWORD') ?: null;
+                if (!empty($cert) && !empty($key)) {
+                    $guzzleOptions['cert'] = $cert;
+                    $guzzleOptions['ssl_key'] = $keyPass ? [$key, $keyPass] : $key;
+                } else {
+                    $response->getBody()->write('mTLS abilitato ma GOVPAY_TLS_CERT/GOVPAY_TLS_KEY non impostati');
+                    return $response->withStatus(500);
+                }
+            }
+            if ($username !== false && $password !== false && $username !== '' && $password !== '') {
+                $guzzleOptions['auth'] = [$username, $password];
+            }
+
+            $http = new Client($guzzleOptions);
+            $url = rtrim($backofficeUrl, '/') . '/avvisi/' . rawurlencode($idDominio) . '/' . rawurlencode($numeroAvviso);
+            $resp = $http->request('GET', $url);
+            $contentType = $resp->getHeaderLine('Content-Type') ?: 'application/pdf';
+            $pdf = (string)$resp->getBody();
+            $filename = 'avviso-' . $idDominio . '-' . $numeroAvviso . '.pdf';
+
+            $response = $response
+                ->withHeader('Content-Type', $contentType)
+                ->withHeader('Content-Disposition', 'attachment; filename="' . $filename . '"')
+                ->withHeader('Cache-Control', 'no-store');
+            $response->getBody()->write($pdf);
+            return $response;
+        } catch (ClientException $ce) {
+            $code = $ce->getResponse() ? $ce->getResponse()->getStatusCode() : 0;
+            $msg = $code === 404 ? 'Avviso non trovato' : ('Errore client avviso: ' . $ce->getMessage());
+            $response->getBody()->write($msg);
+            return $response->withStatus($code ?: 500);
+        } catch (\Throwable $e) {
+            $response->getBody()->write('Errore scaricamento avviso: ' . $e->getMessage());
+            return $response->withStatus(500);
+        }
+    }
+
+    public function downloadRicevuta(Request $request, Response $response, array $args): Response
+    {
+        $idDominio = $args['idDominio'] ?? '';
+        $iuv = $args['iuv'] ?? '';
+        $ccp = $args['ccp'] ?? '';
+        if ($idDominio === '' || $iuv === '' || $ccp === '') {
+            $response->getBody()->write('Parametri mancanti');
+            return $response->withStatus(400);
+        }
+
+        $pendenzeUrl = getenv('GOVPAY_PENDENZE_URL') ?: '';
+        if (empty($pendenzeUrl)) {
+            $response->getBody()->write('GOVPAY_PENDENZE_URL non impostata');
+            return $response->withStatus(500);
+        }
+
+        try {
+            $username = getenv('GOVPAY_USER');
+            $password = getenv('GOVPAY_PASSWORD');
+            $guzzleOptions = [
+                'headers' => ['Accept' => 'application/pdf'],
+            ];
+            $authMethod = getenv('AUTHENTICATION_GOVPAY');
+            if ($authMethod !== false && strtolower((string)$authMethod) === 'sslheader') {
+                $cert = getenv('GOVPAY_TLS_CERT');
+                $key = getenv('GOVPAY_TLS_KEY');
+                $keyPass = getenv('GOVPAY_TLS_KEY_PASSWORD') ?: null;
+                if (!empty($cert) && !empty($key)) {
+                    $guzzleOptions['cert'] = $cert;
+                    $guzzleOptions['ssl_key'] = $keyPass ? [$key, $keyPass] : $key;
+                } else {
+                    $response->getBody()->write('mTLS abilitato ma GOVPAY_TLS_CERT/GOVPAY_TLS_KEY non impostati');
+                    return $response->withStatus(500);
+                }
+            }
+            if ($username !== false && $password !== false && $username !== '' && $password !== '') {
+                $guzzleOptions['auth'] = [$username, $password];
+            }
+
+            $http = new Client($guzzleOptions);
+            $url = rtrim($pendenzeUrl, '/') . '/rpp/'
+                . rawurlencode($idDominio) . '/' . rawurlencode($iuv) . '/' . rawurlencode($ccp) . '/rt';
+            $resp = $http->request('GET', $url);
+            $contentType = $resp->getHeaderLine('Content-Type') ?: 'application/pdf';
+            $pdf = (string)$resp->getBody();
+            $filename = 'rt-' . $iuv . '-' . $ccp . '.pdf';
+
+            $response = $response
+                ->withHeader('Content-Type', $contentType)
+                ->withHeader('Content-Disposition', 'attachment; filename="' . $filename . '"')
+                ->withHeader('Cache-Control', 'no-store');
+            $response->getBody()->write($pdf);
+            return $response;
+        } catch (ClientException $ce) {
+            $code = $ce->getResponse() ? $ce->getResponse()->getStatusCode() : 0;
+            $msg = $code === 404 ? 'Ricevuta non trovata' : ('Errore client ricevuta: ' . $ce->getMessage());
+            $response->getBody()->write($msg);
+            return $response->withStatus($code ?: 500);
+        } catch (\Throwable $e) {
+            $response->getBody()->write('Errore scaricamento ricevuta: ' . $e->getMessage());
+            return $response->withStatus(500);
+        }
+    }
+
+    public function downloadDominioLogo(Request $request, Response $response, array $args): Response
+    {
+        $idDominio = $args['idDominio'] ?? '';
+        if ($idDominio === '') {
+            $response->getBody()->write('Parametri mancanti');
+            return $response->withStatus(400);
+        }
+
+        $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
+        if (empty($backofficeUrl)) {
+            $response->getBody()->write('GOVPAY_BACKOFFICE_URL non impostata');
+            return $response->withStatus(500);
+        }
+
+        $username = getenv('GOVPAY_USER');
+        $password = getenv('GOVPAY_PASSWORD');
+        $guzzleOptions = [
+            'headers' => ['Accept' => 'image/avif,image/webp,image/apng,image/svg+xml,image/*;q=0.8,*/*;q=0.5'],
+        ];
+        $authMethod = getenv('AUTHENTICATION_GOVPAY');
+        if ($authMethod !== false && strtolower((string)$authMethod) === 'sslheader') {
+            $cert = getenv('GOVPAY_TLS_CERT');
+            $key = getenv('GOVPAY_TLS_KEY');
+            $keyPass = getenv('GOVPAY_TLS_KEY_PASSWORD') ?: null;
+            if (!empty($cert) && !empty($key)) {
+                $guzzleOptions['cert'] = $cert;
+                $guzzleOptions['ssl_key'] = $keyPass ? [$key, $keyPass] : $key;
+            } else {
+                $response->getBody()->write('mTLS abilitato ma GOVPAY_TLS_CERT/GOVPAY_TLS_KEY non impostati');
+                return $response->withStatus(500);
+            }
+        }
+        if ($username !== false && $password !== false && $username !== '' && $password !== '') {
+            $guzzleOptions['auth'] = [$username, $password];
+        }
+
+        try {
+            $http = new Client($guzzleOptions);
+            $url = rtrim($backofficeUrl, '/') . '/domini/' . rawurlencode($idDominio) . '/logo';
+            $resp = $http->request('GET', $url);
+            $contentType = $resp->getHeaderLine('Content-Type') ?: 'image/png';
+            $bytes = (string)$resp->getBody();
+            $filename = 'logo-' . $idDominio;
+
+            $response = $response
+                ->withHeader('Content-Type', $contentType)
+                ->withHeader('Content-Disposition', 'inline; filename="' . $filename . '"')
+                ->withHeader('Cache-Control', 'no-store');
+            $response->getBody()->write($bytes);
+            return $response;
+        } catch (ClientException $ce) {
+            // Continua con fallback
+        } catch (\Throwable $e) {
+            // Prosegue con fallback
+        }
+
+        try {
+            if (!class_exists('GovPay\\Backoffice\\Api\\EntiCreditoriApi')) {
+                $response->getBody()->write('Client Backoffice EntiCreditori non disponibile');
+                return $response->withStatus(500);
+            }
+
+            $config = new BackofficeConfiguration();
+            $config->setHost(rtrim($backofficeUrl, '/'));
+            if ($username !== false && $password !== false && $username !== '' && $password !== '') {
+                $config->setUsername($username);
+                $config->setPassword($password);
+            }
+
+            $httpClient = new Client($guzzleOptions);
+            $entiApi = new \GovPay\Backoffice\Api\EntiCreditoriApi($httpClient, $config);
+            $domRes = $entiApi->getDominio($idDominio);
+
+            $logo = null;
+            if (is_object($domRes)) {
+                if (method_exists($domRes, 'getLogo')) {
+                    $logo = $domRes->getLogo();
+                } elseif (property_exists($domRes, 'logo')) {
+                    $logo = $domRes->logo;
+                }
+            }
+            if ($logo === null) {
+                $domData = json_decode(json_encode($domRes), true);
+                if (is_array($domData)) {
+                    $logo = $domData['logo'] ?? null;
+                }
+            }
+
+            if (!$logo || !is_string($logo)) {
+                $response->getBody()->write('Logo non disponibile');
+                return $response->withStatus(404);
+            }
+
+            if (preg_match('/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/', $logo, $matches)) {
+                $contentType = $matches[1];
+                $bytes = base64_decode($matches[2], true);
+                if ($bytes === false) {
+                    $response->getBody()->write('Logo non valido');
+                    return $response->withStatus(415);
+                }
+
+                $response = $response
+                    ->withHeader('Content-Type', $contentType)
+                    ->withHeader('Content-Disposition', 'inline; filename="logo-' . $idDominio . '"')
+                    ->withHeader('Cache-Control', 'no-store');
+                $response->getBody()->write($bytes);
+                return $response;
+            }
+
+            $bytes = base64_decode($logo, true);
+            if ($bytes !== false && $bytes !== '') {
+                $response = $response
+                    ->withHeader('Content-Type', 'image/png')
+                    ->withHeader('Content-Disposition', 'inline; filename="logo-' . $idDominio . '.png"')
+                    ->withHeader('Cache-Control', 'no-store');
+                $response->getBody()->write($bytes);
+                return $response;
+            }
+
+            if (is_string($logo) && str_starts_with($logo, '/')) {
+                try {
+                    $http = new Client($guzzleOptions);
+                    $url = rtrim($backofficeUrl, '/') . $logo;
+                    $resp = $http->request('GET', $url);
+                    $contentType = $resp->getHeaderLine('Content-Type') ?: 'image/png';
+                    $bytes = (string)$resp->getBody();
+
+                    $response = $response
+                        ->withHeader('Content-Type', $contentType)
+                        ->withHeader('Content-Disposition', 'inline; filename="logo-' . $idDominio . '"')
+                        ->withHeader('Cache-Control', 'no-store');
+                    $response->getBody()->write($bytes);
+                    return $response;
+                } catch (\Throwable $e) {
+                    // Continua verso 404
+                }
+            }
+
+            $response->getBody()->write('Logo non disponibile');
+            return $response->withStatus(404);
+        } catch (\Throwable $e) {
+            $response->getBody()->write('Errore recupero logo: ' . $e->getMessage());
+            return $response->withStatus(500);
+        }
+    }
+
+    private function exposeCurrentUser(): void
+    {
+        if (session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['user'])) {
+            $this->twig->getEnvironment()->addGlobal('current_user', $_SESSION['user']);
+        }
+    }
+
+    private function shouldFallbackToRaw(\Throwable $exception): bool
+    {
+        $message = strtolower($exception->getMessage());
+        return str_contains($message, 'invalid length')
+            || str_contains($message, 'must be smaller than or equal to')
+            || str_contains($message, 'length');
     }
 }
 
