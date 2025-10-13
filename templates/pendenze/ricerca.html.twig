@@ -15,49 +15,50 @@
   {% endif %}
 
   {% set f = filters ?? {} %}
-  <form method="get" action="/pendenze/ricerca" class="card mb-4">
+  {% set ord = f.ordinamento|default('+dataCaricamento') %}
+  <form method="get" action="/pendenze/ricerca" class="card shadow-sm mb-4">
     <input type="hidden" name="q" value="1" />
-    <div class="card-header d-flex align-items-center justify-content-between">
-  <div class="h5 mb-0">Ricerca Pendenze - Filtro</div>
-      <div class="text-muted small">Compila uno o più campi</div>
+    <div class="card-header bg-light border-bottom py-3">
+      <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-lg-between gap-1">
+        <h2 class="h5 mb-0">Ricerca pendenze</h2>
+        <p class="mb-0 text-muted small">Compila uno o più campi</p>
+      </div>
     </div>
     <div class="card-body">
-      {% set ord = f.ordinamento|default('-dataCaricamento') %}
-      <div class="row g-3">
-        <div class="col-md-4">
+      <fieldset class="row g-4">
+        <legend class="visually-hidden">Filtri principali</legend>
+        <div class="col-12 col-lg-6 col-xl-4">
           <div class="form-group">
-            <label for="idPendenza" class="form-label">ID Pendenza</label>
-            <input class="form-control" id="idPendenza" name="idPendenza" value="{{ f.idPendenza|default('') }}" placeholder="ID pendenza">
+            <label for="idPendenza">ID pendenza</label>
+            <input type="text" class="form-control" id="idPendenza" name="idPendenza" value="{{ f.idPendenza|default('') }}" placeholder="ID pendenza">
           </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-12 col-lg-6 col-xl-4">
           <div class="form-group">
-            <label for="idDebitore" class="form-label">ID Debitore (CF/PI)</label>
-            <input class="form-control" id="idDebitore" name="idDebitore" value="{{ f.idDebitore|default('') }}" placeholder="CF/PI">
+            <label for="idDebitore">ID debitore (CF/PI)</label>
+            <input type="text" class="form-control" id="idDebitore" name="idDebitore" value="{{ f.idDebitore|default('') }}" placeholder="CF/PI">
           </div>
         </div>
-
-        <div class="col-md-4">
+        <div class="col-12 col-lg-6 col-xl-4">
           <div class="form-group">
-            <label for="iuv" class="form-label">IUV</label>
-            <input class="form-control" id="iuv" name="iuv" value="{{ f.iuv|default('') }}" placeholder="IUV">
+            <label for="iuv">IUV</label>
+            <input type="text" class="form-control" id="iuv" name="iuv" value="{{ f.iuv|default('') }}" placeholder="IUV">
           </div>
         </div>
-        <div class="col-md-4">
-          <div class="select-wrapper w-100">
-            <label for="stato" class="form-label">Stato</label>
+        <div class="col-12 col-lg-6 col-xl-4">
+          <div class="form-group">
+            <label for="stato">Stato</label>
+            {% set allowed = allowed_states|default([]) %}
+            {% set state_map = pendenza_states|default({}) %}
+            {% set order = state_map|keys %}
             <select id="stato" name="stato" class="form-select" aria-label="Stato">
               <option value="">-- tutti --</option>
-              {% set allowed = allowed_states|default([]) %}
-              {% set order = pendenza_states|keys %}
-              {# Prima gli stati mappati, nell'ordine definito #}
               {% for s in order %}
                 {% if s in allowed %}
-                  {% set conf = pendenza_states[s] %}
+                  {% set conf = state_map[s] %}
                   <option value="{{ s }}" {% if f.stato is defined and f.stato == s %}selected{% endif %}>{{ conf.label }}</option>
                 {% endif %}
               {% endfor %}
-              {# Poi eventuali stati non mappati (fallback) #}
               {% for s in allowed %}
                 {% if s not in order %}
                   <option value="{{ s }}" {% if f.stato is defined and f.stato == s %}selected{% endif %}>{{ s }}</option>
@@ -66,14 +67,13 @@
             </select>
           </div>
         </div>
-
-        <div class="col-md-4">
-          <div class="form-group date-range-container position-relative">
-            <label for="dateRangeInput" class="form-label">Intervallo date</label>
-            <input type="text" id="dateRangeInput" class="form-control" placeholder="Seleziona intervallo" autocomplete="off" inputmode="none">
+        <div class="col-12 col-lg-6 col-xl-4">
+          <div class="form-group position-relative date-range-container">
+            <label for="dateRangeInput">Intervallo date</label>
+            <input type="text" id="dateRangeInput" class="form-control" placeholder="Seleziona intervallo" autocomplete="off" inputmode="none" data-has-query="{{ query_made ? '1' : '0' }}">
             <input type="hidden" id="dataDa" name="dataDa" value="{{ f.dataDa|default('') }}">
             <input type="hidden" id="dataA" name="dataA" value="{{ f.dataA|default('') }}">
-            <div id="dateRangePanel" class="card shadow date-range-panel d-none">
+            <div id="dateRangePanel" class="card shadow-sm date-range-panel d-none">
               <div class="card-body p-3">
                 <div class="row g-2 align-items-center">
                   <div class="col-6">
@@ -95,166 +95,227 @@
             </div>
           </div>
         </div>
+      </fieldset>
+
+      <div class="row g-3 mt-1">
+        <div class="col-12 col-lg-auto d-flex flex-wrap align-items-center gap-2">
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-search me-1"></i> Cerca
+          </button>
+          <a class="btn btn-outline-secondary" href="/pendenze/ricerca">
+            <i class="fas fa-eraser me-1"></i> Azzera
+          </a>
+          <button class="btn btn-link px-0" type="button" data-bs-toggle="collapse" data-bs-target="#advancedFilters" aria-expanded="false" aria-controls="advancedFilters">
+            <i class="fas fa-sliders-h me-1"></i> Filtri avanzati
+          </button>
+        </div>
+        <div class="col-12 col-lg d-flex justify-content-lg-end align-items-center">
+          <div class="d-flex align-items-center gap-2 w-100 w-lg-auto">
+            <label for="ordinamento" class="small mb-0 text-muted">Ordina per</label>
+            <select class="form-select" id="ordinamento" name="ordinamento" data-default-value="+dataCaricamento">
+              <option value="+dataCaricamento" {% if ord == '+dataCaricamento' %}selected{% endif %}>Data caricamento (più vecchie prima)</option>
+              <option value="-dataCaricamento" {% if ord == '-dataCaricamento' %}selected{% endif %}>Data caricamento (più recenti prima)</option>
+              <option value="+dataValidita" {% if ord == '+dataValidita' %}selected{% endif %}>Data validità (crescente)</option>
+              <option value="-dataValidita" {% if ord == '-dataValidita' %}selected{% endif %}>Data validità (decrescente)</option>
+              <option value="+dataScadenza" {% if ord == '+dataScadenza' %}selected{% endif %}>Data scadenza (crescente)</option>
+              <option value="-dataScadenza" {% if ord == '-dataScadenza' %}selected{% endif %}>Data scadenza (decrescente)</option>
+              <option value="+stato" {% if ord == '+stato' %}selected{% endif %}>Stato (A → Z)</option>
+              <option value="-stato" {% if ord == '-stato' %}selected{% endif %}>Stato (Z → A)</option>
+            </select>
+          </div>
+        </div>
       </div>
 
-      <div class="mt-3 d-flex flex-wrap gap-2 align-items-center">
-        <button type="submit" class="btn btn-primary">
-          <i class="fas fa-search me-1"></i> Cerca
-        </button>
-        <a class="btn btn-outline-secondary" href="/pendenze/ricerca">
-          <i class="fas fa-eraser me-1"></i> Azzera
-        </a>
-        <button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#advancedFilters" aria-expanded="false" aria-controls="advancedFilters">
-          Filtri avanzati
-        </button>
-
-        <div class="ms-auto d-flex align-items-center gap-2">
-          <span class="text-muted small">Ordinamento più recente</span>
-          <div class="toggles">
-            <label for="ordToggleVecchie" class="mb-0 small">
-              <input type="checkbox" id="ordToggleVecchie" name="ordRecentiPrima" {% if ord is defined and ord == '-dataCaricamento' %}checked{% endif %}>
-              <span class="lever"></span>
-            </label>
-          </div>
-        </div>
-
-      <div class="collapse mt-3" id="advancedFilters">
-        <div class="row g-3">
-          <div class="col-md-3">
+      <div class="collapse mt-4" id="advancedFilters">
+        <fieldset class="row g-4">
+          <legend class="visually-hidden">Filtri avanzati</legend>
+          <div class="col-12 col-lg-6 col-xl-3">
             <div class="form-group">
-              <label for="idA2A" class="form-label">ID A2A</label>
-              <input class="form-control" id="idA2A" name="idA2A" value="{{ f.idA2A|default('') }}" placeholder="ID A2A">
+              <label for="idA2A">ID A2A</label>
+              <input type="text" class="form-control" id="idA2A" name="idA2A" value="{{ f.idA2A|default('') }}" placeholder="ID A2A">
             </div>
           </div>
-          <div class="col-md-3">
+          <div class="col-12 col-lg-6 col-xl-3">
             <div class="form-group">
-              <label for="idPagamento" class="form-label">ID Pagamento</label>
-              <input class="form-control" id="idPagamento" name="idPagamento" value="{{ f.idPagamento|default('') }}" placeholder="ID Pagamento">
+              <label for="idPagamento">ID pagamento</label>
+              <input type="text" class="form-control" id="idPagamento" name="idPagamento" value="{{ f.idPagamento|default('') }}" placeholder="ID pagamento">
             </div>
           </div>
-          <div class="col-md-3">
+          <div class="col-12 col-lg-6 col-xl-3">
             <div class="form-group">
-              <label for="direzione" class="form-label">Direzione</label>
-              <input class="form-control" id="direzione" name="direzione" value="{{ f.direzione|default('') }}" placeholder="Direzione">
+              <label for="direzione">Direzione</label>
+              <input type="text" class="form-control" id="direzione" name="direzione" value="{{ f.direzione|default('') }}" placeholder="Direzione">
             </div>
           </div>
-          <div class="col-md-3">
+          <div class="col-12 col-lg-6 col-xl-3">
             <div class="form-group">
-              <label for="divisione" class="form-label">Divisione</label>
-              <input class="form-control" id="divisione" name="divisione" value="{{ f.divisione|default('') }}" placeholder="Divisione">
+              <label for="divisione">Divisione</label>
+              <input type="text" class="form-control" id="divisione" name="divisione" value="{{ f.divisione|default('') }}" placeholder="Divisione">
             </div>
           </div>
-        </div>
+        </fieldset>
       </div>
     </div>
   </form>
 
   {% if query_made and results %}
-    <div class="d-flex justify-content-between align-items-center mb-2">
-      <div>
-        <strong>Risultati:</strong>
-        {% if num_risultati is not null %}
-          {{ num_risultati }}
-        {% else %}
-          --
-        {% endif %}
+    <div class="card shadow-sm">
+      <div class="card-header bg-light border-bottom py-3">
+        <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-lg-between gap-2">
+          <div>
+            <h3 class="h6 text-uppercase text-secondary mb-1">Risultati</h3>
+            <p class="mb-0 small text-muted">Elenco delle pendenze che rispettano i filtri applicati</p>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <span class="badge rounded-pill text-bg-primary">
+              {% if num_risultati is not null %}
+                {{ num_risultati }}
+              {% else %}
+                --
+              {% endif %}
+            </span>
+            {% if prev_url or next_url %}
+              <div class="btn-group btn-group-sm" role="group" aria-label="Paginazione rapida">
+                {% if prev_url %}
+                  <a class="btn btn-outline-primary" href="{{ prev_url }}" title="Vai alla pagina precedente">&laquo;</a>
+                {% endif %}
+                {% if next_url %}
+                  <a class="btn btn-outline-primary" href="{{ next_url }}" title="Vai alla pagina successiva">&raquo;</a>
+                {% endif %}
+              </div>
+            {% endif %}
+          </div>
+        </div>
       </div>
-      <div class="btn-group">
-        {% if prev_url %}
-          <a class="btn btn-outline-primary" href="{{ prev_url }}">&laquo; Precedente</a>
-        {% endif %}
-        {% if next_url %}
-          <a class="btn btn-outline-primary" href="{{ next_url }}">Successiva &raquo;</a>
-        {% endif %}
-      </div>
-    </div>
-
-    <div class="table-responsive">
-      <table class="table table-striped align-middle">
-        <thead>
-          <tr>
-            <th>Soggetto</th>
-            <th>Causale</th>
-            <th>Tipo Pendenza</th>
-            <th>Scadenza</th>
-            <th class="text-center">Importo</th>
-            <th>Stato</th>
-            <th class="text-center">Dettaglio</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% set hl = highlight_id|default('') %}
-          {% for r in results.risultati|default([]) %}
-            {% set rid = r.idPendenza|default('') %}
-            {% set is_hl = hl and rid and (hl == rid) %}
-            <tr id="row-{{ rid }}" class="align-middle{% if is_hl %} table-warning highlight-row{% endif %}">
-              <td>
-                {% set cf = r.soggettoPagatore.identificativo|default('') %}
-                {% set den = r.soggettoPagatore.anagrafica|default(r.soggettoPagatore.denominazione|default('')) %}
-                {% if cf %}<strong>{{ cf }}</strong>{% endif %}
-                {% if den %}
-                  <div class="text-muted small">{{ den }}</div>
-                {% endif %}
-                {% if not cf and not den %}
-                  <span class="text-muted">—</span>
-                {% endif %}
-              </td>
-              <td>{{ r.causale|default(r.nome|default('')) }}</td>
-              <td>{{ r.tipoPendenza.descrizione|default('') }}</td>
-              <td class="text-nowrap">
-                {% set ds = r.dataScadenza|default('') %}
-                {% if ds %}
-                  {{ ds|date('d/m/Y') }}
-                {% else %}
-                  —
-                {% endif %}
-              </td>
-              <td class="text-center">{{ r.importo is defined ? (r.importo|number_format(2, ',', '.')) : '' }}</td>
-              <td>
-                {% set st = r.stato|default('') %}
-                {% set conf = pendenza_states[st]|default(null) %}
-                {% if conf %}
-                  <span class="badge bg-{{ conf.color }}">{{ conf.label }}</span>
-                {% else %}
-                  <span class="badge bg-secondary">{{ st }}</span>
-                {% endif %}
-              </td>
-              <td class="text-center">
-                {% if r.idPendenza is defined and r.idPendenza %}
-                  {% set back = return_url|default('/pendenze/ricerca') %}
-                  {# Alla fine del ritorno, aggiungi highlight e anchor alla riga #}
-                  {% set anchor = '#row-' ~ r.idPendenza %}
-                  {% set back_hl = back ~ ('?' in back ? '&' : '?') ~ 'highlight=' ~ (r.idPendenza|url_encode) ~ (anchor) %}
-                  <a class="btn btn-outline-primary btn-sm px-2 py-0" href="/pendenze/dettaglio/{{ r.idPendenza|url_encode }}?return={{ back_hl|url_encode }}" title="Dettaglio" aria-label="Dettaglio">
-                    <i class="fas fa-eye"></i>
-                  </a>
-                {% else %}
-                  <span class="text-muted">—</span>
-                {% endif %}
-              </td>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th scope="col">Soggetto</th>
+              <th scope="col">Causale</th>
+              <th scope="col">Tipo pendenza</th>
+              <th scope="col">Scadenza</th>
+              <th scope="col" class="text-center">Importo</th>
+              <th scope="col">Stato</th>
+              <th scope="col" class="text-center">Dettaglio</th>
             </tr>
-          {% else %}
-            <tr><td colspan="7" class="text-center text-muted">Nessun risultato</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-
-    <div class="d-flex justify-content-between align-items-center mt-2">
-      <div>
-        {% if num_pagine is not null %}
-          Pagina {{ f.pagina|default(1) }} di {{ num_pagine }}
-        {% endif %}
+          </thead>
+          <tbody>
+            {% set hl = highlight_id|default('') %}
+            {% for r in results.risultati|default([]) %}
+              {% set rid = r.idPendenza|default('') %}
+              {% set is_hl = hl and rid and (hl == rid) %}
+              <tr id="row-{{ rid }}" class="align-middle{% if is_hl %} table-warning highlight-row{% endif %}">
+                <td>
+                  {% set cf = r.soggettoPagatore.identificativo|default('') %}
+                  {% set den = r.soggettoPagatore.anagrafica|default(r.soggettoPagatore.denominazione|default('')) %}
+                  {% if cf %}<strong>{{ cf }}</strong>{% endif %}
+                  {% if den %}
+                    <div class="text-muted small">{{ den }}</div>
+                  {% endif %}
+                  {% if not cf and not den %}
+                    <span class="text-muted">—</span>
+                  {% endif %}
+                </td>
+                <td>{{ r.causale|default(r.nome|default('')) }}</td>
+                <td>{{ r.tipoPendenza.descrizione|default('') }}</td>
+                <td class="text-nowrap">
+                  {% set ds = r.dataScadenza|default('') %}
+                  {% if ds %}
+                    {{ ds|date('d/m/Y') }}
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+                <td class="text-center">{{ r.importo is defined ? (r.importo|number_format(2, ',', '.')) : '' }}</td>
+                <td>
+                  {% set st = r.stato|default('') %}
+                  {% set conf = pendenza_states[st]|default(null) %}
+                  {% if conf %}
+                    <span class="badge rounded-pill text-bg-{{ conf.color }}">{{ conf.label }}</span>
+                  {% else %}
+                    <span class="badge rounded-pill text-bg-secondary">{{ st }}</span>
+                  {% endif %}
+                </td>
+                <td class="text-center">
+                  {% if r.idPendenza is defined and r.idPendenza %}
+                    {% set back = return_url|default('/pendenze/ricerca') %}
+                    {% set anchor = '#row-' ~ r.idPendenza %}
+                    {% set back_hl = back ~ ('?' in back ? '&' : '?') ~ 'highlight=' ~ (r.idPendenza|url_encode) ~ (anchor) %}
+                    <a class="btn btn-outline-primary btn-sm px-2" href="/pendenze/dettaglio/{{ r.idPendenza|url_encode }}?return={{ back_hl|url_encode }}" title="Dettaglio" aria-label="Apri dettaglio della pendenza">
+                      <i class="fas fa-eye"></i>
+                    </a>
+                  {% else %}
+                    <span class="text-muted">—</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="7" class="text-center text-muted">Nessun risultato</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
       </div>
-      <div class="btn-group">
-        {% if prev_url %}
-          <a class="btn btn-outline-primary" href="{{ prev_url }}">&laquo; Precedente</a>
-        {% endif %}
-        {% if next_url %}
-          <a class="btn btn-outline-primary" href="{{ next_url }}">Successiva &raquo;</a>
-        {% endif %}
+      <div class="card-footer bg-white border-top py-3">
+        <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-lg-between gap-2">
+          <div class="small text-muted">
+            {% if num_pagine is not null %}
+              Pagina {{ f.pagina|default(1) }} di {{ num_pagine }}
+            {% else %}
+              Navigazione risultati
+            {% endif %}
+          </div>
+          {% if prev_url or next_url %}
+            <div class="btn-group" role="group" aria-label="Paginazione dettagliata">
+              {% if prev_url %}
+                <a class="btn btn-outline-primary" href="{{ prev_url }}">&laquo; Precedente</a>
+              {% endif %}
+              {% if next_url %}
+                <a class="btn btn-outline-primary" href="{{ next_url }}">Successiva &raquo;</a>
+              {% endif %}
+            </div>
+          {% endif %}
+        </div>
       </div>
     </div>
+    {% if app_debug %}
+      <div class="card mt-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-warning text-dark">Debug</span>
+            <span>Dati raw risultati</span>
+          </div>
+          <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#rawSearchCollapse" aria-expanded="false" aria-controls="rawSearchCollapse">
+            Mostra/Nascondi
+          </button>
+        </div>
+        <div id="rawSearchCollapse" class="collapse">
+          <div class="card-body">
+            <dl class="row row-cols-1 row-cols-md-2 small">
+              <div class="col d-flex">
+                <dt class="me-2">Pagina corrente</dt>
+                <dd class="mb-0">{{ f.pagina|default(1) }}</dd>
+              </div>
+              <div class="col d-flex">
+                <dt class="me-2">Numero pagine</dt>
+                <dd class="mb-0">{{ num_pagine is not null ? num_pagine : '—' }}</dd>
+              </div>
+              <div class="col d-flex">
+                <dt class="me-2">Prossimi risultati (API)</dt>
+                <dd class="mb-0 text-break">{{ results.prossimiRisultati|default(results.prossimi_risultati|default('—')) }}</dd>
+              </div>
+              <div class="col d-flex">
+                <dt class="me-2">URL Successiva calcolato</dt>
+                <dd class="mb-0 text-break">{{ next_url|default('—') }}</dd>
+              </div>
+            </dl>
+            <pre class="small text-break mb-0">{{ results|json_encode(constant('JSON_PRETTY_PRINT') b-or constant('JSON_UNESCAPED_SLASHES')) }}</pre>
+          </div>
+        </div>
+      </div>
+    {% endif %}
   {% elseif query_made %}
     <div class="alert alert-warning">Nessun risultato trovato.</div>
   {% endif %}

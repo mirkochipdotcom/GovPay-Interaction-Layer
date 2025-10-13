@@ -98,7 +98,7 @@
               </a>
             {% endif %}
             {% if idDom and topIuv and topCcp %}
-              <a class="btn btn-outline-primary btn-sm" href="/pendenze/rpp/{{ idDom|url_encode }}/{{ topIuv|url_encode }}/{{ topCcp|url_encode }}/rt" target="_blank" rel="noopener" title="Scarica ricevuta (IUV {{ topIuv }}, CCP {{ topCcp }})">
+              <a class="btn btn-outline-success btn-sm" href="/pendenze/rpp/{{ idDom|url_encode }}/{{ topIuv|url_encode }}/{{ topCcp|url_encode }}/rt" target="_blank" rel="noopener" title="Scarica ricevuta (IUV {{ topIuv }}, CCP {{ topCcp }})">
                 <i class="fas fa-file-pdf me-1"></i> Ricevuta
               </a>
             {% endif %}
@@ -277,7 +277,7 @@
     {% if app_debug %}
       <div class="card mt-3">
         <div class="card-header d-flex justify-content-between align-items-center">
-          <span>Dati raw</span>
+          <span class="badge bg-warning text-dark">Debug</span>
           <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#rawCollapse" aria-expanded="false" aria-controls="rawCollapse">Mostra/Nascondi</button>
         </div>
         <div class="collapse" id="rawCollapse">
