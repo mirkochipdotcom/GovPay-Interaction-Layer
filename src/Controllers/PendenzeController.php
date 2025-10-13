@@ -111,14 +111,7 @@ class PendenzeController
             ? StatoPendenza::getAllowableEnumValues()
             : [];
 
-        $formSubmitted = array_key_exists('q', $params);
-        if (array_key_exists('ordRecentiPrima', $params)) {
-            $ordinamento = '-dataCaricamento';
-        } elseif ($formSubmitted) {
-            $ordinamento = '+dataCaricamento';
-        } else {
-            $ordinamento = (string)($params['ordinamento'] ?? '-dataCaricamento');
-        }
+        $ordinamento = $request->getQueryParams()['ordinamento'] ?? '-dataCaricamento';
 
         $filters = [
             'q' => isset($params['q']) ? (string)$params['q'] : null,
@@ -126,7 +119,7 @@ class PendenzeController
             'risultatiPerPagina' => min(200, max(1, (int)($params['risultatiPerPagina'] ?? 25))),
             'ordinamento' => $ordinamento,
             'idDominio' => (string)($params['idDominio'] ?? (getenv('ID_DOMINIO') ?: '')),
-            'idA2A' => (string)($params['idA2A'] ?? ''),
+            'idA2A' => (string)($params['idA2A'] ?? (getenv('ID_A2A') ?: '')),
             'idPendenza' => (string)($params['idPendenza'] ?? ''),
             'idDebitore' => (string)($params['idDebitore'] ?? ''),
             'stato' => (string)($params['stato'] ?? ''),
@@ -137,6 +130,30 @@ class PendenzeController
             'divisione' => (string)($params['divisione'] ?? ''),
             'iuv' => (string)($params['iuv'] ?? ''),
         ];
+
+        $validFields = ['dataCaricamento', 'dataValidita', 'dataScadenza', 'stato'];
+
+        $normalizeOrder = static function (string $value, array $allowedFields): string {
+            $value = trim($value);
+            $direction = null;
+            if ($value !== '') {
+                $first = $value[0];
+                if ($first === '+' || $first === '-') {
+                    $direction = $first;
+                    $value = substr($value, 1);
+                }
+            }
+            $field = ltrim($value, '+-');
+            if ($field === '' || !in_array($field, $allowedFields, true)) {
+                $field = 'dataCaricamento';
+            }
+            if ($direction === null) {
+                $direction = '+';
+            }
+            return $direction . $field;
+        };
+
+        $filters['ordinamento'] = $normalizeOrder((string)($filters['ordinamento'] ?? ''), $validFields);
 
         if ($filters['stato'] !== '' && !in_array($filters['stato'], $allowedStates, true)) {
             $errors[] = 'Valore "stato" non valido';
@@ -200,61 +217,39 @@ class PendenzeController
                     $direzione = $filters['direzione'] !== '' ? $filters['direzione'] : null;
                     $divisione = $filters['divisione'] !== '' ? $filters['divisione'] : null;
                     $iuv = $filters['iuv'] !== '' ? $filters['iuv'] : null;
-                    $mostraSpontanei = false;
-                    $metadatiPaginazione = true;
-                    $maxRisultati = true;
+                    $mostraSpontanei = 'false';
+                    $metadatiPaginazione = 'true';
+                    $maxRisultati = 'true';
 
-                    try {
-                        $result = $api->findPendenze(
-                            $pagina,
-                            $rpp,
-                            $ordinamento,
-                            null,
-                            $idDominio,
-                            $idA2A,
-                            $idDebitore,
-                            $stato,
-                            $idPagamento,
-                            $idPendenza,
-                            $dataDa,
-                            $dataA,
-                            null,
-                            $direzione,
-                            $divisione,
-                            $iuv,
-                            $mostraSpontanei,
-                            $metadatiPaginazione,
-                            $maxRisultati
-                        );
-
-                        $data = BackofficeSerializer::sanitizeForSerialization($result);
-                        $dataArr = is_array($data) ? $data : json_decode(json_encode($data, JSON_UNESCAPED_SLASHES), true);
-                    } catch (\Throwable $sdkEx) {
-                        if (!$this->shouldFallbackToRaw($sdkEx)) {
-                            throw $sdkEx;
-                        }
-
+                    if ($idA2A === null || $idA2A === '') {
+                        $errors[] = 'Parametro idA2A obbligatorio per la ricerca pendenze';
+                    } else {
                         $url = rtrim($backofficeUrl, '/') . '/pendenze';
                         $query = [
                             'pagina' => $pagina,
-                            'risultati_per_pagina' => $rpp,
+                            'risultatiPerPagina' => $rpp,
                             'ordinamento' => $ordinamento,
-                            'id_dominio' => $idDominio,
-                            'id_a2_a' => $idA2A,
-                            'id_debitore' => $idDebitore,
+                            'campi' => null,
+                            'idDominio' => $idDominio,
+                            'idA2A' => $idA2A,
+                            'idDebitore' => $idDebitore,
                             'stato' => $stato,
-                            'id_pagamento' => $idPagamento,
-                            'id_pendenza' => $idPendenza,
-                            'data_da' => $dataDa,
-                            'data_a' => $dataA,
+                            'idPagamento' => $idPagamento,
+                            'idPendenza' => $idPendenza,
+                            'dataDa' => $dataDa,
+                            'dataA' => $dataA,
                             'direzione' => $direzione,
                             'divisione' => $divisione,
                             'iuv' => $iuv,
-                            'mostra_spontanei_non_pagati' => $mostraSpontanei,
-                            'metadati_paginazione' => $metadatiPaginazione,
-                            'max_risultati' => $maxRisultati,
+                            'mostraSpontaneiNonPagati' => $mostraSpontanei,
+                            'metadatiPaginazione' => $metadatiPaginazione,
+                            'maxRisultati' => $maxRisultati,
                         ];
                         $query = array_filter($query, static fn($v) => $v !== null && $v !== '');
+
+                        if (getenv('APP_DEBUG') && $filters['q']) {
+                            error_log('[PendenzeController] GET ' . $url . '?' . http_build_query($query));
+                        }
 
                         $requestOptions = [
                             'headers' => ['Accept' => 'application/json'],
@@ -270,24 +265,117 @@ class PendenzeController
                         if (json_last_error() !== JSON_ERROR_NONE || !is_array($dataArr)) {
                             throw new \RuntimeException('Parsing JSON fallito: ' . json_last_error_msg());
                         }
-                    }
 
-                    $numPagine = isset($dataArr['numPagine']) ? (int)$dataArr['numPagine'] : null;
-                    $numRisultati = isset($dataArr['numRisultati']) ? (int)$dataArr['numRisultati'] : null;
-                    $results = $dataArr;
+                        $extractInt = static function (array $source, array $paths): ?int {
+                            foreach ($paths as $path) {
+                                $cursor = $source;
+                                foreach (explode('.', $path) as $segment) {
+                                    if (!is_array($cursor) || !array_key_exists($segment, $cursor)) {
+                                        continue 2;
+                                    }
+                                    $cursor = $cursor[$segment];
+                                }
+                                if ($cursor !== null && $cursor !== '') {
+                                    return (int)$cursor;
+                                }
+                            }
+                            return null;
+                        };
 
-                    $basePath = $request->getUri()->getPath();
-                    $qs = $params;
-                    $qs['q'] = '1';
-                    if ($filters['pagina'] > 1) {
-                        $qs['pagina'] = $filters['pagina'] - 1;
-                        $qs['ordinamento'] = $ordinamento;
-                        $prevUrl = $basePath . '?' . http_build_query($qs);
+                        $numPagine = $extractInt($dataArr, [
+                            'numPagine',
+                            'num_pagine',
+                            'metaDatiPaginazione.numPagine',
+                            'metaDatiPaginazione.num_pagine',
+                            'metadatiPaginazione.numPagine',
+                            'metadatiPaginazione.num_pagine',
+                            'paginazione.numeroPagine',
+                            'paginazione.numPagine',
+                        ]);
+                        $numRisultati = $extractInt($dataArr, [
+                            'numRisultati',
+                            'num_risultati',
+                            'metaDatiPaginazione.numRisultati',
+                            'metaDatiPaginazione.num_risultati',
+                            'metadatiPaginazione.numRisultati',
+                            'metadatiPaginazione.num_risultati',
+                            'paginazione.numeroRisultati',
+                            'paginazione.numRisultati',
+                        ]);
+                        if ($numPagine === null && $numRisultati !== null && $rpp > 0) {
+                            $numPagine = (int)ceil($numRisultati / $rpp);
+                        }
+                        $results = $dataArr;
+
+                        $basePath = $request->getUri()->getPath();
+                        $qsBase = $params;
+                        $qsBase['q'] = '1';
+                        unset($qsBase['ordRecentiPrima']);
+                        $qsBase['ordinamento'] = $filters['ordinamento'];
+                        unset($qsBase['highlight']);
+                        $qsBase['pagina'] = $filters['pagina'];
+                        $qsBase['risultatiPerPagina'] = $filters['risultatiPerPagina'];
+
+                        $buildUrl = static fn(array $paramSet): string => $basePath . '?' . http_build_query($paramSet, '', '&', PHP_QUERY_RFC3986);
+                        $extractQueryString = static function (string $link): string {
+                            $parts = parse_url($link);
+                            if ($parts !== false && isset($parts['query'])) {
+                                return (string)$parts['query'];
+                            }
+                            $pos = strpos($link, '?');
+                            return $pos === false ? '' : substr($link, $pos + 1);
+                        };
+
+                        if ($filters['pagina'] > 1) {
+                            $prevParams = $qsBase;
+                            $prevParams['pagina'] = $filters['pagina'] - 1;
+                            $prevUrl = $buildUrl($prevParams);
+                        }
+                        if ($numPagine !== null && $filters['pagina'] < $numPagine) {
+                            $nextParams = $qsBase;
+                            $nextParams['pagina'] = $filters['pagina'] + 1;
+                            $nextUrl = $buildUrl($nextParams);
+                        }
+
+                        $nextLinkRaw = $results['prossimiRisultati'] ?? $results['prossimi_risultati'] ?? null;
+                        if ($nextUrl === null && is_string($nextLinkRaw) && $nextLinkRaw !== '') {
+                            $queryString = $extractQueryString($nextLinkRaw);
+                            if ($queryString !== '') {
+                                $linkParams = $qsBase;
+                                parse_str($queryString, $linkQuery);
+                                if (isset($linkQuery['pagina'])) {
+                                    $linkParams['pagina'] = max(1, (int)$linkQuery['pagina']);
+                                } elseif (isset($linkQuery['page'])) {
+                                    $linkParams['pagina'] = max(1, (int)$linkQuery['page']);
+                                } elseif (isset($linkQuery['offset']) && isset($linkQuery['risultati_per_pagina'])) {
+                                    $perPage = (int)$linkQuery['risultati_per_pagina'];
+                                    $pageFromOffset = $perPage > 0 ? (int)floor(((int)$linkQuery['offset']) / $perPage) + 1 : null;
+                                    if ($pageFromOffset !== null && $pageFromOffset > 0) {
+                                        $linkParams['pagina'] = $pageFromOffset;
+                                    }
+                                }
+
+                                if (isset($linkQuery['risultati_per_pagina'])) {
+                                    $linkParams['risultatiPerPagina'] = max(1, (int)$linkQuery['risultati_per_pagina']);
+                                } elseif (isset($linkQuery['risultatiPerPagina'])) {
+                                    $linkParams['risultatiPerPagina'] = max(1, (int)$linkQuery['risultatiPerPagina']);
+                                }
+
+                                if (isset($linkQuery['ordinamento'])) {
+                                    $linkParams['ordinamento'] = (string)$linkQuery['ordinamento'];
+                                }
+
+                                if (($linkParams['pagina'] ?? $filters['pagina']) !== $filters['pagina']) {
+                                    $nextUrl = $buildUrl($linkParams);
+                                }
+                            }
+                        }
                     }
-                    if ($numPagine !== null && $filters['pagina'] < $numPagine) {
-                        $qs['pagina'] = $filters['pagina'] + 1;
-                        $qs['ordinamento'] = $ordinamento;
-                        $nextUrl = $basePath . '?' . http_build_query($qs);
+                } catch (ClientException $ce) {
+                    $errors[] = 'Errore chiamata Pendenze: ' . $ce->getMessage();
+                    $detailBody = $ce->getResponse() ? (string)$ce->getResponse()->getBody() : '';
+                    if ($detailBody !== '') {
+                        $errors[] = 'Dettaglio API: ' . $detailBody;
                     }
                 } catch (\Throwable $e) {
                     $errors[] = 'Errore chiamata Pendenze: ' . $e->getMessage();

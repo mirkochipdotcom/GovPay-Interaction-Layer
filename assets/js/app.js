@@ -38,31 +38,52 @@
 
     // Helpers
     const fmt = (d)=> d.toISOString().slice(0,10);
-    const toIt = (iso)=>{ const [yy,mm,dd] = iso.split('-'); return `${dd}/${mm}/${yy}`; };
-    const setVisibleValue = ()=>{
-      const s = hiddenDa.value;
-      const e = hiddenA.value;
-      input.value = (s && e) ? `${toIt(s)} - ${toIt(e)}` : '';
+    const toIt = (iso)=>{
+      if(!iso) return '';
+      const parts = iso.split('-');
+      if(parts.length !== 3) return iso;
+      const [yy,mm,dd] = parts;
+      return dd && mm && yy ? `${dd}/${mm}/${yy}` : iso;
     };
 
-    // Preselezione: se vuoto, imposta ultimo mese
+    const updateVisibleValue = ()=>{
+      const s = hiddenDa.value;
+      const e = hiddenA.value;
+      if(s && e){
+        input.value = `${toIt(s)} - ${toIt(e)}`;
+      }else if(s){
+        input.value = `dal ${toIt(s)}`;
+      }else if(e){
+        input.value = `fino al ${toIt(e)}`;
+      }else{
+        input.value = '';
+      }
+    };
+
+    const syncFromHidden = ()=>{
+      start.value = hiddenDa.value || '';
+      end.value = hiddenA.value || '';
+      updateVisibleValue();
+    };
+
+    const syncFromInputs = ()=>{
+      hiddenDa.value = start.value || '';
+      hiddenA.value = end.value || '';
+      updateVisibleValue();
+    };
+
     const presetMonth = ()=>{
       const e = new Date();
       const s = new Date();
+      s.setHours(0,0,0,0);
+      e.setHours(0,0,0,0);
       s.setMonth(s.getMonth() - 1);
       start.value = fmt(s);
       end.value = fmt(e);
+      syncFromInputs();
     };
-    if(!hiddenDa.value && !hiddenA.value){
-      presetMonth();
-      hiddenDa.value = start.value;
-      hiddenA.value = end.value;
-      setVisibleValue();
-    }else{
-      start.value = hiddenDa.value || '';
-      end.value = hiddenA.value || '';
-      setVisibleValue();
-    }
+
+    syncFromHidden();
 
     // Apertura/chiusura pannello
     const showPanel = ()=>{ panel.classList.remove('d-none'); panel.style.display = 'block'; };
@@ -82,24 +103,34 @@
           s.setDate(s.getDate() - 7);
           start.value = fmt(s);
           end.value = fmt(e);
+          syncFromInputs();
         }else if(type === 'month'){
           presetMonth();
         }else if(type === 'all'){
           start.value = '';
           end.value = '';
+          syncFromInputs();
         }
       });
+    });
+
+    ['change','blur'].forEach(evt => {
+      start.addEventListener(evt, syncFromInputs);
+      end.addEventListener(evt, syncFromInputs);
     });
 
     // Apply
     const applyBtn = panel.querySelector('[data-action="apply"]');
     if(applyBtn){
       applyBtn.addEventListener('click', ()=>{
-        hiddenDa.value = start.value || '';
-        hiddenA.value = end.value || '';
-        setVisibleValue();
+        syncFromInputs();
         hidePanel();
       });
+    }
+
+    const form = input.form;
+    if(form){
+      form.addEventListener('submit', syncFromInputs);
     }
   }
 
