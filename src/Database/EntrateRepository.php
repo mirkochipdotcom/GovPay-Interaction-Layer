@@ -18,7 +18,7 @@ class EntrateRepository
      */
     public function listAbilitateByDominio(string $idDominio): array
     {
-        $stmt = $this->pdo->prepare('SELECT id_entrata, descrizione FROM entrate_tipologie WHERE id_dominio = :id AND abilitato_backoffice = 1 ORDER BY descrizione ASC');
+        $stmt = $this->pdo->prepare('SELECT id_entrata, descrizione FROM entrate_tipologie WHERE id_dominio = :id AND abilitato_backoffice = 1 AND external_url IS NULL ORDER BY descrizione ASC');
         $stmt->execute([':id' => $idDominio]);
         return $stmt->fetchAll();
     }
