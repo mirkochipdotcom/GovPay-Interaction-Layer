@@ -9,9 +9,6 @@
 - [ ] Inserire nome e cognome per l'utente
   - Aggiungere i campi nome e cognome per l'utente, gestendo sia la visualizzazione che la modifica nei template e nel backend.
 
-- [ ] Spostare vista profilo accanto a logout nell'header
-  - Spostare la vista profilo dal menu alla sezione in alto dell'header, accanto al logout, usando un elemento 'it-user-wrapper nav-item dropdown' secondo le linee guida Bootstrap Italia.
-
 - [ ] Sezione inserimento pendenze
   - Rendere la sezione di inserimento pendenze più usabile e moderna, con attenzione a UX, validazione, e supporto a tutte le tipologie di pendenza. Adeguare a Bootstrap Italia.
 
@@ -23,3 +20,6 @@
 
 - [ ] Creare sezione ricerca incassi
   - Implementare una sezione dedicata alla ricerca degli incassi, con filtri avanzati e risultati tabellari.
+
+- [ ] Impedire navigazione directory /assets
+  - Bloccare il listing della directory /assets tramite .htaccess o configurazione Apache, consentendo solo l’accesso diretto ai file.

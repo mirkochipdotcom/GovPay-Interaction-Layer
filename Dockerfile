@@ -28,7 +28,7 @@ RUN git clone https://github.com/italia/bootstrap-italia.git . && \
     echo "Scarico e compilo Bootstap-italia versione ${BOOTSTRAP_TAG}..." && \
     npm install && \
     npm run build
-    
+
 # 2. Scarica Font Awesome in questa fase per usarlo come asset copiabile nella Fase 2
 RUN mkdir -p /tmp/fa_download && \
     cd /tmp/fa_download && \
