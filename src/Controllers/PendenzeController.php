@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Database\EntrateRepository;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\ClientException;
 use GovPay\Backoffice\Api\PendenzeApi as BackofficePendenzeApi;
@@ -104,14 +105,24 @@ class PendenzeController
 
     public function search(Request $request, Response $response): Response
     {
+        
         $params = (array)($request->getQueryParams() ?? []);
         $errors = [];
+
+        // Recupero tipologie pendenze abilitate
+        $idDominio = $filters['idDominio'] ?? (getenv('ID_DOMINIO') ?: '');
+        $tipologie = [];
+        if ($idDominio) {
+            $repo = new EntrateRepository();
+            $tipologie = $repo->listAbilitateByDominio($idDominio);
+        }
 
         $allowedStates = class_exists(StatoPendenza::class)
             ? StatoPendenza::getAllowableEnumValues()
             : [];
 
         $ordinamento = $request->getQueryParams()['ordinamento'] ?? '-dataCaricamento';
+
 
         $filters = [
             'q' => isset($params['q']) ? (string)$params['q'] : null,
@@ -129,7 +140,11 @@ class PendenzeController
             'direzione' => (string)($params['direzione'] ?? ''),
             'divisione' => (string)($params['divisione'] ?? ''),
             'iuv' => (string)($params['iuv'] ?? ''),
+            'tipologiaPendenza' => (string)($params['tipologiaPendenza'] ?? ''),
         ];
+
+        // Ricavo idEntrata dal filtro tipologiaPendenza
+        $idEntrata = $filters['tipologiaPendenza'] ?? null;
 
         $validFields = ['dataCaricamento', 'dataValidita', 'dataScadenza', 'stato'];
 
@@ -217,6 +232,10 @@ class PendenzeController
                     $direzione = $filters['direzione'] !== '' ? $filters['direzione'] : null;
                     $divisione = $filters['divisione'] !== '' ? $filters['divisione'] : null;
                     $iuv = $filters['iuv'] !== '' ? $filters['iuv'] : null;
+                    $idEntrata = $filters['tipologiaPendenza'] !== '' ? $filters['tipologiaPendenza'] : null;
+
+    // ...existing code...
+
                     $mostraSpontanei = 'false';
                     $metadatiPaginazione = 'true';
                     $maxRisultati = 'true';
@@ -244,7 +263,9 @@ class PendenzeController
                             'mostraSpontaneiNonPagati' => $mostraSpontanei,
                             'metadatiPaginazione' => $metadatiPaginazione,
                             'maxRisultati' => $maxRisultati,
+                            'idTipoPendenza' => $idEntrata,
                         ];
+                    
                         $query = array_filter($query, static fn($v) => $v !== null && $v !== '');
 
                         if (getenv('APP_DEBUG') && $filters['q']) {
@@ -401,6 +422,7 @@ class PendenzeController
             'next_url' => $nextUrl,
             'return_url' => $returnUrl,
             'highlight_id' => $highlightId,
+            'tipologie_pendenze' => $tipologie,
         ]);
     }
 
