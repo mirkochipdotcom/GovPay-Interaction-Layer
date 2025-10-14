@@ -13,6 +13,17 @@ class EntrateRepository
     }
 
     /**
+     * Restituisce le tipologie di pendenza abilitate per il dominio
+     * @return array<int,array{id_entrata:string,descrizione:string}>
+     */
+    public function listAbilitateByDominio(string $idDominio): array
+    {
+        $stmt = $this->pdo->prepare('SELECT id_entrata, descrizione FROM entrate_tipologie WHERE id_dominio = :id AND abilitato_backoffice = 1 ORDER BY descrizione ASC');
+        $stmt->execute([':id' => $idDominio]);
+        return $stmt->fetchAll();
+    }
+
+    /**
      * Upsert di una tipologia proveniente dal Backoffice
      * @param array{idEntrata?:string,tipoEntrata?:array,ibanAccredito?:string,codiceContabilita?:string,abilitato?:bool} $e
      */
