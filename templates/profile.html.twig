@@ -3,7 +3,13 @@
 <div class="container my-5" style="max-width:720px;">
   <h1 class="h4 mb-4">Profilo utente</h1>
   <div class="card p-3">
-    <div><strong>Email:</strong> {{ current_user.email }}</div>
+    <div><strong>Nome:</strong> {{ current_user.first_name|default('') }}</div>
+    <div><strong>Cognome:</strong> {{ current_user.last_name|default('') }}</div>
+  {%- set first = current_user.first_name|default('') -%}
+  {%- set last = current_user.last_name|default('') -%}
+  {%- set show_name = (first != '') or (last != '') -%}
+  {%- set display_name = first ~ (last != '' ? ' ' ~ last|upper : '') -%}
+  <div><strong>Utente:</strong> {{ display_name if show_name else current_user.email }}</div>
     <div><strong>Ruolo:</strong> {{ current_user.role }}</div>
   </div>
 </div>

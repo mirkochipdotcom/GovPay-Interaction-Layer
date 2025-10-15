@@ -3,14 +3,25 @@
 <div class="container my-5" style="max-width:640px;">
   <h1 class="h4 mb-3">Modifica utente</h1>
   {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
-  <form method="post" action="/users/{{ edit_user.id }}/edit">
+  <form method="post" action="/users/{{ edit_user.id }}/edit" autocomplete="off">
+    {# Hidden dummy fields to discourage browser autofill of credentials #}
+    <input type="text" name="fakeusernameremembered" autocomplete="username" style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;" aria-hidden="true" tabindex="-1">
+    <input type="password" name="fakepasswordremembered" autocomplete="current-password" style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;" aria-hidden="true" tabindex="-1">
     <div class="mb-3">
       <label class="form-label">Email</label>
-      <input class="form-control" type="email" name="email" value="{{ edit_user.email }}" required>
+  <input class="form-control" type="email" name="email" value="{{ edit_user.email }}" required autocomplete="off" readonly onfocus="this.removeAttribute('readonly')">
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Nome</label>
+      <input class="form-control" type="text" name="first_name" value="{{ edit_user.first_name|default('') }}">
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Cognome</label>
+      <input class="form-control" type="text" name="last_name" value="{{ edit_user.last_name|default('') }}">
     </div>
     <div class="mb-3">
       <label class="form-label">Nuova password (opzionale)</label>
-      <input class="form-control" type="password" name="password">
+  <input class="form-control" type="password" name="password" autocomplete="new-password">
     </div>
     <div class="mb-3">
       <label class="form-label">Ruolo</label>

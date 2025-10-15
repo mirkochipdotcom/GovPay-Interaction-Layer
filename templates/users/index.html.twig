@@ -6,10 +6,12 @@
     <a class="btn btn-primary" href="/users/new">Nuovo utente</a>
   </div>
   <table class="table table-striped">
-    <thead><tr><th>Email</th><th>Ruolo</th><th>Azioni</th></tr></thead>
+    <thead><tr><th>Nome</th><th>Cognome</th><th>Email</th><th>Ruolo</th><th>Azioni</th></tr></thead>
     <tbody>
       {% for u in users %}
         <tr>
+          <td>{{ u.first_name|default('') }}</td>
+          <td>{{ u.last_name|default('') }}</td>
           <td>{{ u.email }}</td>
           <td>{{ u.role }}</td>
           <td>
