@@ -102,7 +102,13 @@ class UsersController
         $email = trim($data['email'] ?? '');
         $firstName = trim($data['first_name'] ?? '');
         $lastName = trim($data['last_name'] ?? '');
-        $role = in_array(($data['role'] ?? 'user'), ['user','admin','superadmin'], true) ? $data['role'] : 'user';
+        // Prevent an admin from changing their own role (no escalation/demotion)
+        if ($current && isset($current['id']) && (int)$current['id'] === $id && ($current['role'] ?? '') === 'admin') {
+            // Ignore submitted role change and keep target's existing role
+            $role = $target['role'] ?? 'admin';
+        } else {
+            $role = in_array(($data['role'] ?? 'user'), ['user','admin','superadmin'], true) ? $data['role'] : 'user';
+        }
         $password = trim($data['password'] ?? '');
         if ($email === '') {
             $user = $this->users->findById($id);
