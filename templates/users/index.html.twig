@@ -15,10 +15,18 @@
           <td>{{ u.email }}</td>
           <td>{{ u.role }}</td>
           <td>
-            <a class="btn btn-sm btn-outline-primary" href="/users/{{ u.id }}/edit">Modifica</a>
-            <form method="post" action="/users/{{ u.id }}/delete" style="display:inline-block" onsubmit="return confirm('Confermi l\'eliminazione?');">
-              <button class="btn btn-sm btn-outline-danger" type="submit">Elimina</button>
-            </form>
+            {# If current user is admin and target is superadmin, show disabled controls with explanation #}
+            {% set is_admin = current_user is defined and current_user.role == 'admin' %}
+            {% set target_is_super = u.role == 'superadmin' %}
+            {% if is_admin and target_is_super %}
+              <button class="btn btn-sm btn-outline-primary" disabled title="Non puoi modificare un account superadmin">Modifica</button>
+              <button class="btn btn-sm btn-outline-danger" disabled title="Non puoi eliminare un account superadmin">Elimina</button>
+            {% else %}
+              <a class="btn btn-sm btn-outline-primary" href="/users/{{ u.id }}/edit">Modifica</a>
+              <form method="post" action="/users/{{ u.id }}/delete" style="display:inline-block" onsubmit="return confirm('Confermi l\'eliminazione?');">
+                <button class="btn btn-sm btn-outline-danger" type="submit">Elimina</button>
+              </form>
+            {% endif %}
           </td>
         </tr>
       {% else %}
