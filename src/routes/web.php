@@ -204,11 +204,13 @@ return function (App $app, Twig $twig): void {
         $repo = new UserRepository();
         $user = $email !== '' ? $repo->findByEmail($email) : null;
         if ($user && $repo->verifyPassword($password, $user['password_hash'])) {
-            // Set session user (minimal info)
+            // Set session user (include name fields for templates)
             $_SESSION['user'] = [
                 'id' => $user['id'],
                 'email' => $user['email'],
                 'role' => $user['role'],
+                'first_name' => $user['first_name'] ?? '',
+                'last_name' => $user['last_name'] ?? '',
             ];
             $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Accesso effettuato'];
             return $response->withHeader('Location', '/')->withStatus(302);
@@ -303,6 +305,44 @@ return function (App $app, Twig $twig): void {
             $body .= '</table>';
             $response->getBody()->write($body);
             return $response;
+        });
+
+        // Simple session diagnostic (only in debug)
+        $app->get('/_diag/session', function($request, $response) use ($twig) {
+            $sess = session_status() === PHP_SESSION_ACTIVE ? ($_SESSION ?? []) : null;
+            $payload = [
+                'session_active' => session_status() === PHP_SESSION_ACTIVE,
+                'session' => $sess,
+                'current_user' => $sess['user'] ?? null,
+            ];
+            $response->getBody()->write('<pre>' . htmlspecialchars(print_r($payload, true)) . '</pre>');
+            return $response;
+        });
+
+        // Debug helper: login as seeded superadmin (only in debug)
+        $app->get('/_diag/login-as-admin', function($request, $response) use ($twig) {
+            try {
+                $repo = new UserRepository();
+                $user = $repo->findByEmail('admin@example.com');
+                if (!$user) {
+                    $response->getBody()->write('Admin user not found');
+                    return $response->withStatus(404);
+                }
+                // Ensure session active
+                if (session_status() !== PHP_SESSION_ACTIVE) { session_start(); }
+                $_SESSION['user'] = [
+                    'id' => $user['id'],
+                    'email' => $user['email'],
+                    'role' => $user['role'],
+                    'first_name' => $user['first_name'] ?? '',
+                    'last_name' => $user['last_name'] ?? '',
+                ];
+                $response->getBody()->write('<p>Logged in as admin. <a href="/">Go to home</a></p>');
+                return $response;
+            } catch (\Throwable $e) {
+                $response->getBody()->write('Error: ' . htmlspecialchars($e->getMessage()));
+                return $response->withStatus(500);
+            }
         });
 
         // Rotta di debug: elenca le ricevute disponibili per {idDominio}/{iuv}

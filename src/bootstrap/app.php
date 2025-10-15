@@ -9,6 +9,7 @@ use App\Middleware\SessionMiddleware;
 use App\Middleware\AuthMiddleware;
 use App\Middleware\FlashMiddleware;
 use App\Middleware\CurrentPathMiddleware;
+use App\Auth\UserRepository;
 
 return (function (): array {
     $app = AppFactory::create();
@@ -80,9 +81,8 @@ return (function (): array {
     $app->add(new SessionMiddleware());
     $app->add(new CurrentPathMiddleware($twig));
 
-    if (session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['user'])) {
-        $twig->getEnvironment()->addGlobal('current_user', $_SESSION['user']);
-    }
+    // current_user is populated per-request by CurrentPathMiddleware to ensure
+    // session is started and DB enrichment (if needed) can run safely.
 
     return [$app, $twig];
 })();

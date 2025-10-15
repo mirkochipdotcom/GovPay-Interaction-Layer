@@ -136,12 +136,29 @@ else
   echo "⚙️  Primo avvio: creo tabelle richieste via PHP (bin/first_run_create_tables.php)"
   if command -v php >/dev/null 2>&1; then
     if [ -f "/var/www/html/bin/first_run_create_tables.php" ]; then
-      echo "Eseguo: php bin/first_run_create_tables.php"
-      if ! php /var/www/html/bin/first_run_create_tables.php; then
-        echo "❌ Errore: creazione tabelle fallita. Interrompo l'avvio." >&2
-        exit 1
+      # Wait for DB to be reachable with a short timeout
+      DB_HOST=${DB_HOST:-db}
+      DB_PORT=${DB_PORT:-3306}
+      WAIT_DB_TIMEOUT=${DB_WAIT_TIMEOUT:-30}
+      echo "Attendo DB ${DB_HOST}:${DB_PORT} per fino a ${WAIT_DB_TIMEOUT}s..."
+      i=0
+      until php -r "try { new PDO('mysql:host=${DB_HOST};port=${DB_PORT};', '${DB_USER:-govpay}', '${DB_PASSWORD:-}', [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION, PDO::ATTR_TIMEOUT=>2]); exit(0);} catch (Throwable \$e) { exit(1);}" >/dev/null 2>&1; do
+        i=$((i+1))
+        if [ "$i" -ge "$WAIT_DB_TIMEOUT" ]; then
+          echo "⚠️ DB non raggiungibile dopo ${WAIT_DB_TIMEOUT}s: salto creazione tabelle in questo avvio." >&2
+          break
+        fi
+        sleep 1
+      done
+
+      if [ "$i" -lt "$WAIT_DB_TIMEOUT" ]; then
+        echo "Eseguo: php bin/first_run_create_tables.php"
+        if ! php /var/www/html/bin/first_run_create_tables.php; then
+          echo "⚠️ Errore: creazione tabelle fallita. Continuerò senza bloccare il container." >&2
+        else
+          touch "$FIRST_RUN_MARKER" || echo "⚠️  Impossibile creare marker $FIRST_RUN_MARKER" >&2
+        fi
       fi
-      touch "$FIRST_RUN_MARKER" || echo "⚠️  Impossibile creare marker $FIRST_RUN_MARKER" >&2
     else
       echo "ℹ️  Nessun script di creazione tabelle (bin/first_run_create_tables.php) trovato; salto." >&2
     fi
@@ -153,48 +170,51 @@ fi
 
 # Additional SQL migrations runner: execute SQL files in migrations/ using mysql client if available
 MIG_DIR="/var/www/html/migrations"
-if [ -d "$MIG_DIR" ] && [ "$(ls -A $MIG_DIR | wc -l)" -gt 0 ]; then
+if [ -d "$MIG_DIR" ] && [ "$(ls -A "$MIG_DIR" | wc -l)" -gt 0 ]; then
   echo "--- Trovate migrazioni SQL in $MIG_DIR ---"
+  DB_HOST=${DB_HOST:-db}
+  DB_PORT=${DB_PORT:-3306}
+  DB_NAME=${DB_NAME:-govpay}
+  DB_USER=${DB_USER:-govpay}
+  DB_PASS=${DB_PASSWORD:-}
+
+  # Preferiamo usare il client mysql se disponibile
   if command -v mysql >/dev/null 2>&1; then
     echo "Eseguo migrazioni via client mysql..."
-    DB_HOST=${DB_HOST:-db}
-    DB_PORT=${DB_PORT:-3306}
-    DB_NAME=${DB_NAME:-govpay}
-    DB_USER=${DB_USER:-govpay}
-    DB_PASS=${DB_PASSWORD:-}
-    for f in $(ls -1 $MIG_DIR/*.sql 2>/dev/null | sort); do
+    for f in $(ls -1 "$MIG_DIR"/*.sql 2>/dev/null | sort); do
       echo "Eseguo $f"
       if ! mysql -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" ${DB_PASS:+-p$DB_PASS} "$DB_NAME" < "$f"; then
         echo "⚠️  Fallito l'import di $f via mysql client; proseguo." >&2
       fi
     done
-  else
-    echo "ℹ️  mysql client non disponibile. Provo fallback PHP per eseguire migrazioni SQL."
-    if command -v php >/dev/null 2>&1; then
-      php -r '
-        $dir = getenv("PWD") . "/migrations";
-        $files = glob($dir."/*.sql");
-        if(!$files) { exit(0); }
-        $host = getenv("DB_HOST") ?: "db";
-        $port = getenv("DB_PORT") ?: "3306";
-        $db = getenv("DB_NAME") ?: "govpay";
-        $user = getenv("DB_USER") ?: "govpay";
-        $pass = getenv("DB_PASSWORD") ?: "";
-        $dsn = "mysql:host=$host;port=$port;dbname=$db;charset=utf8mb4";
-        try {
-          $pdo = new PDO($dsn, $user, $pass, [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
-          foreach($files as $f) {
-            echo "Eseguo PHP $f\n";
-            $sql = file_get_contents($f);
-            $pdo->exec($sql);
-          }
-        } catch (Throwable $e) {
-          echo "PHP migration fallback failed: ". $e->getMessage() ."\n";
+
+  # Fallback: PHP CLI può eseguire gli SQL
+  elif command -v php >/dev/null 2>&1; then
+    echo "Eseguo migrazioni via fallback PHP..."
+    php -r '
+      $dir = getenv("PWD") . "/migrations";
+      $files = glob($dir."/*.sql");
+      if(!$files) { exit(0); }
+      $host = getenv("DB_HOST") ?: "db";
+      $port = getenv("DB_PORT") ?: "3306";
+      $db = getenv("DB_NAME") ?: "govpay";
+      $user = getenv("DB_USER") ?: "govpay";
+      $pass = getenv("DB_PASSWORD") ?: "";
+      $dsn = "mysql:host=$host;port=$port;dbname=$db;charset=utf8mb4";
+      try {
+        $pdo = new PDO($dsn, $user, $pass, [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
+        foreach($files as $f) {
+          echo "Eseguo PHP $f\n";
+          $sql = file_get_contents($f);
+          $pdo->exec($sql);
         }
-      '
-    else
-      echo "⚠️  Nessun metodo disponibile per eseguire migrazioni SQL (mysql client e PHP mancanti)." >&2
-    fi
+      } catch (Throwable $e) {
+        echo "PHP migration fallback failed: ". $e->getMessage() ."\n";
+        exit(1);
+      }
+    '
+  else
+    echo "⚠️  Nessun metodo disponibile per eseguire migrazioni SQL (mysql client e PHP mancanti)." >&2
   fi
 fi
 

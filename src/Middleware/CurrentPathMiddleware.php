@@ -6,6 +6,7 @@ use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface as RequestHandler;
 use Psr\Http\Message\ResponseInterface as Response;
 use Slim\Views\Twig;
+use App\Auth\UserRepository;
 
 class CurrentPathMiddleware implements MiddlewareInterface
 {
@@ -20,6 +21,24 @@ class CurrentPathMiddleware implements MiddlewareInterface
     {
         $path = $request->getUri()->getPath();
         // Espone il percorso corrente come variabile globale Twig
+        // Enrich current_user per request (session is started by SessionMiddleware)
+        if (session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['user'])) {
+            $sessionUser = $_SESSION['user'];
+            try {
+                if (empty($sessionUser['first_name']) || empty($sessionUser['last_name'])) {
+                    $repo = new UserRepository();
+                    $dbUser = $repo->findById((int)($sessionUser['id'] ?? 0));
+                    if ($dbUser) {
+                        $sessionUser['first_name'] = $dbUser['first_name'] ?? '';
+                        $sessionUser['last_name'] = $dbUser['last_name'] ?? '';
+                        $_SESSION['user'] = $sessionUser;
+                    }
+                }
+            } catch (\Throwable $e) {
+                // ignore and fallback to session data
+            }
+            $this->twig->getEnvironment()->addGlobal('current_user', $sessionUser);
+        }
         $this->twig->getEnvironment()->addGlobal('current_path', $path);
         return $handler->handle($request);
     }

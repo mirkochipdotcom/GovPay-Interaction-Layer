@@ -9,7 +9,7 @@
   {%- set last = current_user.last_name|default('') -%}
   {%- set show_name = (first != '') or (last != '') -%}
   {%- set display_name = first ~ (last != '' ? ' ' ~ last|upper : '') -%}
-  <div><strong>Utente:</strong> {{ display_name if show_name else current_user.email }}</div>
+  <div><strong>Utente:</strong> {{ show_name ? display_name : current_user.email }}</div>
     <div><strong>Ruolo:</strong> {{ current_user.role }}</div>
   </div>
 </div>
