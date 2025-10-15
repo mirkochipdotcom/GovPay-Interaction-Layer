@@ -1,6 +1,7 @@
 // Piccolo script frontend per demo
 (function(){
   const onReady = function(){
+  console.log('app.js onReady');
   const btn = document.getElementById('debug-button');
   if(btn){
     btn.addEventListener('click', function(e){
@@ -136,6 +137,41 @@
 
   // Inizializza subito
   initDateRange();
+  // Robust fallback per il menu hamburger:
+  // Registriamo un listener che si attiva dopo gli altri handler (setTimeout 0) e verifica
+  // se il collapse è stato modificato; se nessun handler ha alternato lo stato, lo facciamo noi.
+  try{
+    const toggler = document.querySelector('.custom-navbar-toggler');
+    const collapse = document.getElementById('mainNav');
+    if(toggler && collapse){
+      toggler.addEventListener('click', function(e){
+        console.log('custom-navbar-toggler click detected on', e.target);
+        // Non impediamo il default: lasciamo che eventuali handler (es. Bootstrap) facciano il loro lavoro.
+        const prev = collapse.classList.contains('show');
+        // Esegui dopo gli altri handler
+        setTimeout(function(){
+          try{
+            const now = collapse.classList.contains('show');
+            console.log('navbar prev/now', prev, now);
+            if(now === prev){
+              // Nessun handler ha modificato lo stato: toggliamo noi
+              if(now){
+                collapse.classList.remove('show');
+                toggler.setAttribute('aria-expanded','false');
+              } else {
+                collapse.classList.add('show');
+                toggler.setAttribute('aria-expanded','true');
+              }
+            }
+          }catch(innerErr){
+            console.warn('Navbar fallback inner error', innerErr);
+          }
+        }, 10);
+      });
+    }
+  }catch(err){
+    console.warn('Navbar fallback init error', err);
+  }
   };
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', onReady);

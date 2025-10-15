@@ -6,9 +6,6 @@
 - [ ] Select tipologia pendenza ricercabile
   - Rendere la select della tipologia pendenza nella maschera di ricerca pendenze ricercabile (autocomplete o select2/bootstrap-select), per facilitare la selezione in presenza di molte tipologie.
 
-- [ ] Inserire nome e cognome per l'utente
-  - Aggiungere i campi nome e cognome per l'utente, gestendo sia la visualizzazione che la modifica nei template e nel backend.
-
 - [ ] Sezione inserimento pendenze
   - Rendere la sezione di inserimento pendenze più usabile e moderna, con attenzione a UX, validazione, e supporto a tutte le tipologie di pendenza. Adeguare a Bootstrap Italia.
 
@@ -23,3 +20,4 @@
 
 - [ ] Impedire navigazione directory /assets
   - Bloccare il listing della directory /assets tramite .htaccess o configurazione Apache, consentendo solo l’accesso diretto ai file.
+
