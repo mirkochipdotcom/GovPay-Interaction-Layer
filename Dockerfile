@@ -126,7 +126,6 @@ COPY src/ /var/www/html/src/
 RUN ln -s /var/www/html/src/bootstrap /var/www/html/bootstrap \
     && ln -s /var/www/html/src/routes /var/www/html/routes
 COPY templates/ /var/www/html/templates/
-COPY bin/ /var/www/html/bin/
 RUN cp -r /var/www/html/src/public/* /var/www/html/public/ || true
 
 # Copia la sorgente dei client generati (necessario se Composer ha creato symlink per path repositories)
