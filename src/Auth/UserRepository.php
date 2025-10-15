@@ -73,4 +73,12 @@ class UserRepository
         $stmt = $this->pdo->prepare('DELETE FROM users WHERE id = :id');
         $stmt->execute([':id' => $id]);
     }
+
+    public function countByRole(string $role): int
+    {
+        $stmt = $this->pdo->prepare('SELECT COUNT(*) as c FROM users WHERE role = :role');
+        $stmt->execute([':role' => $role]);
+        $row = $stmt->fetch();
+        return (int)($row['c'] ?? 0);
+    }
 }

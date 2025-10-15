@@ -28,12 +28,17 @@
       {# If current user is admin and editing self, disallow changing role to prevent privilege escalation/demotion #}
       {% set is_self = current_user is defined and current_user.id == edit_user.id %}
       {% set is_admin = current_user is defined and current_user.role == 'admin' %}
-      <select class="form-select" name="role" {% if is_admin and is_self %}disabled title="Non puoi modificare il tuo ruolo"{% endif %}>
-        {% set roles = ['user','admin','superadmin'] %}
-        {% for r in roles %}
-          <option value="{{ r }}" {% if edit_user.role == r %}selected{% endif %}>{{ r }}</option>
-        {% endfor %}
-      </select>
+        {% set self_edit = current_user is defined and current_user.id == edit_user.id %}
+        {% set can_demote_self = attribute(_context, 'can_demote_self') is defined ? can_demote_self : true %}
+        <select name="role" id="role" class="form-control" {% if current_user.role == 'admin' and self_edit %}disabled{% endif %}>
+            <option value="user" {% if edit_user.role == 'user' %}selected{% endif %} {% if self_edit and not can_demote_self %}disabled title="Non puoi declassarti: ci deve essere almeno un altro superadmin"{% endif %}>User</option>
+            <option value="admin" {% if edit_user.role == 'admin' %}selected{% endif %} {% if self_edit and not can_demote_self %}disabled title="Non puoi declassarti: ci deve essere almeno un altro superadmin"{% endif %}>Admin</option>
+            <option value="superadmin" {% if edit_user.role == 'superadmin' %}selected{% endif %}>Superadmin</option>
+        </select>
+
+        {% if self_edit and not can_demote_self %}
+            <div class="alert alert-warning mt-2">Non puoi declassarti: ci deve essere almeno un altro superadmin nel sistema.</div>
+        {% endif %}
     </div>
     <button class="btn btn-primary" type="submit">Salva</button>
     <a class="btn btn-outline-secondary" href="/users">Annulla</a>

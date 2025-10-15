@@ -27,9 +27,15 @@
               <button class="btn btn-sm btn-outline-danger" disabled title="Non puoi eliminare il tuo account">Elimina</button>
             {% else %}
               <a class="btn btn-sm btn-outline-primary" href="/users/{{ u.id }}/edit">Modifica</a>
-              <form method="post" action="/users/{{ u.id }}/delete" style="display:inline-block" onsubmit="return confirm('Confermi l\'eliminazione?');">
-                <button class="btn btn-sm btn-outline-danger" type="submit">Elimina</button>
-              </form>
+              {# If target is the sole superadmin, disable deletion and show explanation #}
+              {% set count_super = attribute(_context, 'count_superadmins') is defined ? count_superadmins : 0 %}
+              {% if target_is_super and count_super <= 1 %}
+                <button class="btn btn-sm btn-outline-danger" disabled title="Impossibile eliminare l\'ultimo superadmin. Assegna prima il ruolo a un altro utente">Elimina</button>
+              {% else %}
+                <form method="post" action="/users/{{ u.id }}/delete" style="display:inline-block" onsubmit="return confirm('Confermi l\'eliminazione?');">
+                  <button class="btn btn-sm btn-outline-danger" type="submit">Elimina</button>
+                </form>
+              {% endif %}
             {% endif %}
           </td>
         </tr>

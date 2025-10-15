@@ -6,6 +6,7 @@ namespace App\Controllers;
 
 use App\Database\EntrateRepository;
 use App\Database\ExternalPaymentTypeRepository;
+use App\Logger;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
@@ -252,6 +253,39 @@ class ConfigurazioneController
             $errors[] = 'Errore lettura tipologie esterne: ' . $e->getMessage();
         }
 
+        // Read last N log lines from application log (safe guard: read only up to 20MB tail)
+        $logsLines = [];
+        $maxLines = 1000;
+        $logPath = __DIR__ . '/../../storage/logs/app.log';
+        if (is_file($logPath) && is_readable($logPath)) {
+            $size = filesize($logPath);
+            if ($size > 0) {
+                try {
+                    if ($size <= 20 * 1024 * 1024) { // 20 MB
+                        $all = @file($logPath, FILE_IGNORE_NEW_LINES);
+                        if ($all !== false) {
+                            $slice = array_slice($all, -$maxLines);
+                            $logsLines = array_reverse($slice);
+                        }
+                    } else {
+                        $fp = @fopen($logPath, 'r');
+                        if ($fp) {
+                            $chunk = 20 * 1024 * 1024;
+                            fseek($fp, -$chunk, SEEK_END);
+                            $data = stream_get_contents($fp);
+                            fclose($fp);
+                            $all = explode("\n", $data);
+                            $slice = array_slice($all, -$maxLines);
+                            $logsLines = array_reverse($slice);
+                        }
+                    }
+                } catch (\Throwable $_) {
+                    // swallow errors reading logs; just leave logsLines empty
+                    $logsLines = [];
+                }
+            }
+        }
+
         return $this->twig->render($response, 'configurazione.html.twig', [
             'errors' => $errors,
             'cfg_json' => $cfgJson,
@@ -273,6 +307,7 @@ class ConfigurazioneController
             'tipologie_esterne' => $externalTypes,
             'backoffice_base' => rtrim($backofficeUrl, '/'),
             'tab' => $tab,
+            'logs_lines' => $logsLines,
         ]);
     }
 
@@ -358,8 +393,10 @@ class ConfigurazioneController
             $repo = new EntrateRepository();
             $repo->setOverride($idDominio, $idEntrata, $override);
             $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Impostazione salvata'];
+            Logger::getInstance()->info('Tipologia override updated', ['id_dominio' => $idDominio, 'id_entrata' => $idEntrata, 'user_id' => $_SESSION['user']['id'] ?? null, 'override' => $override]);
         } catch (\Throwable $e) {
             $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Errore salvataggio: ' . $e->getMessage()];
+            Logger::getInstance()->error('Error updating tipologia override', ['id_dominio' => $idDominio, 'id_entrata' => $idEntrata, 'user_id' => $_SESSION['user']['id'] ?? null, 'error' => $e->getMessage()]);
         }
 
         return $this->redirectToTab($response, 'tipologie');
@@ -389,8 +426,10 @@ class ConfigurazioneController
             $repo = new EntrateRepository();
             $repo->setExternalUrl($idDominio, $idEntrata, $url);
             $_SESSION['flash'][] = ['type' => 'success', 'text' => 'URL esterna salvata'];
+            Logger::getInstance()->info('Tipologia external_url updated', ['id_dominio' => $idDominio, 'id_entrata' => $idEntrata, 'user_id' => $_SESSION['user']['id'] ?? null, 'url' => $url]);
         } catch (\Throwable $e) {
             $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Errore salvataggio URL: ' . $e->getMessage()];
+            Logger::getInstance()->error('Error updating tipologia external_url', ['id_dominio' => $idDominio, 'id_entrata' => $idEntrata, 'user_id' => $_SESSION['user']['id'] ?? null, 'error' => $e->getMessage()]);
         }
 
         return $this->redirectToTab($response, 'tipologie');
@@ -503,11 +542,14 @@ class ConfigurazioneController
             $entiApi->addEntrataDominio($idDominio, $idEntrata, $body);
 
             $_SESSION['flash'][] = ['type' => 'success', 'text' => ($enable ? 'Abilitata' : 'Disabilitata') . ' su GovPay'];
+            Logger::getInstance()->info('Tipologia govpay enabled toggled', ['id_dominio' => $idDominio, 'id_entrata' => $idEntrata, 'user_id' => $_SESSION['user']['id'] ?? null, 'enabled' => $enable]);
         } catch (\GuzzleHttp\Exception\ClientException $ce) {
             $code = $ce->getResponse() ? $ce->getResponse()->getStatusCode() : 0;
             $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Errore GovPay (' . $code . '): ' . $ce->getMessage()];
+            Logger::getInstance()->error('Error toggling tipologia govpay', ['id_dominio' => $idDominio, 'id_entrata' => $idEntrata, 'user_id' => $_SESSION['user']['id'] ?? null, 'code' => $code, 'error' => $ce->getMessage()]);
         } catch (\Throwable $e) {
             $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Errore aggiornamento GovPay: ' . $e->getMessage()];
+            Logger::getInstance()->error('Error toggling tipologia govpay', ['id_dominio' => $idDominio, 'id_entrata' => $idEntrata, 'user_id' => $_SESSION['user']['id'] ?? null, 'error' => $e->getMessage()]);
         }
 
         return $this->redirectToTab($response, 'tipologie');
@@ -535,8 +577,10 @@ class ConfigurazioneController
                 $repo->setOverride($idDominio, $idEntrata, null);
             }
             $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Reset eseguito'];
+            Logger::getInstance()->info('Tipologia reset', ['id_dominio' => $idDominio, 'id_entrata' => $idEntrata, 'user_id' => $_SESSION['user']['id'] ?? null]);
         } catch (\Throwable $e) {
             $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Errore reset: ' . $e->getMessage()];
+            Logger::getInstance()->error('Error resetting tipologia', ['id_dominio' => $idDominio, 'id_entrata' => $idEntrata, 'user_id' => $_SESSION['user']['id'] ?? null, 'error' => $e->getMessage()]);
         }
 
         return $this->redirectToTab($response, 'tipologie');

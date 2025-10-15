@@ -2,6 +2,7 @@
 namespace App\Controllers;
 
 use App\Auth\UserRepository;
+use App\Logger;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Message\ResponseInterface as Response;
 
@@ -37,7 +38,8 @@ class UsersController
     {
         $this->assertAdmin();
         $list = $this->users->listAll();
-        $request = $request->withAttribute('users', $list);
+        $countSuperadmins = $this->users->countByRole('superadmin');
+        $request = $request->withAttribute('users', $list)->withAttribute('count_superadmins', $countSuperadmins);
         return $request;
     }
 
@@ -83,7 +85,14 @@ class UsersController
             return $request;
         }
 
-        $request = $request->withAttribute('edit_user', $user);
+        // Determine if a superadmin editing their own account can demote themselves
+        $canDemoteSelf = true;
+        if ($current && isset($current['id']) && (int)$current['id'] === $id && ($current['role'] ?? '') === 'superadmin') {
+            $count = $this->users->countByRole('superadmin');
+            $canDemoteSelf = ($count > 1);
+        }
+
+        $request = $request->withAttribute('edit_user', $user)->withAttribute('can_demote_self', $canDemoteSelf);
         return $request;
     }
 
@@ -102,12 +111,24 @@ class UsersController
         $email = trim($data['email'] ?? '');
         $firstName = trim($data['first_name'] ?? '');
         $lastName = trim($data['last_name'] ?? '');
+        // Handle submitted role
+        $submittedRole = in_array(($data['role'] ?? 'user'), ['user','admin','superadmin'], true) ? $data['role'] : 'user';
+
         // Prevent an admin from changing their own role (no escalation/demotion)
         if ($current && isset($current['id']) && (int)$current['id'] === $id && ($current['role'] ?? '') === 'admin') {
             // Ignore submitted role change and keep target's existing role
             $role = $target['role'] ?? 'admin';
+        } elseif ($current && isset($current['id']) && (int)$current['id'] === $id && ($current['role'] ?? '') === 'superadmin' && $submittedRole !== 'superadmin') {
+            // Superadmin attempting to declass themselves: allow only if there is another superadmin
+            $count = $this->users->countByRole('superadmin');
+            if ($count <= 1) {
+                // Block and return an informative error
+                Logger::getInstance()->warning('Attempt to self-demote last superadmin blocked', ['current_id' => $current['id'] ?? null, 'target_id' => $id]);
+                return $request->withAttribute('error', 'Devi mantenere almeno un altro superadmin prima di declassarti')->withAttribute('edit_user', $target);
+            }
+            $role = $submittedRole;
         } else {
-            $role = in_array(($data['role'] ?? 'user'), ['user','admin','superadmin'], true) ? $data['role'] : 'user';
+            $role = $submittedRole;
         }
         $password = trim($data['password'] ?? '');
         if ($email === '') {
@@ -118,6 +139,14 @@ class UsersController
         $this->users->updateUser($id, $email, $role, $firstName, $lastName);
         if ($password !== '') {
             $this->users->updatePasswordById($id, $password);
+        }
+        // If the current logged-in user updated their own profile, refresh session data
+        if ($current && isset($current['id']) && (int)$current['id'] === $id) {
+            $fresh = $this->users->findById($id);
+            if ($fresh) {
+                // Ensure session contains the same shape we expect elsewhere
+                $_SESSION['user'] = $fresh;
+            }
         }
         $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Utente aggiornato'];
         return $response->withHeader('Location', '/users')->withStatus(302);
@@ -138,7 +167,18 @@ class UsersController
         if ($target && ($target['role'] ?? '') === 'superadmin' && ($current['role'] ?? '') === 'admin') {
             // Block deletion by plain admin
             $_SESSION['flash'][] = ['type' => 'danger', 'text' => 'Non puoi eliminare un account superadmin'];
+            Logger::getInstance()->warning('Blocked delete by admin on superadmin', ['current_id' => $current['id'] ?? null, 'target_id' => $id]);
             return $response->withHeader('Location', '/users')->withStatus(302);
+        }
+
+        // Prevent deleting the last superadmin in the system
+        if ($target && ($target['role'] ?? '') === 'superadmin') {
+            $count = $this->users->countByRole('superadmin');
+            if ($count <= 1) {
+                $_SESSION['flash'][] = ['type' => 'danger', 'text' => 'Impossibile eliminare l\'ultimo superadmin. Assegna il ruolo di superadmin a un altro utente prima di procedere.'];
+                Logger::getInstance()->warning('Attempt to delete last superadmin blocked', ['current_id' => $current['id'] ?? null, 'target_id' => $id]);
+                return $response->withHeader('Location', '/users')->withStatus(302);
+            }
         }
 
         $this->users->deleteById($id);
