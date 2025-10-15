@@ -80,6 +80,64 @@ return (function (): array {
     @mkdir(__DIR__ . '/../../storage/logs', 0775, true);
     $twig->getEnvironment()->addGlobal('app_logger', Logger::getInstance());
 
+    // Register global error/exception handlers to also write to our application log
+    set_error_handler(function (int $severity, string $message, string $file, int $line) {
+        try {
+            $context = [
+                'file' => $file,
+                'line' => $line,
+                'severity' => $severity,
+                'request_uri' => $_SERVER['REQUEST_URI'] ?? null,
+                'user_id' => isset($_SESSION['user']['id']) ? $_SESSION['user']['id'] : null,
+            ];
+            Logger::getInstance()->error('PHP error: ' . $message, $context);
+        } catch (\Throwable $_) {
+            // swallow
+        }
+        // Let PHP internal handler run as well
+        return false;
+    });
+
+    set_exception_handler(function (\Throwable $e) {
+        try {
+            $context = [
+                'exception' => get_class($e),
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+                'request_uri' => $_SERVER['REQUEST_URI'] ?? null,
+                'user_id' => isset($_SESSION['user']['id']) ? $_SESSION['user']['id'] : null,
+            ];
+            Logger::getInstance()->error('Uncaught exception: ' . $e->getMessage(), $context);
+        } catch (\Throwable $_) {
+            // swallow
+        }
+        // Fallback to default exception handling
+        http_response_code(500);
+        // Optionally rethrow or exit
+        // echo "An error occurred";
+    });
+
+    register_shutdown_function(function () {
+        $err = error_get_last();
+        if ($err && in_array($err['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR], true)) {
+            try {
+                $context = [
+                    'file' => $err['file'] ?? null,
+                    'line' => $err['line'] ?? null,
+                    'type' => $err['type'] ?? null,
+                    'message' => $err['message'] ?? null,
+                    'request_uri' => $_SERVER['REQUEST_URI'] ?? null,
+                    'user_id' => isset($_SESSION['user']['id']) ? $_SESSION['user']['id'] : null,
+                ];
+                Logger::getInstance()->error('Fatal shutdown error: ' . ($err['message'] ?? ''), $context);
+            } catch (\Throwable $_) {
+                // swallow
+            }
+        }
+    });
+
     $publicPaths = ['/login', '/logout', '/assets/*', '/debug/*', '/guida'];
     $app->add(new AuthMiddleware($publicPaths));
     $app->add(new FlashMiddleware($twig));
