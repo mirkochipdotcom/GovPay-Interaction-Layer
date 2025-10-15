@@ -10,7 +10,8 @@
               {% if current_user %}
                 <div class="it-user-wrapper nav-item dropdown show">
                   <a aria-expanded="false" class="btn btn-primary btn-icon btn-full" data-bs-toggle="dropdown" href="#" id="userDropdown">
-                    <span class="fal me-2"><i class="fas fa-circle-user fa-xl" aria-hidden="true"></i></span>
+                    {# User icon: show on md+ only; on mobile we'll show initials in a circle instead #}
+                    <span class="fal me-2 d-none d-md-inline"><i class="fas fa-circle-user fa-xl" aria-hidden="true"></i></span>
                     {# Prepare first/last safely and compute display_name/initials without using 'defined' on expressions #}
                     {%- set first = current_user.first_name|default('') -%}
                     {%- set last = current_user.last_name|default('') -%}
@@ -22,8 +23,13 @@
                     {% else -%}
                       <span class="d-none d-md-inline">{{ current_user.email }}</span>
                     {% endif %}
-                    {# Small initials badge for visual identification (accessible) #}
+                    {# Desktop: small initials badge (md+) #}
                     <span class="badge bg-light text-dark ms-2 d-none d-md-inline" aria-hidden="false" aria-label="{{ display_name != '' ? display_name : current_user.email }}">{{ initials|upper }}</span>
+
+                    {# Mobile: circular initials avatar (replaces svg/icon on small screens) #}
+                    <span class="d-inline d-md-none rounded-circle bg-light text-dark ms-2 d-flex align-items-center justify-content-center" role="img" aria-label="{{ display_name != '' ? display_name : current_user.email }}" style="width:36px;height:36px;font-weight:600;font-size:0.9rem;">{{ initials|upper }}</span>
+
+                    {# Expand chevron: visible only on lg+ (kept as-is) #}
                     <svg class="icon icon-white d-none d-lg-block ms-2" style="width:18px;height:18px;">
                       <use xlink:href="/assets/bootstrap-italia/svg/sprites.svg#it-expand"></use>
                     </svg>
