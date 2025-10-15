@@ -8,11 +8,15 @@
       <h2 class="mb-2">Guida rapida</h2>
       <p class="lead">Questa guida ti aiuta a capire a cosa serve l'applicativo e come svolgere le operazioni principali, in base ai tuoi permessi.</p>
       {% if current_user %}
-  {%- set first = current_user.first_name|default('') -%}
-  {%- set last = current_user.last_name|default('') -%}
-  {%- set show_name = (first != '') or (last != '') -%}
-  {%- set display_name = first ~ (last != '' ? ' ' ~ last|upper : '') -%}
-  <p>Sei autenticato come <strong>{{ display_name if show_name else current_user.email }}</strong> con ruolo <span class="badge bg-primary">{{ current_user.role }}</span>.</p>
+        {%- set first = current_user.first_name|default('') -%}
+        {%- set last = current_user.last_name|default('') -%}
+        {%- set show_name = (first != '') or (last != '') -%}
+        {%- if last != '' -%}
+          {%- set display_name = (first ~ ' ' ~ last|upper)|trim -%}
+        {%- else -%}
+          {%- set display_name = first|trim -%}
+        {%- endif -%}
+        <p>Sei autenticato come <strong>{% if show_name %}{{ display_name }}{% else %}{{ current_user.email }}{% endif %}</strong> con ruolo <span class="badge bg-primary">{{ current_user.role }}</span>.</p>
       {% else %}
         <p class="text-warning">Non sei autenticato. Accedi per vedere le funzionalità a te consentite.</p>
       {% endif %}
