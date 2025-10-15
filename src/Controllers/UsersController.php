@@ -53,6 +53,8 @@ class UsersController
         $data = (array)($request->getParsedBody() ?? []);
         $email = trim($data['email'] ?? '');
         $password = trim($data['password'] ?? '');
+        $firstName = trim($data['first_name'] ?? '');
+        $lastName = trim($data['last_name'] ?? '');
         $role = in_array(($data['role'] ?? 'user'), ['user','admin','superadmin'], true) ? $data['role'] : 'user';
         if ($email === '' || $password === '') {
             return $request->withAttribute('error', 'Email e password sono obbligatorie');
@@ -60,7 +62,7 @@ class UsersController
         if ($this->users->findByEmail($email)) {
             return $request->withAttribute('error', 'Email già in uso');
         }
-        $this->users->insertUser($email, $password, $role);
+        $this->users->insertUser($email, $password, $role, $firstName, $lastName);
     $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Utente creato con successo'];
         return $response->withHeader('Location', '/users')->withStatus(302);
     }
@@ -83,6 +85,8 @@ class UsersController
         $id = (int)($args['id'] ?? 0);
         $data = (array)($request->getParsedBody() ?? []);
         $email = trim($data['email'] ?? '');
+        $firstName = trim($data['first_name'] ?? '');
+        $lastName = trim($data['last_name'] ?? '');
         $role = in_array(($data['role'] ?? 'user'), ['user','admin','superadmin'], true) ? $data['role'] : 'user';
         $password = trim($data['password'] ?? '');
         if ($email === '') {
@@ -90,7 +94,7 @@ class UsersController
             return $request->withAttribute('error', 'Email obbligatoria')
                            ->withAttribute('edit_user', $user);
         }
-        $this->users->updateUser($id, $email, $role);
+        $this->users->updateUser($id, $email, $role, $firstName, $lastName);
         if ($password !== '') {
             $this->users->updatePasswordById($id, $password);
         }

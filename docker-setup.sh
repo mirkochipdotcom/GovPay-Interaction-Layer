@@ -142,6 +142,53 @@ else
   echo "ℹ️  PHP CLI non disponibile: salto migrazioni."
 fi
 
+# Additional SQL migrations runner: execute SQL files in migrations/ using mysql client if available
+MIG_DIR="/var/www/html/migrations"
+if [ -d "$MIG_DIR" ] && [ "$(ls -A $MIG_DIR | wc -l)" -gt 0 ]; then
+  echo "--- Trovate migrazioni SQL in $MIG_DIR ---"
+  if command -v mysql >/dev/null 2>&1; then
+    echo "Eseguo migrazioni via client mysql..."
+    DB_HOST=${DB_HOST:-db}
+    DB_PORT=${DB_PORT:-3306}
+    DB_NAME=${DB_NAME:-govpay}
+    DB_USER=${DB_USER:-govpay}
+    DB_PASS=${DB_PASSWORD:-}
+    for f in $(ls -1 $MIG_DIR/*.sql 2>/dev/null | sort); do
+      echo "Eseguo $f"
+      if ! mysql -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" ${DB_PASS:+-p$DB_PASS} "$DB_NAME" < "$f"; then
+        echo "⚠️  Fallito l'import di $f via mysql client; proseguo." >&2
+      fi
+    done
+  else
+    echo "ℹ️  mysql client non disponibile. Provo fallback PHP per eseguire migrazioni SQL."
+    if command -v php >/dev/null 2>&1; then
+      php -r '
+        $dir = getenv("PWD") . "/migrations";
+        $files = glob($dir."/*.sql");
+        if(!$files) { exit(0); }
+        $host = getenv("DB_HOST") ?: "db";
+        $port = getenv("DB_PORT") ?: "3306";
+        $db = getenv("DB_NAME") ?: "govpay";
+        $user = getenv("DB_USER") ?: "govpay";
+        $pass = getenv("DB_PASSWORD") ?: "";
+        $dsn = "mysql:host=$host;port=$port;dbname=$db;charset=utf8mb4";
+        try {
+          $pdo = new PDO($dsn, $user, $pass, [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
+          foreach($files as $f) {
+            echo "Eseguo PHP $f\n";
+            $sql = file_get_contents($f);
+            $pdo->exec($sql);
+          }
+        } catch (Throwable $e) {
+          echo "PHP migration fallback failed: ". $e->getMessage() ."\n";
+        }
+      '
+    else
+      echo "⚠️  Nessun metodo disponibile per eseguire migrazioni SQL (mysql client e PHP mancanti)." >&2
+    fi
+  fi
+fi
+
 echo "--- Avvio Apache. ---"
 
 # Se nessun comando passato, avvia apache2-foreground di default
