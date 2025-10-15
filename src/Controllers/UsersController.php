@@ -75,6 +75,14 @@ class UsersController
         if (!$user) {
             throw new \RuntimeException('Not Found');
         }
+        // Prevent plain admins from editing superadmin accounts
+        $current = $_SESSION['user'] ?? null;
+        if (($current['role'] ?? '') === 'admin' && ($user['role'] ?? '') === 'superadmin') {
+            // Return request with an error attribute so the route can render an appropriate message
+            $request = $request->withAttribute('error', 'Non puoi modificare un account superadmin')->withAttribute('edit_user', null);
+            return $request;
+        }
+
         $request = $request->withAttribute('edit_user', $user);
         return $request;
     }
@@ -83,6 +91,13 @@ class UsersController
     {
         $this->assertAdmin();
         $id = (int)($args['id'] ?? 0);
+        // Prevent admins from updating superadmin accounts
+        $target = $this->users->findById($id);
+        $current = $_SESSION['user'] ?? null;
+        if ($target && ($target['role'] ?? '') === 'superadmin' && ($current['role'] ?? '') === 'admin') {
+            $request = $request->withAttribute('error', 'Non puoi modificare un account superadmin')->withAttribute('edit_user', $target);
+            return $request;
+        }
         $data = (array)($request->getParsedBody() ?? []);
         $email = trim($data['email'] ?? '');
         $firstName = trim($data['first_name'] ?? '');
@@ -106,8 +121,22 @@ class UsersController
     {
         $this->assertAdmin();
         $id = (int)($args['id'] ?? 0);
+        $target = $this->users->findById($id);
+        $current = $_SESSION['user'] ?? null;
+        // Prevent users (admin or superadmin) from deleting themselves
+        if ($current && isset($current['id']) && (int)$current['id'] === $id) {
+            $_SESSION['flash'][] = ['type' => 'danger', 'text' => 'Non puoi eliminare il tuo account'];
+            return $response->withHeader('Location', '/users')->withStatus(302);
+        }
+
+        if ($target && ($target['role'] ?? '') === 'superadmin' && ($current['role'] ?? '') === 'admin') {
+            // Block deletion by plain admin
+            $_SESSION['flash'][] = ['type' => 'danger', 'text' => 'Non puoi eliminare un account superadmin'];
+            return $response->withHeader('Location', '/users')->withStatus(302);
+        }
+
         $this->users->deleteById($id);
-    $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Utente eliminato'];
+        $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Utente eliminato'];
         return $response->withHeader('Location', '/users')->withStatus(302);
     }
 }
