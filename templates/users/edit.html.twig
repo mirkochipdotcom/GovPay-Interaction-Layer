@@ -25,7 +25,10 @@
     </div>
     <div class="mb-3">
       <label class="form-label">Ruolo</label>
-      <select class="form-select" name="role">
+      {# If current user is admin and editing self, disallow changing role to prevent privilege escalation/demotion #}
+      {% set is_self = current_user is defined and current_user.id == edit_user.id %}
+      {% set is_admin = current_user is defined and current_user.role == 'admin' %}
+      <select class="form-select" name="role" {% if is_admin and is_self %}disabled title="Non puoi modificare il tuo ruolo"{% endif %}>
         {% set roles = ['user','admin','superadmin'] %}
         {% for r in roles %}
           <option value="{{ r }}" {% if edit_user.role == r %}selected{% endif %}>{{ r }}</option>
