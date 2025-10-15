@@ -10,6 +10,7 @@ use App\Middleware\AuthMiddleware;
 use App\Middleware\FlashMiddleware;
 use App\Middleware\CurrentPathMiddleware;
 use App\Auth\UserRepository;
+use App\Logger;
 
 return (function (): array {
     $app = AppFactory::create();
@@ -74,6 +75,10 @@ return (function (): array {
     $twig->getEnvironment()->addGlobal('pendenza_states', $pendenzaStates);
 
     $app->add(TwigMiddleware::create($app, $twig));
+
+    // Ensure storage logs directory exists and register logger global
+    @mkdir(__DIR__ . '/../../storage/logs', 0775, true);
+    $twig->getEnvironment()->addGlobal('app_logger', Logger::getInstance());
 
     $publicPaths = ['/login', '/logout', '/assets/*', '/debug/*', '/guida'];
     $app->add(new AuthMiddleware($publicPaths));

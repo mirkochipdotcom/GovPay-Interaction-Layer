@@ -22,7 +22,8 @@
     <a class="nav-link {{ currentTab == 'tipologie' ? 'active' : '' }}" href="/configurazione?tab=tipologie"><i class="fas fa-list me-2"></i>Tipologie</a>
     <a class="nav-link {{ currentTab == 'tipologie_esterne' ? 'active' : '' }}" href="/configurazione?tab=tipologie_esterne"><i class="fas fa-external-link-alt me-2"></i>Tipologie esterne</a>
         <a class="nav-link {{ currentTab == 'gestionali' ? 'active' : '' }}" href="/configurazione?tab=gestionali"><i class="fas fa-cog me-2"></i>Gestionali</a>
-        <a class="nav-link {{ currentTab == 'info' ? 'active' : '' }}" href="/configurazione?tab=info"><i class="fas fa-info-circle me-2"></i>Info</a>
+  <a class="nav-link {{ currentTab == 'info' ? 'active' : '' }}" href="/configurazione?tab=info"><i class="fas fa-info-circle me-2"></i>Info</a>
+  <a class="nav-link {{ currentTab == 'logs' ? 'active' : '' }}" href="/configurazione?tab=logs"><i class="fas fa-file-alt me-2"></i>Logs</a>
         <a class="nav-link {{ currentTab == 'applicazioni' ? 'active' : '' }}" href="/configurazione?tab=applicazioni"><i class="fas fa-puzzle-piece me-2"></i>Applicazioni</a>
         <a class="nav-link {{ currentTab == 'confapi' ? 'active' : '' }}" href="/configurazione?tab=confapi"><i class="fas fa-code me-2"></i>Config API</a>
       </nav>
@@ -515,6 +516,14 @@
             <pre class="mb-0">{{ info_json }}</pre>
           </div>
         {% endif %}
+  {% elseif currentTab == 'logs' %}
+        <h2 class="h5">Log applicazione</h2>
+        <p class="text-muted small">Ultime {{ logs_lines is defined ? logs_lines|length : 0 }} righe del file di log applicazione (mostrate le più recenti per prime).</p>
+        <div class="mb-3">
+          <div class="table-responsive">
+            <pre class="small bg-dark text-white p-3" style="max-height:60vh; overflow:auto; white-space:pre-wrap">{% if logs_lines is defined and logs_lines|length > 0 %}{{ logs_lines|join("\n") }}{% else %}Nessuna riga di log disponibile.{% endif %}</pre>
+          </div>
+        </div>
   {% elseif currentTab == 'applicazioni' %}
         <h2 class="h5">Dati applicazioni</h2>
         {% set a2a = idA2A|default('') %}
