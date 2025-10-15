@@ -126,20 +126,29 @@ if [ "$RUN_COMPOSER" -eq 1 ]; then
   touch "$INIT_MARKER" || true
 fi
 
-echo "--- Setup completato. Eseguo migrazioni DB (non-bloccanti) ---"
+echo "--- Setup completato. Eseguo controllo first-run DB ---"
 
-# Esegui migrazioni database (non fatali in caso di errore)
-if command -v php >/dev/null 2>&1; then
-  if [ -f "/var/www/html/bin/run-migrations.php" ]; then
-    echo "Eseguo: php bin/run-migrations.php"
-    if ! php /var/www/html/bin/run-migrations.php; then
-      echo "⚠️  Avviso: migrazioni fallite, proseguo comunque con l'avvio di Apache." >&2
+# First-run marker
+FIRST_RUN_MARKER="/var/www/html/.first_run_done"
+if [ -f "$FIRST_RUN_MARKER" ]; then
+  echo "ℹ️  First-run DB già eseguito (marker presente)."
+else
+  echo "⚙️  Primo avvio: creo tabelle richieste via PHP (bin/first_run_create_tables.php)"
+  if command -v php >/dev/null 2>&1; then
+    if [ -f "/var/www/html/bin/first_run_create_tables.php" ]; then
+      echo "Eseguo: php bin/first_run_create_tables.php"
+      if ! php /var/www/html/bin/first_run_create_tables.php; then
+        echo "❌ Errore: creazione tabelle fallita. Interrompo l'avvio." >&2
+        exit 1
+      fi
+      touch "$FIRST_RUN_MARKER" || echo "⚠️  Impossibile creare marker $FIRST_RUN_MARKER" >&2
+    else
+      echo "ℹ️  Nessun script di creazione tabelle (bin/first_run_create_tables.php) trovato; salto." >&2
     fi
   else
-    echo "ℹ️  Nessun file di migrazione trovato (bin/run-migrations.php)."
+    echo "⚠️  PHP CLI non disponibile: non posso creare tabelle (bin/first_run_create_tables.php mancante)." >&2
+    # Non interrompiamo qui: proviamo le migrazioni SQL più sotto
   fi
-else
-  echo "ℹ️  PHP CLI non disponibile: salto migrazioni."
 fi
 
 # Additional SQL migrations runner: execute SQL files in migrations/ using mysql client if available
