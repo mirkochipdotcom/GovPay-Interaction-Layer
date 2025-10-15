@@ -1,54 +1,38 @@
 {# Header in stile Bootstrap Italia, semplificato e parametrizzato #}
 <header class="it-header-wrapper">
   <div class="it-header-slim-wrapper theme-dark">
-    <div class="container">
+    <div class="container-xxl">
       <div class="row">
         <div class="col-12">
-            <div class="it-header-slim-wrapper-content d-flex justify-content-between align-items-center">
-            <a class="d-lg-block navbar-brand text-white" href="#">{{ app_entity.government ?: app_entity.suffix }}</a>
+          <div class="it-header-slim-wrapper-content d-flex justify-content-between align-items-center">
+            <a class="d-none d-lg-block navbar-brand" href="#">{{ app_entity.government ?: app_entity.suffix }}</a>
+            
             <div class="it-header-slim-right-zone d-flex align-items-center gap-3">
               {% if current_user %}
+                {%- set first = current_user.first_name|default('') -%}
+                {%- set last = current_user.last_name|default('') -%}
+                {%- set show_name = (first != '') or (last != '') -%}
+                {%- set display_name = first ~ (last != '' ? ' ' ~ last|upper : '') -%}
+                {%- set initials = (first|slice(0,1)) ~ (last|slice(0,1)) -%}
                 <div class="it-user-wrapper nav-item dropdown show">
                   <a aria-expanded="false" class="btn btn-primary btn-icon btn-full" data-bs-toggle="dropdown" href="#" id="userDropdown">
-                    {# User icon: show on md+ only; on mobile we'll show initials in a circle instead #}
                     <span class="fal me-2 d-none d-md-inline"><i class="fas fa-circle-user fa-xl" aria-hidden="true"></i></span>
-                    {# Prepare first/last safely and compute display_name/initials without using 'defined' on expressions #}
-                    {%- set first = current_user.first_name|default('') -%}
-                    {%- set last = current_user.last_name|default('') -%}
-                    {%- set show_name = (first != '') or (last != '') -%}
-                    {%- set display_name = first ~ (last != '' ? ' ' ~ last|upper : '') -%}
-                    {%- set initials = (first|slice(0,1)) ~ (last|slice(0,1)) -%}
-                    {% if show_name -%}
+                    {% if show_name %}
                       <span class="d-none d-md-inline">{{ display_name }}</span>
-                    {% else -%}
+                    {% else %}
                       <span class="d-none d-md-inline">{{ current_user.email }}</span>
                     {% endif %}
-                    {# Desktop: small initials badge (md+) #}
                     <span class="badge bg-light text-dark ms-2 d-none d-md-inline" aria-hidden="false" aria-label="{{ display_name != '' ? display_name : current_user.email }}">{{ initials|upper }}</span>
-
-                    {# Mobile: circular initials avatar (replaces svg/icon on small screens) #}
                     <span class="d-inline d-md-none user-initials-avatar ms-2 d-flex align-items-center justify-content-center" role="img" aria-label="{{ display_name != '' ? display_name : current_user.email }}">{{ initials|upper }}</span>
-
-                    {# Expand chevron: visible only on lg+ (kept as-is) #}
-                    <svg class="icon icon-white d-none d-lg-block ms-2" style="width:18px;height:18px;">
-                      <use xlink:href="/assets/bootstrap-italia/svg/sprites.svg#it-expand"></use>
-                    </svg>
+                    <svg class="icon icon-white d-none d-lg-block ms-2" style="width:18px;height:18px;"><use xlink:href="/assets/bootstrap-italia/svg/sprites.svg#it-expand"></use></svg>
                   </a>
                   <div class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
-                    <div class="row">
-                      <div class="col-12">
-                        <div class="link-list-wrapper px-3 py-2">
-                          <ul class="link-list list-unstyled mb-0">
-                            <li>
-                              <a class="list-item d-block text-dark py-1 {{ current_path == '/profile' ? 'active' : '' }}" href="/profile">Profilo</a>
-                            </li>
-                            <li>
-                              <a class="list-item d-block text-danger py-1" href="/logout">Logout</a>
-                            </li>
-                          </ul>
-                        </div>
-                      </div>
-                    </div>
+                    <div class="row"><div class="col-12"><div class="link-list-wrapper px-3 py-2">
+                      <ul class="link-list list-unstyled mb-0">
+                        <li><a class="list-item d-block text-dark py-1 {{ current_path == '/profile' ? 'active' : '' }}" href="/profile">Profilo</a></li>
+                        <li><a class="list-item d-block text-danger py-1" href="/logout">Logout</a></li>
+                      </ul>
+                    </div></div></div>
                   </div>
                 </div>
               {% else %}
@@ -63,7 +47,7 @@
 
   <div class="it-nav-wrapper">
     <div class="it-header-center-wrapper theme-dark">
-      <div class="container">
+      <div class="container-xxl">
         <div class="row">
           <div class="col-12">
             <div class="it-header-center-content-wrapper d-flex justify-content-between align-items-center py-2">
@@ -71,9 +55,7 @@
                 {% if app_logo.type == 'img' %}
                   <img src="{{ app_logo.src }}" alt="{{ app_entity.name }}" class="me-2" style="height:40px; width:auto;" />
                 {% else %}
-                  <svg class="icon icon-white me-2" style="height:40px; width:40px;">
-                    <use xlink:href="{{ app_logo.src }}"></use>
-                  </svg>
+                  <svg class="icon icon-white me-2" style="height:40px; width:40px;"><use xlink:href="{{ app_logo.src }}"></use></svg>
                 {% endif %}
                 <div class="it-brand-text text-white">
                   <h2 class="no_toc h5 mb-0">{{ app_entity.name }}</h2>
@@ -89,24 +71,30 @@
       </div>
     </div>
 
-  <div class="it-header-navbar-wrapper theme-dark">
-      <div class="container">
+    <div class="it-header-navbar-wrapper theme-dark">
+      <div class="container-xxl">
         <div class="row">
           <div class="col-12">
-            <nav class="navbar navbar-expand-lg has-megamenu">
-              <button class="custom-navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
+            <nav class="navbar navbar-expand-lg has-megamenu" aria-label="Navigazione principale">
+              <button class="custom-navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Mostra/Nascondi la navigazione">
                 <svg class="icon"><use xlink:href="/assets/bootstrap-italia/svg/sprites.svg#it-burger"></use></svg>
               </button>
-              <div class="navbar-collapsable collapse" id="mainNav">
+
+             
+              <div class="navbar-collapsable collapse" id="mainNav" tabindex="-1">
+                <div class="close-div d-lg-none">
+                  <button class="btn close-menu" type="button" aria-label="Nascondi la navigazione">
+                    <span class="visually-hidden">Nascondi la navigazione</span>
+                    <svg class="icon"><use xlink:href="/assets/bootstrap-italia/svg/sprites.svg#it-close-big"></use></svg>
+                  </button>
+                </div>
                 <div class="menu-wrapper">
                   <ul class="navbar-nav">
                     {% if current_user %}
                       <li class="nav-item"><a class="nav-link {{ current_path == '/' ? 'active' : '' }}" href="/">Home</a></li>
                       {% set in_pendenze = current_path starts with '/pendenze' %}
                       <li class="nav-item dropdown {{ in_pendenze ? 'active' : '' }}">
-                        <a class="nav-link dropdown-toggle {{ in_pendenze ? 'active' : '' }}" href="#" id="pendenzeDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                          Pendenze
-                        </a>
+                        <a class="nav-link dropdown-toggle {{ in_pendenze ? 'active' : '' }}" href="#" id="pendenzeDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">Pendenze</a>
                         <div class="dropdown-menu" aria-labelledby="pendenzeDropdown">
                           <a class="dropdown-item {{ current_path == '/pendenze/ricerca' ? 'active' : '' }}" href="/pendenze/ricerca">Ricerca</a>
                           <a class="dropdown-item {{ current_path == '/pendenze/inserimento' ? 'active' : '' }}" href="/pendenze/inserimento">Inserimento</a>
@@ -115,9 +103,7 @@
                       </li>
                       {% set in_pagamenti = current_path starts with '/pagamenti' %}
                       <li class="nav-item dropdown {{ in_pagamenti ? 'active' : '' }}">
-                        <a class="nav-link dropdown-toggle {{ in_pagamenti ? 'active' : '' }}" href="#" id="pagamentiDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                          Pagamenti
-                        </a>
+                        <a class="nav-link dropdown-toggle {{ in_pagamenti ? 'active' : '' }}" href="#" id="pagamentiDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">Pagamenti</a>
                         <div class="dropdown-menu" aria-labelledby="pagamentiDropdown">
                           <a class="dropdown-item {{ current_path == '/pagamenti/ricerca-incassi' ? 'active' : '' }}" href="/pagamenti/ricerca-incassi">Ricerca Incassi</a>
                           <a class="dropdown-item {{ current_path == '/pagamenti/ricerca-flussi' ? 'active' : '' }}" href="/pagamenti/ricerca-flussi">Ricerca Flussi</a>
@@ -130,9 +116,7 @@
                       {% endif %}
                       {% if current_user.role == 'superadmin' %}
                         {% set in_config = current_path starts with '/configurazione' %}
-                        <li class="nav-item">
-                          <a class="nav-link {{ in_config ? 'active' : '' }}" href="/configurazione">Configurazione</a>
-                        </li>
+                        <li class="nav-item"><a class="nav-link {{ in_config ? 'active' : '' }}" href="/configurazione">Configurazione</a></li>
                       {% endif %}
                     {% endif %}
                     <li class="nav-item"><a class="nav-link {{ current_path == '/guida' ? 'active' : '' }}" href="/guida">Guida</a></li>
