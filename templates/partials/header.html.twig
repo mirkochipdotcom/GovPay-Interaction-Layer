@@ -27,7 +27,7 @@
                     <span class="badge bg-light text-dark ms-2 d-none d-md-inline" aria-hidden="false" aria-label="{{ display_name != '' ? display_name : current_user.email }}">{{ initials|upper }}</span>
 
                     {# Mobile: circular initials avatar (replaces svg/icon on small screens) #}
-                    <span class="d-inline d-md-none rounded-circle bg-light text-dark ms-2 d-flex align-items-center justify-content-center" role="img" aria-label="{{ display_name != '' ? display_name : current_user.email }}" style="width:36px;height:36px;font-weight:600;font-size:0.9rem;">{{ initials|upper }}</span>
+                    <span class="d-inline d-md-none user-initials-avatar ms-2 d-flex align-items-center justify-content-center" role="img" aria-label="{{ display_name != '' ? display_name : current_user.email }}">{{ initials|upper }}</span>
 
                     {# Expand chevron: visible only on lg+ (kept as-is) #}
                     <svg class="icon icon-white d-none d-lg-block ms-2" style="width:18px;height:18px;">
