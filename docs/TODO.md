@@ -30,7 +30,7 @@
 # LONG RUN
 
 - [ ] Notifiche
-  - Integrazione AppIO https://github.com/pagopa/io-app
+  - Integrazione AppIO https://github.com/pagopa/io-functions-services/blob/master/openapi/index.yaml
   - Inserire la configurazione di AppIO connessa alla diverse tipologie
   - Inserire le notifiche via email e AppIO per nuove pendenze
 
