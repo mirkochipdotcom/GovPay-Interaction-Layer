@@ -4,6 +4,9 @@ Piattaforma containerizzata (PHP/Apache + frontend) per integrare e testare flus
 
 [![GitHub Repository](https://img.shields.io/badge/GitHub-mirkochipdotcom%2FGovPay--Interaction--Layer-blue?style=flat&logo=github)](https://github.com/mirkochipdotcom/GovPay-Interaction-Layer.git)
 
+License: European Union Public Licence v1.2 (EUPL-1.2)
+SPDX-License-Identifier: EUPL-1.2
+
 ---
 
 ## 🚀 Avvio rapido (primo utilizzo)
@@ -260,7 +263,19 @@ Per domande, problemi o suggerimenti:
 
 ---
 
+# Stato del progetto
+
+Breve riepilogo dello stato corrente (aggiornamento):
+
+- DB/migrations: script di first-run e migrations implementati per creare tabelle e seed idempotente (superadmin seed).
+- Template/Twig: correzioni ai template (incluso `templates/partials/header.html.twig`) per risolvere errori di parsing e fix del menu hamburger.
+- Frontend: aggiunto `assets/js/app.js` con fallback per il toggler della navbar su mobile e miglioramenti alla lista utenti.
+- Logging: logger su file in `storage/logs/app.log` e integrazione delle eccezioni con log.
+- Sicurezza: guardie server-side per prevenire la rimozione involontaria dell'ultimo superadmin e miglioramenti degli accessi.
+
 ## TODO - Elenco degli sviluppi successivi
 [![TODO](https://img.shields.io/badge/TODO-Lista%20attivit%C3%A0-blue)](docs/TODO.md)
 
-**Nota**: Questo progetto è sviluppato per facilitare l'integrazione con GovPay/PagoPA in ambiente di sviluppo e test.
+
+
+**Nota**: Questo progetto è sviluppato per facilitare l'integrazione con GovPay/PagoPA negli Enti.
