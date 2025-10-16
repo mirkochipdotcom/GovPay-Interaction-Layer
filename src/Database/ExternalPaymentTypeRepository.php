@@ -1,4 +1,8 @@
 <?php
+/**
+ * SPDX-License-Identifier: EUPL-1.2
+ * License: European Union Public Licence v1.2 (EUPL-1.2)
+ */
 namespace App\Database;
 
 use PDO;

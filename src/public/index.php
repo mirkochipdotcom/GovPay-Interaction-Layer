@@ -1,4 +1,8 @@
 <?php
+/**
+ * SPDX-License-Identifier: EUPL-1.2
+ * License: European Union Public Licence v1.2 (EUPL-1.2)
+ */
 // Serve file statici direttamente se esistono nella cartella public (img, css, js, ecc.)
 if (php_sapi_name() === 'cli-server') {
     $url  = parse_url($_SERVER['REQUEST_URI']);
