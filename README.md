@@ -261,6 +261,7 @@ Per domande, problemi o suggerimenti:
 ---
 
 ## TODO - Elenco degli sviluppi successivi
+
 [![TODO](https://img.shields.io/badge/TODO-Lista%20attivit%C3%A0-blue)](docs/TODO.md)
 
-**Nota**: Questo progetto è sviluppato per facilitare l'integrazione con GovPay/PagoPA in ambiente di sviluppo e test.
+**Nota**: Questo progetto è sviluppato per facilitare l'integrazione con GovPay/PagoPA negli enti.
