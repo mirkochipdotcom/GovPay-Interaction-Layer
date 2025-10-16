@@ -1,6 +1,8 @@
 # 🇮🇹 GovPay Interaction Layer (GIL)
 
-Piattaforma containerizzata (PHP/Apache + frontend) per integrare e testare flussi di pagamento con GovPay (PagoPA).
+Piattaforma containerizzata (PHP/Apache + frontend) per migliorare il flusso di lavoro degli enti che usano GovPay come soluzione PagoPA.
+Lo scopo è avere un portale da cui gli uffici possano creare e gestire le pendenze, rendicontare e controllare i flussi di pagamento, in maniera più semplice rispetto alla GUI di GovPay.
+Inoltre è possibile esporre un frontend semplificato per i cittadini, con la possibilità di esporre altri portali di pagamento esterni per alcune tipologie di pagamento.
 
 [![GitHub Repository](https://img.shields.io/badge/GitHub-mirkochipdotcom%2FGovPay--Interaction--Layer-blue?style=flat&logo=github)](https://github.com/mirkochipdotcom/GovPay-Interaction-Layer.git)
 
@@ -62,7 +64,7 @@ docker compose exec govpay-interaction-layer bash
 docker compose restart govpay-interaction-layer
 ```
 
-## 🔧 Configurazione
+## 🔧 Configurazione di avvio
 
 ### Variabili d'ambiente
 Crea il file `.env` (puoi partire da `.env.example` se presente) e configura le variabili per il tuo ambiente:
@@ -97,13 +99,21 @@ docker compose up -d --build
 Ruoli disponibili:
 - `user`: utente base
 - `admin`: può gestire utenti
-- `superadmin`: privilegi equivalenti ad admin nell'app attuale
+- `superadmin`: privilegi equivalenti ad admin, con aggiunta della configurazione di GovPay e delle opzioni di pagamento
 
 Note importanti:
-- Il seed crea l'utente admin solo se non esiste già. Se vuoi rigenerarlo con nuove credenziali, puoi:
-   - Eliminare l'utente dalla sezione “Utenti” e riavviare il container (verrà ricreato dal seed), oppure
-   - Aggiornare la password dell'utente direttamente dalla pagina “Modifica utente”.
-- I messaggi di successo/errore compaiono come notifiche (flash) nella parte alta della pagina dopo i redirect.
+- Il seed è idempotente: viene creato un utente `superadmin` solo se non è già presente nel database. Al primo avvio lo script di first‑run crea l'account usando `ADMIN_EMAIL` e `ADMIN_PASSWORD` presenti in `.env`.
+
+- Regola di sicurezza (importante): l'app impedisce la rimozione dell'ultimo account con ruolo `superadmin`. Questo significa che non puoi cancellare l'admin seed se non esiste già un altro `superadmin` attivo. Se desideri sostituire l'admin seed procedi così in sicurezza:
+   1. Accedi con l'admin seed (creato al primo avvio) e crea un nuovo account con ruolo `superadmin` dalla sezione “Utenti”.
+   2. Effettua il logout e verifica l'accesso col nuovo superadmin.
+   3. A questo punto puoi eliminare l'admin seed o modificarne la password/ruolo.
+
+- Se invece vuoi forzare la rigenerazione dell'account seed con le credenziali in `.env`, elimina prima manualmente il superadmin esistente (dopo aver creato un altro superadmin) o, in ambienti di sviluppo, puoi cancellare la riga corrispondente nella tabella utenti e riavviare il servizio (attenzione: questa operazione è distruttiva).
+
+- Nota su autofill e sicurezza: alcuni browser possono proporre l'autocompletamento dei campi credenziali. L'app fornisce attributi per disabilitare l'autofill sui form sensibili ma il comportamento dipende anche dalle impostazioni del browser; se necessario, cancella le credenziali salvate o usa una finestra di navigazione privata per testare il login.
+
+- Comportamento delle notifiche: i messaggi di successo o errore sono mostrati come flash message nell'area superiore della pagina dopo i redirect; assicurati di controllare la barra delle notifiche subito dopo le operazioni di creazione/aggiornamento.
 
 ### Configurazione GovPay
 Per l'integrazione con GovPay, configura le seguenti variabili nel file `.env`:
@@ -114,6 +124,8 @@ GOVPAY_PENDENZE_URL=https://your-govpay-instance.example.com
 
 # Metodo di autenticazione (tipicamente 'sslheader' per certificati client)
 AUTHENTICATION_GOVPAY=sslheader
+
+> Nota: in questa versione l'integrazione è stata testata con la modalità `sslheader` (autenticazione tramite certificato client). Le altre modalità documentate da GovPay non sono state verificate qui e potrebbero richiedere adattamenti o test aggiuntivi.
 
 # Percorsi certificati GovPay (all'interno del container)
 GOVPAY_TLS_CERT=/var/www/certificate/certificate.cer
@@ -203,13 +215,6 @@ docker system prune -f
 ## 🐛 Troubleshooting
 
 ### Problemi comuni
-
-**Errore Twig LoaderError**: 
-- ✅ Risolto nelle versioni recenti - i template sono ora correttamente configurati
-
-**Errore "exec /usr/local/bin/docker-setup.sh"**:
-- Ricostruisci l'immagine: `docker compose up -d --build`
-- Il problema è spesso legato ai line endings (automaticamente risolto nel Dockerfile)
 
 **Porte già in uso**:
 - Cambia la porta in `docker-compose.yml` se 8443 è occupata
