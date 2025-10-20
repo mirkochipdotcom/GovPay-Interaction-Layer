@@ -5,6 +5,7 @@
  */
 namespace App\Database;
 
+use App\Logger;
 use PDO;
 
 class EntrateRepository
@@ -22,14 +23,14 @@ class EntrateRepository
      */
     public function listAbilitateByDominio(string $idDominio): array
     {
-        $stmt = $this->pdo->prepare('SELECT id_entrata, descrizione FROM entrate_tipologie WHERE id_dominio = :id AND abilitato_backoffice = 1 AND external_url IS NULL ORDER BY descrizione ASC');
+    $stmt = $this->pdo->prepare('SELECT id_entrata, descrizione, tipo_contabilita FROM entrate_tipologie WHERE id_dominio = :id AND abilitato_backoffice = 1 AND external_url IS NULL ORDER BY descrizione ASC');
         $stmt->execute([':id' => $idDominio]);
         return $stmt->fetchAll();
     }
 
     /**
      * Upsert di una tipologia proveniente dal Backoffice
-     * @param array{idEntrata?:string,tipoEntrata?:array,ibanAccredito?:string,codiceContabilita?:string,abilitato?:bool} $e
+    * @param array{idEntrata?:string,tipoEntrata?:array,ibanAccredito?:string,codiceContabilita?:string,tipoBollo?:string,abilitato?:bool} $e
      */
     public function upsertFromBackoffice(string $idDominio, array $e): void
     {
@@ -39,14 +40,28 @@ class EntrateRepository
         }
 
         $descrizione = $e['tipoEntrata']['descrizione'] ?? null;
-        $iban = $e['ibanAccredito'] ?? null;
-        $codiceCont = $e['codiceContabilita'] ?? ($e['tipoEntrata']['codiceContabilita'] ?? null);
+    $iban = $e['ibanAccredito'] ?? null;
+    $codiceCont = $e['codiceContabilita'] ?? ($e['tipoEntrata']['codiceContabilita'] ?? null);
+    $tipoBollo = $e['tipoBollo'] ?? ($e['tipoEntrata']['tipoBollo'] ?? null);
+    $tipoContabilita = $e['tipoContabilita'] ?? ($e['tipoEntrata']['tipoContabilita'] ?? null);
+    // Normalizza/sanitizza tipo contabilita' (enum: CAPITOLO,SPECIALE,SIOPE,ALTRO)
+    $originalTipoCont = $tipoContabilita;
+    $tipoContabilita = self::sanitizeTipoContabilita($tipoContabilita);
+    if ($originalTipoCont !== $tipoContabilita && $originalTipoCont !== null) {
+        Logger::getInstance()->warning('Sanitizzazione tipo_contabilita durante upsertFromBackoffice', ['id_dominio' => $idDominio, 'id_entrata' => $idEntrata, 'orig' => $originalTipoCont, 'sanitized' => $tipoContabilita]);
+    }
+    // Sanitizza il codice contabile per rispettare il pattern API (solo caratteri consentiti, max 35)
+    $originalCodice = $codiceCont;
+    $codiceCont = self::sanitizeCodEntrata($codiceCont);
+    if ($originalCodice !== $codiceCont && $originalCodice !== null) {
+        Logger::getInstance()->warning('Sanitizzazione codice_contabilita durante upsertFromBackoffice', ['id_dominio' => $idDominio, 'id_entrata' => $idEntrata, 'orig' => $originalCodice, 'sanitized' => $codiceCont]);
+    }
         $abilitatoBo = !empty($e['abilitato']);
         $now = date('Y-m-d H:i:s');
 
-        $sql = 'INSERT INTO entrate_tipologie (id_dominio, id_entrata, descrizione, iban_accredito, codice_contabilita, abilitato_backoffice, sorgente, created_at, updated_at)
-                VALUES (:id_dominio, :id_entrata, :descrizione, :iban, :codice, :bo, "backoffice", :now_created, :now_updated)
-                ON DUPLICATE KEY UPDATE descrizione = VALUES(descrizione), iban_accredito = VALUES(iban_accredito), codice_contabilita = VALUES(codice_contabilita), abilitato_backoffice = VALUES(abilitato_backoffice), updated_at = VALUES(updated_at)';
+    $sql = 'INSERT INTO entrate_tipologie (id_dominio, id_entrata, descrizione, iban_accredito, codice_contabilita, tipo_bollo, tipo_contabilita, abilitato_backoffice, sorgente, created_at, updated_at)
+        VALUES (:id_dominio, :id_entrata, :descrizione, :iban, :codice, :tipo_bollo, :tipo_contabilita, :bo, "backoffice", :now_created, :now_updated)
+        ON DUPLICATE KEY UPDATE descrizione = VALUES(descrizione), iban_accredito = VALUES(iban_accredito), codice_contabilita = VALUES(codice_contabilita), tipo_bollo = VALUES(tipo_bollo), tipo_contabilita = VALUES(tipo_contabilita), abilitato_backoffice = VALUES(abilitato_backoffice), updated_at = VALUES(updated_at)';
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute([
             ':id_dominio' => $idDominio,
@@ -54,10 +69,35 @@ class EntrateRepository
             ':descrizione' => $descrizione,
             ':iban' => $iban,
             ':codice' => $codiceCont,
+            ':tipo_bollo' => $tipoBollo,
+            ':tipo_contabilita' => $tipoContabilita,
             ':bo' => $abilitatoBo ? 1 : 0,
             ':now_created' => $now,
             ':now_updated' => $now,
         ]);
+    }
+
+    /**
+     * Sanitizza un valore di codice entrata per rispettare il pattern accettato dall'API
+     */
+    private static function sanitizeCodEntrata(?string $value): ?string
+    {
+        if ($value === null) return null;
+        $san = preg_replace('/[^A-Za-z0-9\-_.]/', '', $value);
+        $san = substr($san, 0, 35);
+        return $san === '' ? null : $san;
+    }
+
+    /**
+     * Recupera i dettagli di una singola tipologia (iban, codice contabilita, tipo_bollo, descrizione)
+     * @return array<string,mixed>|null
+     */
+    public function findDetails(string $idDominio, string $idEntrata): ?array
+    {
+        $stmt = $this->pdo->prepare('SELECT id_entrata, descrizione, iban_accredito, codice_contabilita, tipo_bollo, tipo_contabilita, abilitato_backoffice, override_locale, external_url FROM entrate_tipologie WHERE id_dominio = :dom AND id_entrata = :ent LIMIT 1');
+        $stmt->execute([':dom' => $idDominio, ':ent' => $idEntrata]);
+        $row = $stmt->fetch();
+        return $row ?: null;
     }
 
     /**
@@ -66,9 +106,17 @@ class EntrateRepository
      */
     public function listByDominio(string $idDominio): array
     {
-        $stmt = $this->pdo->prepare('SELECT id_entrata, descrizione, iban_accredito, codice_contabilita, abilitato_backoffice, override_locale, external_url FROM entrate_tipologie WHERE id_dominio = :id ORDER BY id_entrata ASC');
+        $stmt = $this->pdo->prepare('SELECT id_entrata, descrizione, iban_accredito, codice_contabilita, tipo_contabilita, abilitato_backoffice, override_locale, external_url FROM entrate_tipologie WHERE id_dominio = :id ORDER BY id_entrata ASC');
         $stmt->execute([':id' => $idDominio]);
         return $stmt->fetchAll();
+    }
+
+    private static function sanitizeTipoContabilita(?string $value): ?string
+    {
+        if ($value === null) return null;
+        $v = strtoupper(trim((string)$value));
+        $allowed = ['CAPITOLO', 'SPECIALE', 'SIOPE', 'ALTRO'];
+        return in_array($v, $allowed, true) ? $v : null;
     }
 
     /** @return array{id_entrata:string,abilitato_backoffice:int,override_locale:?int,external_url:?string}|null */

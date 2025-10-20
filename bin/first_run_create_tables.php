@@ -32,10 +32,12 @@ $statements = [
     "CREATE TABLE IF NOT EXISTS entrate_tipologie (
         id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
         id_dominio VARCHAR(64) NOT NULL,
-        id_entrata VARCHAR(128) NOT NULL,
-        descrizione VARCHAR(255) NULL,
-        iban_accredito VARCHAR(34) NULL,
-        codice_contabilita VARCHAR(128) NULL,
+    id_entrata VARCHAR(128) NOT NULL,
+    descrizione VARCHAR(255) NULL,
+    iban_accredito VARCHAR(34) NULL,
+    codice_contabilita VARCHAR(128) NULL,
+    tipo_bollo VARCHAR(16) NULL,
+    tipo_contabilita VARCHAR(16) NULL,
         abilitato_backoffice TINYINT(1) NOT NULL DEFAULT 0,
         override_locale TINYINT(1) NULL,
         external_url VARCHAR(500) NULL,
@@ -66,6 +68,28 @@ foreach ($statements as $sql) {
 }
 
 echo "Created tables (if not exists)\n";
+
+// Assicura che la colonna tipo_bollo sia presente (per upgrade di schemi precedenti)
+try {
+    $stmt = $pdo->query("SHOW COLUMNS FROM entrate_tipologie LIKE 'tipo_bollo'");
+    $has = $stmt ? $stmt->fetch() : false;
+    if (!$has) {
+        $pdo->exec("ALTER TABLE entrate_tipologie ADD COLUMN tipo_bollo VARCHAR(16) NULL AFTER codice_contabilita");
+        echo "Added column tipo_bollo to entrate_tipologie\n";
+    }
+} catch (Throwable $e) {
+    // non fatale: proseguiamo
+}
+try {
+    $stmt = $pdo->query("SHOW COLUMNS FROM entrate_tipologie LIKE 'tipo_contabilita'");
+    $has = $stmt ? $stmt->fetch() : false;
+    if (!$has) {
+        $pdo->exec("ALTER TABLE entrate_tipologie ADD COLUMN tipo_contabilita VARCHAR(16) NULL AFTER tipo_bollo");
+        echo "Added column tipo_contabilita to entrate_tipologie\n";
+    }
+} catch (Throwable $e) {
+    // non fatale: proseguiamo
+}
 
 // Seeding opzionale: crea superadmin se ADMIN_EMAIL e ADMIN_PASSWORD sono definiti
 $adminEmail = getenv('ADMIN_EMAIL') ?: '';
