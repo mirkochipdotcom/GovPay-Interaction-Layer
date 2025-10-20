@@ -1,0 +1,78 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Pendenze - Conferma Inserimento{% endblock %}
+
+{% block content %}
+<div class="container">
+  <h1 class="it-title">Conferma Inserimento Pendenza</h1>
+
+  <div class="card">
+    <div class="card-header">
+      <h4>Riepilogo Dati</h4>
+    </div>
+    <div class="card-body">
+      <!-- Dati Pendenza -->
+      <h5>Dati della Pendenza</h5>
+      <dl class="row">
+        <dt class="col-sm-3">Tipologia:</dt>
+        <dd class="col-sm-9">{{ dati.tipologia_nome }}</dd>
+        <dt class="col-sm-3">Causale:</dt>
+        <dd class="col-sm-9">{{ dati.causale }}</dd>
+        <dt class="col-sm-3">Importo:</dt>
+        <dd class="col-sm-9">€ {{ dati.importo }}</dd>
+        <dt class="col-sm-3">Anno Riferimento:</dt>
+        <dd class="col-sm-9">{{ dati.anno_riferimento }}</dd>
+        {% if dati.data_validita %}
+        <dt class="col-sm-3">Data Validità:</dt>
+        <dd class="col-sm-9">{{ dati.data_validita }}</dd>
+        {% endif %}
+        {% if dati.data_scadenza %}
+        <dt class="col-sm-3">Data Scadenza:</dt>
+        <dd class="col-sm-9">{{ dati.data_scadenza }}</dd>
+        {% endif %}
+      </dl>
+
+      <!-- Dati Soggetto -->
+      <h5>Dati del Soggetto</h5>
+      <dl class="row">
+        <dt class="col-sm-3">Tipo:</dt>
+        <dd class="col-sm-9">{{ dati.tipo_soggetto == 'fisica' ? 'Persona Fisica' : 'Persona Giuridica' }}</dd>
+        <dt class="col-sm-3">Codice Fiscale/Partita IVA:</dt>
+        <dd class="col-sm-9">{{ dati.codice_fiscale }}</dd>
+        <dt class="col-sm-3">Cognome/Ragione Sociale:</dt>
+        <dd class="col-sm-9">{{ dati.cognome_ragione_sociale }}</dd>
+        {% if dati.tipo_soggetto == 'fisica' %}
+        <dt class="col-sm-3">Nome:</dt>
+        <dd class="col-sm-9">{{ dati.nome }}</dd>
+        {% endif %}
+        {% if dati.email %}
+        <dt class="col-sm-3">Email:</dt>
+        <dd class="col-sm-9">{{ dati.email }}</dd>
+        {% endif %}
+      </dl>
+
+      <!-- Altri Dati -->
+      {% if dati.indirizzo or dati.telefono %}
+      <h5>Altri Dati</h5>
+      <dl class="row">
+        {% if dati.indirizzo %}
+        <dt class="col-sm-3">Indirizzo:</dt>
+        <dd class="col-sm-9">{{ dati.indirizzo }}</dd>
+        {% endif %}
+        {% if dati.telefono %}
+        <dt class="col-sm-3">Telefono:</dt>
+        <dd class="col-sm-9">{{ dati.telefono }}</dd>
+        {% endif %}
+      </dl>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="mt-3">
+    <form method="post" action="{{ url_for('pendenze.inserisci') }}" class="d-inline">
+      <button type="submit" class="btn btn-success">Conferma e Inserisci Pendenza</button>
+    </form>
+    <a href="{{ url_for('pendenze.inserimento') }}" class="btn btn-secondary">Modifica Dati</a>
+  </div>
+</div>
+{% endblock %}

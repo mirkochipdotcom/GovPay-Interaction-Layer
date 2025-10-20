@@ -9,6 +9,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Database\EntrateRepository;
+use App\Logger;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\ClientException;
 use GovPay\Backoffice\Api\PendenzeApi as BackofficePendenzeApi;
@@ -30,6 +31,11 @@ class PendenzeController
 
     public function index(Request $request, Response $response): Response
     {
+        // Se la route riceve una POST, la trattiamo come richiesta di creazione pendenza
+        if (strtoupper((string)$request->getMethod()) === 'POST') {
+            return $this->create($request, $response);
+        }
+
         $debug = '';
         $apiClass = PendenzeApi::class;
         if (class_exists($apiClass)) {
@@ -45,7 +51,8 @@ class PendenzeController
             $debug .= "Classe API non trovata.\n";
         }
 
-        $errors = [];
+    $errors = [];
+    $warnings = [];
         $statsJson = null;
         $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
         if (class_exists(BackofficePendenzeApi::class)) {
@@ -105,6 +112,409 @@ class PendenzeController
             'stats_json' => $statsJson,
             'errors' => $errors,
         ]);
+    }
+
+    /**
+     * Gestisce la creazione di una nuova pendenza inviata dal form.
+     */
+    public function create(Request $request, Response $response): Response
+    {
+        $this->exposeCurrentUser();
+
+    $params = (array)($request->getParsedBody() ?? []);
+    $errors = [];
+    $warnings = [];
+
+        // idA2A: deve essere preso esclusivamente dalla variabile d'ambiente
+        $idA2A = getenv('ID_A2A') ?: '';
+        if ($idA2A === '') {
+            $errors[] = 'Variabile di ambiente ID_A2A non impostata';
+        }
+
+        // Campi principali
+        $idTipo = trim((string)($params['idTipoPendenza'] ?? ''));
+        $causale = trim((string)($params['causale'] ?? ''));
+        $importoRaw = $params['importo'] ?? '';
+        $anno = $params['annoRiferimento'] ?? null;
+
+        if ($idTipo === '') {
+            $errors[] = 'Tipologia pendenza obbligatoria';
+        }
+        if ($causale === '') {
+            $errors[] = 'Causale obbligatoria';
+        }
+        if ($importoRaw === '' || !is_numeric(str_replace(',', '.', (string)$importoRaw))) {
+            $errors[] = 'Importo non valido';
+        }
+        $importo = (float)str_replace(',', '.', (string)$importoRaw);
+        if ($anno === null || !is_numeric((string)$anno)) {
+            $errors[] = 'Anno di riferimento non valido';
+        } else {
+            $anno = (int)$anno;
+        }
+
+        // Soggetto
+        $sog = $params['soggettoPagatore'] ?? [];
+        if (!is_array($sog)) $sog = [];
+        $tipoSog = strtoupper((string)($sog['tipo'] ?? 'F'));
+        if (!in_array($tipoSog, ['F', 'G'], true)) {
+            $errors[] = 'Tipo soggetto non valido';
+        }
+        $identificativo = trim((string)($sog['identificativo'] ?? ''));
+        $anagrafica = trim((string)($sog['anagrafica'] ?? ''));
+        $nome = trim((string)($sog['nome'] ?? ''));
+        $email = trim((string)($sog['email'] ?? ''));
+        if ($identificativo === '') $errors[] = 'Codice fiscale / Partita IVA obbligatorio';
+        if ($anagrafica === '') $errors[] = ($tipoSog === 'F') ? 'Cognome obbligatorio' : 'Ragione sociale obbligatoria';
+
+        // Voci
+        $vociRaw = $params['voci'] ?? [];
+        $voci = [];
+        if (!is_array($vociRaw) || count($vociRaw) === 0) {
+            // Crea una voce di default
+            $voci[] = [
+                'idVocePendenza' => '1',
+                'descrizione' => $causale,
+                'importo' => $importo,
+            ];
+        } else {
+            $sum = 0.0;
+            foreach ($vociRaw as $k => $vr) {
+                $idV = trim((string)($vr['idVocePendenza'] ?? ''));
+                $desc = trim((string)($vr['descrizione'] ?? ''));
+                $impRaw = $vr['importo'] ?? '';
+                if ($idV === '') $errors[] = "ID voce mancante per voce #{$k}";
+                if ($desc === '') $errors[] = "Descrizione voce mancante per voce #{$k}";
+                if ($impRaw === '' || !is_numeric(str_replace(',', '.', (string)$impRaw))) {
+                    $errors[] = "Importo voce non valido per voce #{$k}";
+                    $imp = 0.0;
+                } else {
+                    $imp = (float)str_replace(',', '.', (string)$impRaw);
+                }
+                $sum += $imp;
+                $voci[] = ['idVocePendenza' => $idV, 'descrizione' => $desc, 'importo' => $imp];
+            }
+            // Se la somma delle voci non corrisponde all'importo principale, proviamo a riallineare la prima voce
+            if (abs($sum - $importo) > 0.001) {
+                if (count($voci) >= 1) {
+                    $other = $sum - $voci[0]['importo'];
+                    $voci[0]['importo'] = max(0.0, $importo - $other);
+                    $sum = 0.0; foreach ($voci as $vv) $sum += $vv['importo'];
+                    if (abs($sum - $importo) > 0.001) {
+                        $errors[] = 'La somma delle voci non corrisponde all\'importo totale';
+                    }
+                } else {
+                    $errors[] = 'La somma delle voci non corrisponde all\'importo totale';
+                }
+            }
+        }
+
+        // Se abbiamo errori: ricarichiamo il form con i valori precedenti
+        if ($errors) {
+            $idDominio = getenv('ID_DOMINIO') ?: '';
+            $tipologie = [];
+            if ($idDominio) {
+                try {
+                    $repo = new EntrateRepository();
+                    $tipologie = $repo->listAbilitateByDominio($idDominio);
+                } catch (\Throwable $e) {
+                    // ignore
+                }
+            }
+            return $this->twig->render($response, 'pendenze/inserimento.html.twig', [
+                'errors' => $errors,
+                'warnings' => $warnings,
+                'old' => $params,
+                'tipologie_pendenze' => $tipologie,
+                'id_dominio' => $idDominio,
+                'id_a2a' => $idA2A,
+                'default_anno' => (int)date('Y'),
+            ]);
+        }
+
+        // Costruzione payload
+        $payload = [
+            'idTipoPendenza' => $idTipo,
+            'idDominio' => $params['idDominio'] ?? (getenv('ID_DOMINIO') ?: ''),
+            'causale' => $causale,
+            'importo' => $importo,
+            'annoRiferimento' => $anno,
+            'soggettoPagatore' => [
+                'tipo' => $tipoSog,
+                'identificativo' => $identificativo,
+                'anagrafica' => $anagrafica,
+            ],
+            'voci' => $voci,
+        ];
+        // Il Backoffice si aspetta il campo 'anagrafica' come nome e cognome insieme;
+        // non inviare il campo 'nome' separato (causa UnrecognizedPropertyException).
+        if ($tipoSog === 'F') {
+            // Combina nome + cognome (se fornito) rispettando il formato 'Nome Cognome'
+            $full = trim(((string)$nome !== '' ? ((string)$nome . ' ') : '') . (string)$anagrafica);
+            $payload['soggettoPagatore']['anagrafica'] = $full !== '' ? $full : $anagrafica;
+        } else {
+            $payload['soggettoPagatore']['anagrafica'] = $anagrafica;
+        }
+        if (!empty($email)) {
+            $payload['soggettoPagatore']['email'] = $email;
+        }
+        if (!empty($params['dataValidita'])) $payload['dataValidita'] = $params['dataValidita'];
+        if (!empty($params['dataScadenza'])) $payload['dataScadenza'] = $params['dataScadenza'];
+        foreach (['direzione', 'divisione', 'cartellaPagamento'] as $f) {
+            if (!empty($params[$f])) $payload[$f] = $params[$f];
+        }
+
+        // Recupera dal DB i parametri associati alla tipologia (es. IBAN, codice contabile, tipo bollo)
+        $idDominioUsed = $payload['idDominio'] ?? '';
+        if ($idDominioUsed !== '' && $idTipo !== '') {
+            try {
+                $repo = new EntrateRepository();
+                $details = $repo->findDetails($idDominioUsed, $idTipo);
+            } catch (\Throwable $_) {
+                $details = null;
+            }
+        } else {
+            $details = null;
+        }
+
+    // Determina i valori finali dei campi di contabilita' (DB-first, poi form)
+    $finalIban = '';
+    $finalCodEntrata = '';
+    $finalTipoBollo = '';
+    $finalTipoContabilita = '';
+        if ($details) {
+            if (!empty($details['iban_accredito'])) $finalIban = $details['iban_accredito'];
+            if (!empty($details['codice_contabilita'])) $finalCodEntrata = $details['codice_contabilita'];
+            if (!empty($details['tipo_bollo'])) $finalTipoBollo = $details['tipo_bollo'];
+            if (!empty($details['tipo_contabilita'])) $finalTipoContabilita = $details['tipo_contabilita'];
+        }
+        // Se non presenti nel DB, usa l'eventuale override dal form
+        if ($finalIban === '' && !empty($params['ibanAccredito'])) $finalIban = $params['ibanAccredito'];
+    // accetta sia il nome storico 'codEntrata' che il nome API 'codiceContabilita' dal form
+    if ($finalCodEntrata === '' && (!empty($params['codiceContabilita']) || !empty($params['codEntrata']))) $finalCodEntrata = $params['codiceContabilita'] ?? $params['codEntrata'];
+
+    // Per semplicità e coerenza con il sistema, il codice di contabilita' sarà
+    // l'identificativo della tipologia scelta (idTipo). Questo sovrascrive
+    // eventuali valori dal DB o dal form.
+    if ($idTipo !== '') {
+        $finalCodEntrata = (string)$idTipo;
+    }
+    if ($finalTipoBollo === '' && !empty($params['tipoBollo'])) $finalTipoBollo = $params['tipoBollo'];
+    if ($finalTipoContabilita === '' && !empty($params['tipoContabilita'])) $finalTipoContabilita = $params['tipoContabilita'];
+
+        // Validazione / sanitizzazione del campo codEntrata per rispettare il pattern API
+        // Pattern consentito: lettere, numeri, '-', '_' e '.' fino a 35 caratteri
+        $codPattern = '/^[A-Za-z0-9\-_.]{1,35}$/';
+        if ($finalCodEntrata !== '') {
+            if (!preg_match($codPattern, $finalCodEntrata)) {
+                $orig = $finalCodEntrata;
+                $sanitized = preg_replace('/[^A-Za-z0-9\-_.]/', '', $orig);
+                $sanitized = substr($sanitized, 0, 35);
+                if ($sanitized !== '') {
+                    // Log e notifica utente (avviso)
+                    Logger::getInstance()->warning("codiceContabilita sanitizzato per invio: '{$orig}' -> '{$sanitized}'", ['idTipo' => $idTipo, 'idDominio' => $idDominioUsed]);
+                    $warnings[] = "Il valore codiceContabilita '{$orig}' non è valido per l'API e verrà inviato come '{$sanitized}' (caratteri non validi rimossi).";
+                    $finalCodEntrata = $sanitized;
+                } else {
+                    $errors[] = 'Il valore [' . $orig . '] del campo codiceContabilita non rispetta il pattern richiesto: (^[a-zA-Z0-9\\-_\\.]{1,35}$)';
+                }
+            }
+        }
+        // Se sia IBAN che codice entrata sono presenti, li inviamo entrambi come
+        // Entrata completa (l'API v2 richiede ibanAccredito + tipoContabilita + codiceContabilita).
+            // Decide quale rappresentazione inviare per le voci:
+            // - Bollo: se è valorizzato tipoBollo
+            // - Entrata (completa): se sono presenti IBAN, tipoContabilita e codiceContabilita
+            // - RiferimentoEntrata (fallback): se manca la Entrata completa ma è presente il codice entrata
+            // Altrimenti generiamo un errore.
+            $voiceMode = null; // 'bollo'|'entrata'|'riferimento'
+            if ($finalTipoBollo !== '') {
+                $voiceMode = 'bollo';
+            } else {
+                $hasEntrata = ($finalIban !== '' && $finalTipoContabilita !== '' && $finalCodEntrata !== '');
+                if ($hasEntrata) {
+                    $voiceMode = 'entrata';
+                    Logger::getInstance()->info('Entrata completa trovata: invio Entrata', ['idTipo' => $idTipo, 'idDominio' => $idDominioUsed, 'iban' => $finalIban, 'tipoContabilita' => $finalTipoContabilita, 'codiceContabilita' => $finalCodEntrata]);
+                    $warnings[] = 'La tipologia contiene dati completi di contabilita: verrà inviata una Entrata completa.';
+                } elseif ($finalCodEntrata !== '') {
+                    $voiceMode = 'riferimento';
+                    Logger::getInstance()->info('Fallback a RiferimentoEntrata: invio codEntrata', ['idTipo' => $idTipo, 'idDominio' => $idDominioUsed, 'codEntrata' => $finalCodEntrata]);
+                    $warnings[] = 'La tipologia non contiene dati completi di Entrata: verrà inviato un riferimento alla entrata (RiferimentoEntrata).';
+                } else {
+                    $voiceMode = null;
+                }
+            }
+
+            // Costruisce le voci secondo la rappresentazione scelta
+            $builtVoci = [];
+            foreach ($voci as $vv) {
+                $nv = $vv; // base
+                // rimuoviamo eventuali chiavi residue
+                unset($nv['codiceContabilita'], $nv['codEntrata'], $nv['ibanAccredito'], $nv['tipoContabilita'], $nv['tipoBollo'], $nv['contabilita']);
+                if ($voiceMode === 'bollo') {
+                    if ($finalTipoBollo !== '') $nv['tipoBollo'] = $finalTipoBollo;
+                } elseif ($voiceMode === 'entrata') {
+                    $nv['ibanAccredito'] = $finalIban;
+                    $nv['tipoContabilita'] = $finalTipoContabilita;
+                    $nv['codiceContabilita'] = $finalCodEntrata;
+                } elseif ($voiceMode === 'riferimento') {
+                    $nv['codEntrata'] = $finalCodEntrata;
+                }
+                $builtVoci[] = $nv;
+            }
+            $payload['voci'] = $builtVoci;
+
+            // Se non abbiamo determinato alcuna rappresentazione valida -> errore
+            if ($voiceMode === null) {
+                $errors[] = 'Per la voce è necessario inviare o i dati completi di Entrata (IBAN, tipoContabilita, codiceContabilita), o il riferimento alla entrata (codEntrata), o i dati di Bollo. Configura la tipologia o inserisci i valori nei campi avanzati.';
+            }
+
+        // (La costruzione delle voci è stata gestita sopra in base a $voiceMode)
+
+        // Invio al Backoffice
+        $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
+        if (empty($backofficeUrl)) {
+            $errors[] = 'Variabile GOVPAY_BACKOFFICE_URL non impostata';
+            $idDominio = getenv('ID_DOMINIO') ?: '';
+            $tipologie = [];
+            if ($idDominio) {
+                try {
+                    $repo = new EntrateRepository();
+                    $tipologie = $repo->listAbilitateByDominio($idDominio);
+                } catch (\Throwable $e) {}
+            }
+                return $this->twig->render($response, 'pendenze/inserimento.html.twig', [
+                    'errors' => $errors,
+                    'warnings' => $warnings,
+                    'old' => $params,
+                    'tipologie_pendenze' => $tipologie,
+                    'id_dominio' => $idDominio,
+                    'default_anno' => (int)date('Y'),
+                ]);
+        }
+
+        $guzzleOptions = [];
+        $authMethod = getenv('AUTHENTICATION_GOVPAY');
+        if ($authMethod !== false && strtolower((string)$authMethod) === 'sslheader') {
+            $cert = getenv('GOVPAY_TLS_CERT');
+            $key = getenv('GOVPAY_TLS_KEY');
+            $keyPass = getenv('GOVPAY_TLS_KEY_PASSWORD') ?: null;
+            if (!empty($cert) && !empty($key)) {
+                $guzzleOptions['cert'] = $cert;
+                $guzzleOptions['ssl_key'] = $keyPass ? [$key, $keyPass] : $key;
+            } else {
+                $errors[] = 'mTLS abilitato ma GOVPAY_TLS_CERT/GOVPAY_TLS_KEY non impostati';
+                $idDominio = getenv('ID_DOMINIO') ?: '';
+                $tipologie = [];
+                if ($idDominio) {
+                    try {
+                        $repo = new EntrateRepository();
+                        $tipologie = $repo->listAbilitateByDominio($idDominio);
+                    } catch (\Throwable $e) {}
+                }
+                return $this->twig->render($response, 'pendenze/inserimento.html.twig', [
+                    'errors' => $errors,
+                    'warnings' => $warnings,
+                    'old' => $params,
+                    'tipologie_pendenze' => $tipologie,
+                    'id_dominio' => $idDominio,
+                    'id_a2a' => $idA2A,
+                    'default_anno' => (int)date('Y'),
+                ]);
+            }
+        }
+
+        try {
+            $httpClient = new Client($guzzleOptions);
+
+            // idPendenza: se fornito usalo, altrimenti genera uno identificativo client-side
+            $idPendenzaRaw = trim((string)($params['idPendenza'] ?? ''));
+            if ($idPendenzaRaw === '') {
+                try {
+                    $rand = bin2hex(random_bytes(8));
+                } catch (\Throwable $_) {
+                    $rand = preg_replace('/[^A-Za-z0-9]/', '', uniqid());
+                }
+                $idPendenzaCand = 'GIL-' . substr($rand, 0, 16);
+            } else {
+                $idPendenzaCand = $idPendenzaRaw;
+            }
+            // Sanitizza l'id per rispettare il pattern (solo lettere, numeri, - e _)
+            $idPendenzaSanitized = preg_replace('/[^A-Za-z0-9\-_]/', '-', $idPendenzaCand);
+            $idPendenzaSanitized = substr($idPendenzaSanitized, 0, 35);
+
+            $url = rtrim($backofficeUrl, '/') . '/pendenze/' . rawurlencode((string)$idA2A) . '/' . rawurlencode($idPendenzaSanitized);
+            $username = getenv('GOVPAY_USER');
+            $password = getenv('GOVPAY_PASSWORD');
+            $requestOptions = [
+                'headers' => ['Accept' => 'application/json'],
+                'json' => $payload,
+            ];
+            if ($username !== false && $password !== false && $username !== '' && $password !== '') {
+                $requestOptions['auth'] = [$username, $password];
+            }
+
+            // Log payload per debug
+            if ((getenv('APP_DEBUG') !== false) && getenv('APP_DEBUG')) {
+                Logger::getInstance()->debug('Pendenze PUT ' . $url, ['payload' => $payload]);
+            }
+            $resp = $httpClient->request('PUT', $url, $requestOptions);
+            $code = $resp->getStatusCode();
+            $body = (string)$resp->getBody();
+            $data = json_decode($body, true);
+
+            // Mostra eventuali avvisi di sanitizzazione prima del messaggio di successo
+            if (!empty($warnings)) {
+                foreach ($warnings as $w) {
+                    $_SESSION['flash'][] = ['type' => 'warning', 'text' => $w];
+                }
+            }
+            $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Pendenza creata con successo'];
+            // Preferiamo usare l'idPendenza che abbiamo generato o fornito, altrimenti cerchiamo quello restituito
+            $newId = $idPendenzaSanitized;
+            if (empty($newId)) {
+                $newId = $data['idPendenza'] ?? $data['id_pendenza'] ?? $data['id'] ?? null;
+            }
+            if ($newId) {
+                // Redirect to dettaglio e segnala che proveniamo da un inserimento
+                $base = '/pendenze/dettaglio/' . rawurlencode((string)$newId);
+                $query = ['from' => 'insert'];
+                if (!empty($params['return'])) {
+                    $query['return'] = $params['return'];
+                }
+                $location = $base . '?' . http_build_query($query, '', '&', PHP_QUERY_RFC3986);
+                return $response->withHeader('Location', $location)->withStatus(302);
+            }
+            return $response->withHeader('Location', '/pendenze/ricerca')->withStatus(302);
+        } catch (ClientException $ce) {
+            $detail = $ce->getResponse() ? (string)$ce->getResponse()->getBody() : '';
+            if ($detail !== '') {
+                $errors[] = 'Errore API: ' . $detail;
+            } else {
+                $errors[] = 'Errore API: ' . $ce->getMessage();
+            }
+        } catch (\Throwable $e) {
+            $errors[] = 'Errore durante l\'invio: ' . $e->getMessage();
+        }
+
+        // In caso di errore durante l'invio, ricarichiamo il form con gli errori
+        $idDominio = getenv('ID_DOMINIO') ?: '';
+        $tipologie = [];
+        if ($idDominio) {
+            try {
+                $repo = new EntrateRepository();
+                $tipologie = $repo->listAbilitateByDominio($idDominio);
+            } catch (\Throwable $e) {}
+        }
+            return $this->twig->render($response, 'pendenze/inserimento.html.twig', [
+                'errors' => $errors,
+                'warnings' => $warnings,
+                'old' => $params,
+                'tipologie_pendenze' => $tipologie,
+                'id_dominio' => $idDominio,
+                'id_a2a' => $idA2A,
+                'default_anno' => (int)date('Y'),
+            ]);
     }
 
     public function search(Request $request, Response $response): Response
@@ -410,7 +820,8 @@ class PendenzeController
 
         $highlightId = $params['highlight'] ?? null;
         $qsCurrent = $request->getUri()->getQuery();
-        $returnUrl = '/pendenze/ricerca' . ($qsCurrent ? ('?' . $qsCurrent) : '');
+    $returnUrl = '/pendenze/ricerca' . ($qsCurrent ? ('?' . $qsCurrent) : '');
+    $cameFromInsert = isset($q['from']) && $q['from'] === 'insert';
 
         $this->exposeCurrentUser();
 
@@ -433,7 +844,26 @@ class PendenzeController
     public function showInsert(Request $request, Response $response): Response
     {
         $this->exposeCurrentUser();
-        return $this->twig->render($response, 'pendenze/inserimento.html.twig');
+
+        // Recupera tipologie abilitata per il dominio (se configurato)
+        $idDominio = getenv('ID_DOMINIO') ?: '';
+        $tipologie = [];
+        if ($idDominio) {
+            try {
+                $repo = new EntrateRepository();
+                $tipologie = $repo->listAbilitateByDominio($idDominio);
+            } catch (\Throwable $e) {
+                // Non blocchiamo la pagina: se il repository fallisce mostriamo comunque il form vuoto
+                $tipologie = [];
+            }
+        }
+
+        return $this->twig->render($response, 'pendenze/inserimento.html.twig', [
+            'tipologie_pendenze' => $tipologie,
+            'id_dominio' => $idDominio,
+            'id_a2a' => getenv('ID_A2A') ?: '',
+            'default_anno' => (int)date('Y'),
+        ]);
     }
 
     public function showBulkInsert(Request $request, Response $response): Response
@@ -447,8 +877,9 @@ class PendenzeController
         $this->exposeCurrentUser();
 
         $idPendenza = $args['idPendenza'] ?? '';
-        $q = $request->getQueryParams();
-        $ret = $q['return'] ?? '/pendenze/ricerca';
+    $q = $request->getQueryParams();
+    $ret = $q['return'] ?? '/pendenze/ricerca';
+    $cameFromInsert = isset($q['from']) && $q['from'] === 'insert';
         if (strpos((string)$ret, '/pendenze/ricerca') !== 0) {
             $ret = '/pendenze/ricerca';
         }
@@ -512,6 +943,7 @@ class PendenzeController
             'pendenza' => $pendenza,
             'error' => $error,
             'id_dominio' => $pendenza['idDominio'] ?? (getenv('ID_DOMINIO') ?: ''),
+            'came_from_insert' => $cameFromInsert,
         ]);
     }
 

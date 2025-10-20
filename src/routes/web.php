@@ -45,7 +45,17 @@ return function (App $app, Twig $twig): void {
     $app->get('/pendenze/inserimento', function(Request $request, Response $response) use ($twig): Response {
         $controller = new PendenzeController($twig);
         return $controller->showInsert($request, $response);
-    });
+    })->setName('pendenze.inserimento');
+
+    $app->post('/pendenze/conferma', function(Request $request, Response $response) use ($twig): Response {
+        $controller = new PendenzeController($twig);
+        return $controller->conferma($request, $response);
+    })->setName('pendenze.conferma');
+
+    $app->post('/pendenze/inserisci', function(Request $request, Response $response) use ($twig): Response {
+        $controller = new PendenzeController($twig);
+        return $controller->inserisci($request, $response);
+    })->setName('pendenze.inserisci');
 
     $app->get('/pendenze/inserimento-massivo', function(Request $request, Response $response) use ($twig): Response {
         $controller = new PendenzeController($twig);
