@@ -1,0 +1,122 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Rateizzazione pendenza{% endblock %}
+
+{% block content %}
+  <h1 class="it-title">Rateizzazione</h1>
+
+  <form method="post" action="/pendenze/create-rateizzazione">
+    <input type="hidden" name="original_params" value="{{ params|json_encode|e }}">
+    {# Reincludi i principali campi originali come hidden per sicurezza (soggettoPagatore, idTipoPendenza, ecc.) #}
+    {% for k,v in params %}
+      {% if k == 'voci' %}
+        {# skip voci: verranno ricostruite dalle parts #}
+      {% elseif v is iterable %}
+        {% for sk, sv in v %}
+          {% if sv is iterable %}
+            <input type="hidden" name="{{ k|e }}[{{ sk|e }}]" value="{{ sv|json_encode|e }}">
+          {% else %}
+            <input type="hidden" name="{{ k|e }}[{{ sk|e }}]" value="{{ sv|e }}">
+          {% endif %}
+        {% endfor %}
+      {% else %}
+        <input type="hidden" name="{{ k|e }}" value="{{ v|e }}">
+      {% endif %}
+    {% endfor %}
+    {% if errors is defined and errors %}
+    <div class="alert alert-danger">
+      <ul class="mb-0">
+        {% for e in errors %}
+          <li>{{ e }}</li>
+        {% endfor %}
+      </ul>
+      {# Show only sanitized errors in UI. For full HTTP exchange, enable APP_DEBUG and check logs. #}
+    </div>
+  {% endif %}
+    <div class="card mb-3">
+      <div class="card-body">
+        <table class="table table-sm align-middle">
+          <thead>
+            <tr><th>#</th><th class="w-50">Importo</th><th>Validità</th><th>Scadenza</th></tr>
+          </thead>
+          <tbody id="rateRows">
+            {% for p in parts %}
+              <tr>
+                <td>{{ p.indice }}</td>
+                <td><input type="number" step="0.01" name="parts[{{ loop.index0 }}][importo]" value="{{ p.importo }}" class="form-control"></td>
+                <td><input type="date" name="parts[{{ loop.index0 }}][dataValidita]" value="{{ p.dataValidita }}" class="form-control"></td>
+                <td><input type="date" name="parts[{{ loop.index0 }}][dataScadenza]" value="{{ p.dataScadenza }}" class="form-control"></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="d-flex gap-2">
+      <div class="me-auto d-flex gap-2 align-items-center">
+        <label for="rateCount" class="mb-0 small text-muted">Numero rate</label>
+        <input id="rateCount" name="rate" type="number" min="1" value="{{ parts|length }}" class="form-control form-control-sm" style="width:80px"> 
+        <button id="recalcBtn" type="button" class="btn btn-sm btn-outline-secondary">Ricalcola</button>
+      </div>
+  <button type="submit" class="btn btn-primary">Crea rate</button>
+      <a href="/pendenze/inserimento" class="btn btn-outline-secondary">Annulla</a>
+    </div>
+  </form>
+
+  <script>
+  (function(){
+    function splitAmount(total, n) {
+      if (n <= 1) return [Math.round(total*100)/100];
+      const base = Math.floor((total / n) * 100) / 100.0;
+      const parts = [Math.round((total - base*(n-1))*100)/100];
+      for (let i=1;i<n;i++) parts.push(base);
+      return parts;
+    }
+    function buildPartsWithDates(total, n) {
+      const parts = splitAmount(total,n);
+      const rows = [];
+      const today = new Date();
+      for (let i=0;i<parts.length;i++){
+        const d = new Date(today.getFullYear(), today.getMonth() + i + 1, today.getDate());
+        const y = d.getFullYear();
+        const m = String(d.getMonth()+1).padStart(2,'0');
+        const day = String(d.getDate()).padStart(2,'0');
+        rows.push({indice:i+1, importo: parts[i].toFixed(2), dataValidita: y + '-' + m + '-' + day, dataScadenza: y + '-' + m + '-' + day});
+      }
+      return rows;
+    }
+    // Controllo che la somma delle rate sia uguale all'importo totale prima dell'invio
+    const form = document.querySelector('form');
+    form.addEventListener('submit', function(e){
+      const total = {{ importo }};
+      let sum = 0;
+      document.querySelectorAll('#rateRows input[name$="[importo]"]').forEach(function(inp){
+        const v = parseFloat(inp.value) || 0;
+        sum += v;
+      });
+      sum = Math.round(sum * 100)/100;
+      if (Math.abs(sum - total) > 0.01) {
+        e.preventDefault();
+        alert('La somma delle rate (' + sum.toFixed(2) + ') non corrisponde all\'importo totale (' + total.toFixed(2) + ').');
+      }
+    });
+
+    document.getElementById('recalcBtn').addEventListener('click', function(){
+      const count = Math.max(1, parseInt(document.getElementById('rateCount').value || '3', 10));
+      const total = {{ importo }};
+      const rows = buildPartsWithDates(total, count);
+      const tbody = document.getElementById('rateRows');
+      tbody.innerHTML = '';
+      rows.forEach(function(r, idx){
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${r.indice}</td>
+          <td><input type="number" step="0.01" name="parts[${idx}][importo]" value="${r.importo}" class="form-control"></td>
+          <td><input type="date" name="parts[${idx}][dataValidita]" value="${r.dataValidita}" class="form-control"></td>
+          <td><input type="date" name="parts[${idx}][dataScadenza]" value="${r.dataScadenza}" class="form-control"></td>`;
+        tbody.appendChild(tr);
+      });
+    });
+  })();
+  </script>
+{% endblock %}

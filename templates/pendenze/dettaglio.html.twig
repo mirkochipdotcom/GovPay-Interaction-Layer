@@ -157,7 +157,288 @@
       </div>
     </div>
 
-    {# Voci di pendenza: elenco dettagliato delle singole voci (posizionato prima dei tentativi RPP) #}
+      {# Raccogli il piano di rateizzazione e normalizza a lista 'rate_info' #}
+      {# Normalizziamo la sorgente dei dati delle rate: preferiamo documento.rata, altrimenti proprieta.rate #}
+      {% set possible = (r.documento is defined and r.documento.rata is defined) ? r.documento.rata : ((r.proprieta is defined and r.proprieta.rate is defined) ? r.proprieta.rate : []) %}
+      {% if possible is iterable %}
+        {% set rate_info = possible %}
+      {% elseif possible is defined and possible|length > 0 %}
+        {% set rate_info = [possible] %}
+      {% else %}
+        {% set rate_info = [] %}
+      {% endif %}
+
+    {# Mostra la sezione Rateizzazione: se abbiamo il piano lo includiamo qui.
+      L'evidenziazione è deterministica: usiamo prima la variabile controller-provided
+      `current_rate` se presente, altrimenti solo il valore scalare `documento.rata`.
+      Non applichiamo inferenze o fallback automatici lato template. #}
+      {% if rate_info|length > 0 or (related_pendenze is defined and related_pendenze|length > 0) %}
+        {# Costruisci la lista visibile delle rate aggregando piano + pendenze correlate #}
+        {% set selected_rate = (current_rate is defined and current_rate) ? current_rate : null %}
+        {% if selected_rate is null %}
+          {% if r.documento is defined and r.documento.rata is defined and not (r.documento.rata is iterable) %}
+            {% set selected_rate = r.documento.rata %}
+          {% endif %}
+        {% endif %}
+
+        {% set displayed_rates = [] %}
+        {# Aggiungi il piano esplicito (se presente) normalizzando l'indice #}
+        {% for rt in rate_info %}
+          {% set idx = (rt.indice is defined) ? rt.indice : loop.index %}
+          {% if rt is iterable %}
+            {% set normalized = rt|merge({'indice': idx}) %}
+          {% else %}
+            {% set normalized = {'indice': idx} %}
+          {% endif %}
+          {# Riempiamo campi mancanti con valori della pendenza principale quando sensato #}
+          {% if (normalized.importo is not defined or not normalized.importo) and r.importo is defined %}
+            {% set normalized = normalized|merge({'importo': r.importo}) %}
+          {% endif %}
+          {% if (normalized.dataValidita is not defined or not normalized.dataValidita) and r.dataValidita is defined %}
+            {% set normalized = normalized|merge({'dataValidita': r.dataValidita}) %}
+          {% endif %}
+          {% if (normalized.dataScadenza is not defined or not normalized.dataScadenza) and r.dataScadenza is defined %}
+            {% set normalized = normalized|merge({'dataScadenza': r.dataScadenza}) %}
+          {% endif %}
+          {% if (normalized.stato is not defined or not normalized.stato) and r.stato is defined %}
+            {% set normalized = normalized|merge({'stato': r.stato}) %}
+          {% endif %}
+          {% if (normalized.numeroAvviso is not defined or not normalized.numeroAvviso) and r.numeroAvviso is defined %}
+            {% set normalized = normalized|merge({'numeroAvviso': r.numeroAvviso}) %}
+          {% endif %}
+          {% if (normalized.iuv is not defined or not normalized.iuv) and (r.identificativoUnivocoVersamento is defined or r.iuv is defined) %}
+            {% set iuvFallback = r.identificativoUnivocoVersamento is defined ? r.identificativoUnivocoVersamento : (r.iuv|default('')) %}
+            {% if iuvFallback %}{% set normalized = normalized|merge({'iuv': iuvFallback}) %}{% endif %}
+          {% endif %}
+          {% if (normalized.ccp is not defined or not normalized.ccp) and (r.codiceContestoPagamento is defined or r.ccp is defined) %}
+            {% set ccpFallback = r.codiceContestoPagamento is defined ? r.codiceContestoPagamento : (r.ccp|default('')) %}
+            {% if ccpFallback %}{% set normalized = normalized|merge({'ccp': ccpFallback}) %}{% endif %}
+          {% endif %}
+          {% set displayed_rates = displayed_rates|merge([normalized]) %}
+        {% endfor %}
+
+        {# Integra rate estratte dalle pendenze correlate (se disponibili) #}
+        {% if related_pendenze is defined and related_pendenze|length > 0 %}
+          {% for rp in related_pendenze %}
+            {% set rp_idx = null %}
+            {# Considera la pendenza correlata parte del piano solo se ha valore 'rata' esplicito (non vuoto) #}
+            {% if rp.documento is defined and rp.documento.rata is defined %}
+              {% if rp.documento.rata is iterable %}
+                {% if rp.documento.rata|length > 0 and rp.documento.rata[0] is defined and rp.documento.rata[0].indice is defined %}
+                  {% set rp_idx = rp.documento.rata[0].indice %}
+                {% endif %}
+              {% else %}
+                {% if rp.documento.rata is not null and rp.documento.rata != '' %}
+                  {% set rp_idx = rp.documento.rata %}
+                {% endif %}
+              {% endif %}
+            {% endif %}
+            {% if rp_idx is null and rp.proprieta is defined and rp.proprieta.rate is defined %}
+              {% if rp.proprieta.rate is iterable and rp.proprieta.rate|length > 0 and rp.proprieta.rate[0] is defined and rp.proprieta.rate[0].indice is defined %}
+                {% set rp_idx = rp.proprieta.rate[0].indice %}
+              {% elseif rp.proprieta.rate.indice is defined and rp.proprieta.rate is not null and rp.proprieta.rate != '' %}
+                {% set rp_idx = rp.proprieta.rate.indice %}
+              {% endif %}
+            {% endif %}
+            {% if rp_idx is not null %}
+              {% set found = false %}
+              {% for dr in displayed_rates %}
+                {% if not found and dr.indice is defined and (dr.indice|default(0) + 0) == (rp_idx|default(0) + 0) %}
+                  {% set found = true %}
+                {% endif %}
+              {% endfor %}
+              {% if not found %}
+                {% set entry = {'indice': rp_idx} %}
+                {% if rp.importo is defined %} {% set entry = entry|merge({'importo': rp.importo}) %} {% endif %}
+                {% if rp.dataValidita is defined %} {% set entry = entry|merge({'dataValidita': rp.dataValidita}) %} {% endif %}
+                {% if rp.dataScadenza is defined %} {% set entry = entry|merge({'dataScadenza': rp.dataScadenza}) %} {% endif %}
+                {% if rp.stato is defined %} {% set entry = entry|merge({'stato': rp.stato}) %} {% endif %}
+                {% if rp.numeroAvviso is defined %} {% set entry = entry|merge({'numeroAvviso': rp.numeroAvviso}) %} {% endif %}
+                {% if rp.identificativoUnivocoVersamento is defined %} {% set entry = entry|merge({'iuv': rp.identificativoUnivocoVersamento}) %} {% endif %}
+                {% if rp.codiceContestoPagamento is defined %} {% set entry = entry|merge({'ccp': rp.codiceContestoPagamento}) %} {% endif %}
+                {% set displayed_rates = displayed_rates|merge([entry]) %}
+              {% endif %}
+            {% endif %}
+          {% endfor %}
+        {% endif %}
+
+        {# Determina l'indice massimo per ordinare la stampa (fallback: lunghezza lista) #}
+        {% set maxIndex = 0 %}
+        {% for dr in displayed_rates %}
+          {% set cand = (dr.indice|default(0) + 0) %}
+          {% if cand > maxIndex %}{% set maxIndex = cand %}{% endif %}
+        {% endfor %}
+        {% if maxIndex == 0 %}{% set maxIndex = displayed_rates|length %}{% endif %}
+
+        <div class="card mt-3">
+          <div class="card-header d-flex align-items-center justify-content-between">
+            <h3 class="h6 mb-0">Rateizzazione <span class="badge bg-secondary ms-2">{{ displayed_rates|length }} rate</span></h3>
+          </div>
+          <div class="card-body">
+            <div class="row g-2 align-items-center mb-3">
+              <div class="col-auto">
+                <div class="text-muted small">Documento</div>
+                <div class="mb-0">{{ r.documento.identificativo|default('—') }}</div>
+              </div>
+              <div class="col">
+                {% if r.documento.descrizione %}<div><span class="text-muted">Descrizione:</span> {{ r.documento.descrizione }}</div>{% endif %}
+              </div>
+              <div class="col-auto text-end">
+                {# Mostra la rata selezionata (calcolata sopra dal controller o dal template) #}
+                {% if selected_rate is defined and selected_rate is not null %}
+                  <div class="text-muted small">Rata selezionata</div>
+                  <div class="h5 mb-0">#{{ selected_rate }}</div>
+                {% endif %}
+              </div>
+            </div>
+
+            {# Piccola diagnostica visibile sempre per verificare la normalizzazione dei dati #}
+            <div class="mb-2 small text-muted">
+              <span>Rate rilevate: <strong>{{ displayed_rates|length }}</strong></span>
+              <span class="ms-3">Selezionata (view): <strong>{{ selected_rate is defined and selected_rate ? selected_rate : '—' }}</strong></span>
+              <span class="ms-3">Fonte (controller): <strong>{{ rate_info_source|default('nessuna') }}</strong></span>
+              <span class="ms-3">Indici: <strong>{% for dr in displayed_rates %}{{ dr.indice|default('?') }}{% if not loop.last %}, {% endif %}{% endfor %}</strong></span>
+            </div>
+
+            {# Blocco stampa multirata: raccoglie numeriAvviso dalle rate e invia POST per ottenere PDF #}
+            {% set numeri = [] %}
+            {% for dr in displayed_rates %}
+              {% if dr.numeroAvviso is defined and dr.numeroAvviso %}
+                {% set numeri = numeri|merge([dr.numeroAvviso]) %}
+              {% endif %}
+            {% endfor %}
+            <div class="mb-3">
+              {% if numeri|length > 0 %}
+                <button id="stampa-doc-btn" class="btn btn-primary">Stampa documento</button>
+                <script>
+                  (function(){
+                    const btn = document.getElementById('stampa-doc-btn');
+                    const numeri = {{ numeri|json_encode|raw }};
+                    const idDom = '{{ idDom|e('js') }}';
+                    const docId = '{{ r.documento.identificativo|e('js') }}';
+                    btn.addEventListener('click', async function(e){
+                      e.preventDefault();
+                      if (!numeri || numeri.length === 0) {
+                        alert('Nessun avviso disponibile per il download');
+                        return;
+                      }
+                      // Verifica che idDom e docId siano valorizzati per evitare 404
+                      if (!idDom || idDom === '') {
+                        alert('ID dominio documento mancante; impossibile procedere con la stampa.');
+                        console.error('stampa: idDom mancante', { idDom, docId, numeri });
+                        return;
+                      }
+                      if (!docId || docId === '') {
+                        alert('Identificativo documento mancante; impossibile procedere con la stampa.');
+                        console.error('stampa: docId mancante', { idDom, docId, numeri });
+                        return;
+                      }
+                      // Log per capire eventuali 404
+                      console.debug('Chiamata stampa avvisi', { url: '/documenti/' + idDom + '/' + docId + '/avvisi', numeri });
+                      btn.disabled = true;
+                      const orig = btn.textContent;
+                      btn.textContent = 'Preparazione...';
+                      try {
+                        const resp = await fetch('/documenti/' + encodeURIComponent(idDom) + '/' + encodeURIComponent(docId) + '/avvisi', {
+                          method: 'POST',
+                          headers: {'Accept':'application/pdf','Content-Type':'application/json'},
+                          body: JSON.stringify({ numeriAvviso: numeri })
+                        });
+                        if (!resp.ok) throw new Error('Errore server: ' + resp.status);
+                        const blob = await resp.blob();
+                        const url = URL.createObjectURL(blob);
+                        window.open(url, '_blank');
+                      } catch (err) {
+                        alert('Errore durante la chiamata API: ' + err.message);
+                        console.error(err);
+                      } finally {
+                        btn.disabled = false;
+                        btn.textContent = orig;
+                      }
+                    });
+                  })();
+                </script>
+              {% else %}
+                <button class="btn btn-primary" disabled>Stampa documento</button>
+              {% endif %}
+              <a class="btn btn-outline-secondary ms-2" href="/pendenze/ricerca">Torna alla ricerca</a>
+            </div>
+
+            <div class="table-responsive">
+              <table class="table table-sm align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th>#</th>
+                    <th>Importo</th>
+                    <th>Validità</th>
+                    <th>Scadenza</th>
+                    <th>Stato</th>
+                    <th>ID pendenza</th>
+                    <th>Azioni</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for i in 1..maxIndex %}
+                    {# Cerca un'eventuale voce normalizzata per questo indice #}
+                    {% set rt = null %}
+                    {% for dr in displayed_rates %}
+                      {% if rt is null and (dr.indice|default(0) + 0) == i %}
+                        {% set rt = dr %}
+                      {% endif %}
+                    {% endfor %}
+                    <tr class="{{ (selected_rate is defined and selected_rate is not null and (i == (selected_rate|default(0) + 0))) ? 'table-info' : '' }}">
+                      <td>{{ i }}</td>
+                      <td class="text-end">{% if rt is not null and rt.importo is defined %}{{ rt.importo|number_format(2, ',', '.') }} €{% else %}—{% endif %}</td>
+                      <td>{% if rt is not null and rt.dataValidita is defined and rt.dataValidita %}{{ rt.dataValidita|date('d/m/Y') }}{% else %}—{% endif %}</td>
+                      <td>{% if rt is not null and rt.dataScadenza is defined and rt.dataScadenza %}{{ rt.dataScadenza|date('d/m/Y') }}{% else %}—{% endif %}</td>
+                      {# Stato: mostra badge colorato usando pendenza_states quando possibile #}
+                      {% set st_rt = (rt is not null and rt.stato is defined) ? rt.stato : '' %}
+                      {% set conf_rt = (st_rt and pendenza_states is defined) ? (pendenza_states[st_rt]|default(null)) : null %}
+                      {% if conf_rt %}
+                        <td><span class="badge bg-{{ conf_rt.color }}">{{ conf_rt.label }}</span></td>
+                      {% elseif st_rt %}
+                        <td><span class="badge bg-secondary">{{ st_rt }}</span></td>
+                      {% else %}
+                        <td>—</td>
+                      {% endif %}
+                      <td>{{ rt is not null and rt.idPendenza is defined ? rt.idPendenza : (rt is not null and rt.id_pendenza is defined ? rt.id_pendenza : '—') }}</td>
+                      <td class="text-nowrap">
+                        {# Bottone stampa: endpoint ipotetico che stampa il documento per tutta la rateizzazione #}
+                        {% set parentId = idPendenza|default(r.idPendenza|default('')) %}
+                        {% set printUrl = '/pendenze/stampa-rateizzazione?parentId=' ~ (parentId|url_encode) ~ '&indice=' ~ (i) %}
+                        <a class="btn btn-outline-primary btn-sm px-2 py-0" href="{{ printUrl }}" target="_blank" rel="noopener" title="Stampa documento rateizzazione" aria-label="Stampa documento rateizzazione">Stampa</a>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      {% elseif r.proprieta is defined and r.proprieta.numeroRate is defined %}
+        <div class="card mt-3">
+          <div class="card-header">
+            <h3 class="h6 mb-0">Rateizzazione</h3>
+          </div>
+          <div class="card-body">
+            <div class="text-muted small">Numero di rate</div>
+            <div class="h5 mb-0">{{ r.proprieta.numeroRate }}</div>
+          </div>
+        </div>
+      {% elseif r.documento is defined and r.documento.rata is defined and not (r.documento.rata is iterable) %}
+        <div class="card mt-3">
+          <div class="card-header">
+            <h3 class="h6 mb-0">Rateizzazione</h3>
+          </div>
+          <div class="card-body">
+            <div class="text-muted small">Rata</div>
+            <div class="h5 mb-0">#{{ r.documento.rata }}</div>
+            <div class="text-muted">Documento: {{ r.documento.identificativo|default('—') }}</div>
+          </div>
+        </div>
+      {% endif %}
+
+      {# Voci di pendenza: elenco dettagliato delle singole voci (posizionato prima dei tentativi RPP) #}
     {% set voci_list = (r.voci is iterable) ? r.voci : (r.voci is defined and r.voci ? [r.voci] : []) %}
     <div class="card mt-3">
       <div class="card-header d-flex align-items-center justify-content-between">
@@ -340,6 +621,8 @@
       {% endif %}
     </div>
 
+          {# Rate plan is displayed inside the 'Rateizzazione' card above. #}
+
     {% if app_debug %}
       <div class="card mt-3">
         <div class="card-header d-flex justify-content-between align-items-center">
@@ -348,10 +631,16 @@
         </div>
         <div class="collapse" id="rawCollapse">
           <div class="card-body">
+            <div class="mb-3 small text-muted">
+              <div><strong>Fonte informazioni rate (controller):</strong> {{ rate_info_source|default('nessuna') }}</div>
+              <div><strong>Rata corrente (controller):</strong> {{ current_rate is defined and current_rate ? current_rate : '—' }}</div>
+              <div><strong>Rata selezionata (visual):</strong> {{ selected_rate is defined and selected_rate ? selected_rate : '—' }}</div>
+            </div>
             <pre class="mb-0">{{ pendenza|json_encode(constant('JSON_PRETTY_PRINT') b-or constant('JSON_UNESCAPED_SLASHES')) }}</pre>
           </div>
         </div>
       </div>
+      {# Removed related_pendenze view: all rates are shown in the Rateizzazione section above. #}
     {% endif %}
   {% else %}
     {% if not error %}

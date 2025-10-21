@@ -22,10 +22,11 @@ use GovPay\Pendenze\Configuration as PendenzeConfiguration;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
+use App\Services\TracciatoService;
 
 class PendenzeController
 {
-    public function __construct(private readonly Twig $twig)
+    public function __construct(private readonly Twig $twig, private ?TracciatoService $tracciatoService = null)
     {
     }
 
@@ -264,6 +265,18 @@ class PendenzeController
             if (!empty($params[$f])) $payload[$f] = $params[$f];
         }
 
+        // Se il client ha fornito un 'documento' (es. per rateizzazione) lo includiamo
+        if (!empty($params['documento']) && is_array($params['documento'])) {
+            $payload['documento'] = $params['documento'];
+        }
+        // Includiamo anche eventuali proprieta' o allegati se forniti
+        if (!empty($params['proprieta']) && is_array($params['proprieta'])) {
+            $payload['proprieta'] = $params['proprieta'];
+        }
+        if (!empty($params['allegati']) && is_array($params['allegati'])) {
+            $payload['allegati'] = $params['allegati'];
+        }
+
         // Recupera dal DB i parametri associati alla tipologia (es. IBAN, codice contabile, tipo bollo)
         $idDominioUsed = $payload['idDominio'] ?? '';
         if ($idDominioUsed !== '' && $idTipo !== '') {
@@ -424,45 +437,10 @@ class PendenzeController
             }
         }
 
-        try {
-            $httpClient = new Client($guzzleOptions);
-
-            // idPendenza: se fornito usalo, altrimenti genera uno identificativo client-side
-            $idPendenzaRaw = trim((string)($params['idPendenza'] ?? ''));
-            if ($idPendenzaRaw === '') {
-                try {
-                    $rand = bin2hex(random_bytes(8));
-                } catch (\Throwable $_) {
-                    $rand = preg_replace('/[^A-Za-z0-9]/', '', uniqid());
-                }
-                $idPendenzaCand = 'GIL-' . substr($rand, 0, 16);
-            } else {
-                $idPendenzaCand = $idPendenzaRaw;
-            }
-            // Sanitizza l'id per rispettare il pattern (solo lettere, numeri, - e _)
-            $idPendenzaSanitized = preg_replace('/[^A-Za-z0-9\-_]/', '-', $idPendenzaCand);
-            $idPendenzaSanitized = substr($idPendenzaSanitized, 0, 35);
-
-            $url = rtrim($backofficeUrl, '/') . '/pendenze/' . rawurlencode((string)$idA2A) . '/' . rawurlencode($idPendenzaSanitized);
-            $username = getenv('GOVPAY_USER');
-            $password = getenv('GOVPAY_PASSWORD');
-            $requestOptions = [
-                'headers' => ['Accept' => 'application/json'],
-                'json' => $payload,
-            ];
-            if ($username !== false && $password !== false && $username !== '' && $password !== '') {
-                $requestOptions['auth'] = [$username, $password];
-            }
-
-            // Log payload per debug
-            if ((getenv('APP_DEBUG') !== false) && getenv('APP_DEBUG')) {
-                Logger::getInstance()->debug('Pendenze PUT ' . $url, ['payload' => $payload]);
-            }
-            $resp = $httpClient->request('PUT', $url, $requestOptions);
-            $code = $resp->getStatusCode();
-            $body = (string)$resp->getBody();
-            $data = json_decode($body, true);
-
+        // Invia al Backoffice tramite helper
+        $idPendenzaRaw = trim((string)($params['idPendenza'] ?? '')) ?: null;
+        $sendResult = $this->sendPendenzaToBackoffice($payload, $idPendenzaRaw);
+        if ($sendResult['success']) {
             // Mostra eventuali avvisi di sanitizzazione prima del messaggio di successo
             if (!empty($warnings)) {
                 foreach ($warnings as $w) {
@@ -470,13 +448,8 @@ class PendenzeController
                 }
             }
             $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Pendenza creata con successo'];
-            // Preferiamo usare l'idPendenza che abbiamo generato o fornito, altrimenti cerchiamo quello restituito
-            $newId = $idPendenzaSanitized;
-            if (empty($newId)) {
-                $newId = $data['idPendenza'] ?? $data['id_pendenza'] ?? $data['id'] ?? null;
-            }
+            $newId = $sendResult['idPendenza'] ?? null;
             if ($newId) {
-                // Redirect to dettaglio e segnala che proveniamo da un inserimento
                 $base = '/pendenze/dettaglio/' . rawurlencode((string)$newId);
                 $query = ['from' => 'insert'];
                 if (!empty($params['return'])) {
@@ -486,15 +459,10 @@ class PendenzeController
                 return $response->withHeader('Location', $location)->withStatus(302);
             }
             return $response->withHeader('Location', '/pendenze/ricerca')->withStatus(302);
-        } catch (ClientException $ce) {
-            $detail = $ce->getResponse() ? (string)$ce->getResponse()->getBody() : '';
-            if ($detail !== '') {
-                $errors[] = 'Errore API: ' . $detail;
-            } else {
-                $errors[] = 'Errore API: ' . $ce->getMessage();
-            }
-        } catch (\Throwable $e) {
-            $errors[] = 'Errore durante l\'invio: ' . $e->getMessage();
+        }
+        // Se l'invio fallisce, copia gli errori restituiti
+        foreach ($sendResult['errors'] as $e) {
+            $errors[] = $e;
         }
 
         // In caso di errore durante l'invio, ricarichiamo il form con gli errori
@@ -686,20 +654,9 @@ class PendenzeController
                             error_log('[PendenzeController] GET ' . $url . '?' . http_build_query($query));
                         }
 
-                        $requestOptions = [
-                            'headers' => ['Accept' => 'application/json'],
-                            'query' => $query,
-                        ];
-                        if ($username !== false && $password !== false && $username !== '' && $password !== '') {
-                            $requestOptions['auth'] = [$username, $password];
-                        }
-
-                        $resp = $httpClient->request('GET', $url, $requestOptions);
-                        $json = (string)$resp->getBody();
-                        $dataArr = json_decode($json, true);
-                        if (json_last_error() !== JSON_ERROR_NONE || !is_array($dataArr)) {
-                            throw new \RuntimeException('Parsing JSON fallito: ' . json_last_error_msg());
-                        }
+                        // Delegate the actual Backoffice call to a helper to keep logic
+                        // consistent across the controller and make it easier to reuse
+                        $dataArr = $this->callBackofficeFindPendenze($query);
 
                         $extractInt = static function (array $source, array $paths): ?int {
                             foreach ($paths as $path) {
@@ -872,6 +829,680 @@ class PendenzeController
         return $this->twig->render($response, 'pendenze/inserimento_massivo.html.twig');
     }
 
+    /**
+     * Anteprima della pendenza prima dell'invio: rende una pagina di conferma
+     */
+    public function preview(Request $request, Response $response): Response
+    {
+        $this->exposeCurrentUser();
+        $params = (array)($request->getParsedBody() ?? []);
+        // Validazioni leggere: ricava campi essenziali e passa alla view di conferma
+        $errors = [];
+        $idTipo = trim((string)($params['idTipoPendenza'] ?? ''));
+        $causale = trim((string)($params['causale'] ?? ''));
+        $importo = $params['importo'] ?? '';
+        $voci = $params['voci'] ?? [];
+        if ($idTipo === '') $errors[] = 'Tipologia pendenza obbligatoria';
+        if ($causale === '') $errors[] = 'Causale obbligatoria';
+        if ($importo === '' || !is_numeric(str_replace(',', '.', (string)$importo))) $errors[] = 'Importo non valido';
+        // Normalizza importo
+        $importoFloat = is_numeric(str_replace(',', '.', (string)$importo)) ? (float)str_replace(',', '.', (string)$importo) : 0.0;
+
+        // Recupera tipologia per mostrare descrizione
+        $idDominio = getenv('ID_DOMINIO') ?: '';
+        $tipologia = null;
+        if ($idDominio && $idTipo) {
+            try {
+                $repo = new EntrateRepository();
+                $tipologia = $repo->findDetails($idDominio, $idTipo);
+            } catch (\Throwable $_) { $tipologia = null; }
+        }
+
+        return $this->twig->render($response, 'pendenze/conferma.html.twig', [
+            'errors' => $errors,
+            'params' => $params,
+            'tipologia' => $tipologia,
+            'importo' => $importoFloat,
+            'voci' => $voci,
+        ]);
+    }
+
+    /**
+     * Mostra la form per generare le rate di una pendenza (da preview)
+     */
+    public function showRateizzazione(Request $request, Response $response): Response
+    {
+        $this->exposeCurrentUser();
+        $params = (array)($request->getParsedBody() ?? []);
+        // Attendi i dati della pendenza da preview
+        $importo = is_numeric(str_replace(',', '.', (string)($params['importo'] ?? ''))) ? (float)str_replace(',', '.', (string)$params['importo']) : 0.0;
+        $defaultRates = (int)($params['rate'] ?? 3);
+        $rate = max(1, $defaultRates);
+        // Build default parts using service
+        $parts = \App\Services\RateizzazioneService::buildPartsWithDates($importo, $rate);
+        return $this->twig->render($response, 'pendenze/rateizzazione.html.twig', [
+            'params' => $params,
+            'importo' => $importo,
+            'parts' => $parts,
+        ]);
+    }
+
+    /**
+     * Riceve la richiesta di creare la pendenza con le rate specificate.
+     * Valida la somma e poi richiama internamente create() con i parametri modificati
+     */
+    public function createRateizzazione(Request $request, Response $response): Response
+    {
+        $this->exposeCurrentUser();
+        $params = (array)($request->getParsedBody() ?? []);
+        $originalJson = $params['original_params'] ?? null;
+        $orig = $originalJson ? json_decode($originalJson, true) : [];
+        // Merge explicit posted scalar values over decoded original (safety)
+        foreach ($params as $k => $v) {
+            // Evitiamo di propagare parametri della view (es. 'return') nei
+            // payload inviati al Backoffice. Skip espliciti per i parametri
+            // usati solo dalla UI.
+            if (in_array($k, ['original_params', 'parts', 'return', 'submit', 'csrf_token'], true)) continue;
+            if (is_array($v)) continue; // parts or nested arrays handled elsewhere
+            $orig[$k] = $v;
+        }
+        $parts = $params['parts'] ?? [];
+        // Normalizza importi
+        $sum = 0.0;
+        foreach ($parts as $p) {
+            $v = is_numeric(str_replace(',', '.', (string)($p['importo'] ?? ''))) ? (float)str_replace(',', '.', (string)$p['importo']) : 0.0;
+            $sum += $v;
+        }
+        $sum = round($sum, 2);
+        $originalTotal = is_numeric(str_replace(',', '.', (string)($orig['importo'] ?? ''))) ? round((float)str_replace(',', '.', (string)$orig['importo']), 2) : 0.0;
+        if (abs($sum - $originalTotal) > 0.01) {
+            // Ritorna al form di rateizzazione con messaggio d'errore e dati ricostruiti
+            $error = 'La somma delle rate (' . number_format($sum, 2, ',', '.') . ') non corrisponde all\'importo totale (' . number_format($originalTotal, 2, ',', '.') . ').';
+            return $this->twig->render($response, 'pendenze/rateizzazione.html.twig', [
+                'params' => $orig,
+                'importo' => $originalTotal,
+                'parts' => $parts,
+                'errors' => [$error],
+            ]);
+        }
+        // Costruisci il documento di rateizzazione e non sostituire le voci originali.
+        // Manteniamo le voci originali (la pendenza rimane concettualmente la stessa)
+        $doc = is_array($orig['documento'] ?? null) ? $orig['documento'] : [];
+        // assicurati identificativo/descrizione documento
+        if (empty($doc['identificativo'])) {
+            try {
+                $doc['identificativo'] = 'RATA-' . substr(bin2hex(random_bytes(6)), 0, 12);
+            } catch (\Throwable $_) {
+                $doc['identificativo'] = 'RATA-' . uniqid();
+            }
+        }
+        if (empty($doc['descrizione'])) {
+            $doc['descrizione'] = 'Rateizzazione ' . count($parts) . ' rate';
+        }
+
+        $doc['rata'] = [];
+        foreach ($parts as $idx => $p) {
+            $doc['rata'][] = [
+                'indice' => isset($p['indice']) ? (int)$p['indice'] : ($idx + 1),
+                'importo' => is_numeric(str_replace(',', '.', (string)($p['importo'] ?? ''))) ? (float)str_replace(',', '.', (string)$p['importo']) : 0.0,
+                'dataValidita' => $p['dataValidita'] ?? ($p['data_validita'] ?? null),
+                'dataScadenza' => $p['dataScadenza'] ?? ($p['data_scadenza'] ?? null),
+            ];
+        }
+
+        // Merge: mantieni le voci originali e aggiungi il documento + metadata di rate
+        $merged = $orig;
+        $merged['documento'] = $doc;
+        $merged['proprieta'] = is_array($merged['proprieta'] ?? null) ? $merged['proprieta'] : [];
+        $merged['proprieta']['numeroRate'] = count($parts);
+        $merged['proprieta']['rate'] = $doc['rata'];
+
+        // Genera un idPendenza deterministico (client-side) se non fornito, in modo
+        // che il redirect al dettaglio sia prevedibile. Rispetta il pattern
+        // (^ [A-Za-z0-9\-_]{1,35} $)
+        $idPendenzaRaw = trim((string)($merged['idPendenza'] ?? ''));
+        if ($idPendenzaRaw === '') {
+            try {
+                $rand = bin2hex(random_bytes(8));
+            } catch (\Throwable $_) {
+                $rand = preg_replace('/[^A-Za-z0-9]/', '', uniqid());
+            }
+            $idPendenzaCand = 'GIL-' . substr($rand, 0, 16);
+        } else {
+            $idPendenzaCand = $idPendenzaRaw;
+        }
+        $idPendenzaSanitized = preg_replace('/[^A-Za-z0-9\-_]/', '-', $idPendenzaCand);
+        $idPendenzaSanitized = substr($idPendenzaSanitized, 0, 35);
+        $merged['idPendenza'] = $idPendenzaSanitized;
+
+    // Inviare ogni rata come singola pendenza attraverso l'API Pendenze (PUT).
+    // Creiamo una pendenza per ogni rata e chiamiamo internamente
+    // sendPendenzaToBackoffice(). Se tutte le invii hanno successo, redirect
+    // alla ricerca; altrimenti mostriamo gli errori.
+    $created = [];
+    $responses = [];
+    $allErrors = [];
+    $baseId = $merged['idPendenza'] ?? '';
+    foreach ($parts as $idx => $p) {
+        $rIndex = isset($p['indice']) ? (int)$p['indice'] : ($idx + 1);
+        $single = $merged;
+        // imposta importo e date specifiche della rata
+        $single['importo'] = is_numeric(str_replace(',', '.', (string)($p['importo'] ?? ''))) ? (float)str_replace(',', '.', (string)$p['importo']) : 0.0;
+        if (!empty($p['dataValidita'])) $single['dataValidita'] = $p['dataValidita'];
+        if (!empty($p['dataScadenza'])) $single['dataScadenza'] = $p['dataScadenza'];
+        // documento: manteniamo identificativo/descrizione ma rata deve essere INT
+        $docSingle = is_array($single['documento'] ?? null) ? $single['documento'] : [];
+        $docSingle['rata'] = $rIndex;
+        $single['documento'] = $docSingle;
+        // idPendenza per la rata
+        $idPForRate = ($baseId !== '' ? $baseId : (function() {
+            try { return 'GIL-' . substr(bin2hex(random_bytes(8)), 0, 16); } catch (\Throwable $_) { return 'GIL-' . uniqid(); }
+        })()) . '-R' . $rIndex;
+        $single['idPendenza'] = preg_replace('/[^A-Za-z0-9\-_]/', '-', substr((string)$idPForRate, 0, 35));
+
+        // DB-first: normalize voci (try to enrich from DB and validate required accounting fields)
+        $localVociErrors = [];
+        $idDominioUsed = $single['idDominio'] ?? (getenv('ID_DOMINIO') ?: '');
+        // Preserve the original voci as basis for proportional allocation
+        $originalVociBasis = is_array($single['voci'] ?? null) ? $single['voci'] : [];
+        $single['voci'] = $this->buildVociForInsertionFromMerged($single, $single['voci'] ?? [], $idDominioUsed, $localVociErrors);
+
+        // Ensure the sum of voce.importo equals the rata importo by allocating
+        // amounts proportionally (in cents) based on the original voci basis.
+        $rateTotal = is_numeric(str_replace(',', '.', (string)($single['importo'] ?? 0))) ? (float)str_replace(',', '.', (string)$single['importo']) : 0.0;
+        $rateCents = (int)round($rateTotal * 100);
+        $allocatedCents = [];
+        $numBuilt = count($single['voci']);
+        $origSum = 0.0;
+        foreach ($originalVociBasis as $ov) {
+            $origSum += is_numeric(str_replace(',', '.', (string)($ov['importo'] ?? 0))) ? (float)str_replace(',', '.', (string)$ov['importo']) : 0.0;
+        }
+        // Choose an allocation basis: original basis if counts match and sum > 0,
+        // otherwise fall back to built voci amounts; if still zero, equal split.
+        $basis = $originalVociBasis;
+        $basisSum = $origSum;
+        if ($basisSum <= 0.0 || count($basis) !== $numBuilt) {
+            $basis = $single['voci'];
+            $basisSum = 0.0;
+            foreach ($basis as $b) {
+                $basisSum += is_numeric(str_replace(',', '.', (string)($b['importo'] ?? 0))) ? (float)str_replace(',', '.', (string)$b['importo']) : 0.0;
+            }
+        }
+
+        if ($numBuilt === 0) {
+            $localVociErrors[] = 'Nessuna voce definita per la rata.';
+        } else {
+            if ($basisSum > 0.0) {
+                // proportional allocation
+                for ($i = 0; $i < $numBuilt; $i++) {
+                    $share = is_numeric(str_replace(',', '.', (string)($basis[$i]['importo'] ?? 0))) ? (float)str_replace(',', '.', (string)$basis[$i]['importo']) : 0.0;
+                    $allocatedCents[$i] = (int)round(($share / $basisSum) * $rateCents);
+                }
+            } else {
+                // equal split
+                $base = intdiv($rateCents, $numBuilt);
+                $rem = $rateCents - ($base * $numBuilt);
+                for ($i = 0; $i < $numBuilt; $i++) {
+                    $allocatedCents[$i] = $base + ($i < $rem ? 1 : 0);
+                }
+            }
+
+            // Fix rounding differences by distributing the diff across entries
+            $sumAllocated = array_sum($allocatedCents);
+            $diff = $rateCents - $sumAllocated;
+            if ($diff !== 0) {
+                $step = $diff > 0 ? 1 : -1;
+                $remain = abs($diff);
+                for ($k = 0; $k < $remain; $k++) {
+                    $idx = $k % $numBuilt;
+                    $allocatedCents[$idx] += $step;
+                }
+            }
+
+            // Apply allocated amounts back to built voci
+            for ($i = 0; $i < $numBuilt; $i++) {
+                $single['voci'][$i]['importo'] = ($allocatedCents[$i] ?? 0) / 100.0;
+            }
+
+            if ((getenv('APP_DEBUG') !== false) && getenv('APP_DEBUG')) {
+                Logger::getInstance()->debug('Allocated voce importi per rata', [
+                    'idPendenza' => $idPForRate,
+                    'rata_importo' => $rateTotal,
+                    'basis_sum' => $basisSum,
+                    'allocated' => array_map(fn($c) => $c / 100.0, $allocatedCents),
+                ]);
+            }
+        }
+        if (!empty($localVociErrors)) {
+            foreach ($localVociErrors as $le) $allErrors[] = "Rata {$rIndex}: " . $le;
+            // skip sending this rata
+            continue;
+        }
+
+        // Sanitize top-level keys to avoid sending UI-only parameters (es. 'return')
+        $allowed = [
+            'idTipoPendenza','idDominio','causale','importo','annoRiferimento',
+            'soggettoPagatore','voci','documento','proprieta','allegati',
+            'dataValidita','dataScadenza','direzione','divisione','cartellaPagamento',
+            'numeroAvviso','tassonomia','dataPromemoriaScadenza','idUnitaOperativa',
+            'dataCaricamento','datiAllegati','tassonomiaAvviso','dataNotificaAvviso',
+            'nome'
+        ];
+    // Normalizza il soggettoPagatore: unisci nome+anagrafica e rimuovi 'nome'
+        if (isset($single['soggettoPagatore']) && is_array($single['soggettoPagatore'])) {
+            $s = $single['soggettoPagatore'];
+            $tipo = strtoupper((string)($s['tipo'] ?? 'F'));
+            $anag = trim((string)($s['anagrafica'] ?? ''));
+            $nome = trim((string)($s['nome'] ?? ''));
+            if ($tipo === 'F') {
+                $full = trim(($nome !== '' ? $nome . ' ' : '') . $anag);
+                $s['anagrafica'] = $full !== '' ? $full : $anag;
+            } else {
+                $s['anagrafica'] = $anag;
+            }
+            // Email: keep only if scalar and valid
+            if (array_key_exists('email', $s)) {
+                $raw = $s['email'];
+                if (!is_scalar($raw) || trim((string)$raw) === '' || filter_var(trim((string)$raw), FILTER_VALIDATE_EMAIL) === false) {
+                    unset($s['email']);
+                } else {
+                    $s['email'] = trim((string)$raw);
+                }
+            }
+            // Cellulare: keep only scalar non-empty
+            if (array_key_exists('cellulare', $s)) {
+                $raw = $s['cellulare'];
+                if (!is_scalar($raw) || trim((string)$raw) === '') {
+                    unset($s['cellulare']);
+                } else {
+                    $s['cellulare'] = trim((string)$raw);
+                }
+            }
+            if (isset($s['nome'])) unset($s['nome']);
+            $single['soggettoPagatore'] = $s;
+        }
+
+        // Rimuoviamo campi che possono essere passati come array vuoto dalla UI
+        // e che il Backoffice si aspetta come stringhe (es. cartellaPagamento).
+        $stringFields = ['cartellaPagamento', 'direzione', 'divisione'];
+        foreach ($stringFields as $sf) {
+            if (!array_key_exists($sf, $single)) continue;
+            $val = $single[$sf];
+            if (!is_scalar($val) || trim((string)$val) === '') {
+                unset($single[$sf]);
+            } else {
+                $single[$sf] = trim((string)$val);
+            }
+        }
+
+        // Sanitize 'proprieta' per evitare di inviare campi non supportati
+        if (isset($single['proprieta']) && is_array($single['proprieta'])) {
+            $allowedPropKeys = [
+                'descrizioneImporto', 'lineaTestoRicevuta1', 'lineaTestoRicevuta2',
+                'linguaSecondaria', 'linguaSecondariaCausale'
+            ];
+            $single['proprieta'] = array_intersect_key($single['proprieta'], array_flip($allowedPropKeys));
+            if (empty($single['proprieta'])) {
+                unset($single['proprieta']);
+            }
+        }
+
+        $single = array_intersect_key($single, array_flip($allowed));
+
+    // Rimuoviamo idPendenza dal body (deve essere passato solo nell'URL)
+    $idForUrl = $idPForRate;
+    if (isset($single['idPendenza'])) unset($single['idPendenza']);
+
+    // Invia singola pendenza
+    $res = $this->sendPendenzaToBackoffice($single, $idForUrl);
+    $responses[] = $res;
+    if (!empty($res) && !empty($res['success'])) {
+        $created[] = $res['idPendenza'] ?? $idForUrl;
+    } else {
+        $errs = $res['errors'] ?? ['Errore invio pendenza rata ' . $rIndex];
+        foreach ((array)$errs as $e) $allErrors[] = "Rata {$rIndex}: " . (string)$e;
+    }
+    }
+
+    // moved buildVociForInsertionFromMerged to class scope (below)
+
+    if (empty($allErrors)) {
+        // Tutte le rate inviate con successo: costruiamo un documento multirata
+        // da poter stampare. Salviamo in sessione il documento sintetico con le
+        // risposte per ogni rata (ad uso stampa/preview).
+        $multi = [
+            'documento' => $merged['documento'] ?? null,
+            'proprieta' => $merged['proprieta'] ?? null,
+            'soggettoPagatore' => $merged['soggettoPagatore'] ?? null,
+            'voci' => $merged['voci'] ?? null,
+            'idDominio' => $merged['idDominio'] ?? (getenv('ID_DOMINIO') ?: ''),
+            'rates' => [],
+            'responses' => $responses,
+        ];
+        foreach ($parts as $i => $p) {
+            $rateId = $created[$i] ?? null;
+            $rateResp = $controllerRate = null; // placeholder
+            // sendPendenzaToBackoffice returns 'response' when available; try to get it
+            // from past call results: in our loop above we used $res variable but
+            // did not persist it — modify loop to persist responses if needed.
+        }
+        // Forniamo un semplice array con gli id creati e i metadati della rata
+        foreach ($created as $i => $cid) {
+            $r = $parts[$i] ?? [];
+            $resp = $responses[$i]['response'] ?? null;
+            $numeroAvviso = null;
+            if (is_array($resp)) {
+                if (!empty($resp['numeroAvviso'])) $numeroAvviso = $resp['numeroAvviso'];
+                elseif (!empty($resp['numero_avviso'])) $numeroAvviso = $resp['numero_avviso'];
+                elseif (!empty($resp['pendenza']['numeroAvviso'])) $numeroAvviso = $resp['pendenza']['numeroAvviso'];
+                elseif (!empty($resp['pendenza']['numero_avviso'])) $numeroAvviso = $resp['pendenza']['numero_avviso'];
+                elseif (!empty($resp['avvisi'][0]['numeroAvviso'])) $numeroAvviso = $resp['avvisi'][0]['numeroAvviso'];
+            }
+            $multi['rates'][] = [
+                'idPendenza' => $cid,
+                'indice' => $r['indice'] ?? ($i + 1),
+                'importo' => $r['importo'] ?? null,
+                'dataValidita' => $r['dataValidita'] ?? null,
+                'dataScadenza' => $r['dataScadenza'] ?? null,
+                'numeroAvviso' => $numeroAvviso,
+                'backoffice_response' => $resp,
+            ];
+        }
+        // Memorizza il documento sintetico in sessione per il rendering/stampa
+        if (session_status() !== PHP_SESSION_ACTIVE) @session_start();
+        $_SESSION['multi_rate_document'] = $multi;
+
+        if (!empty($created)) {
+            foreach ($created as $c) {
+                $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Pendenza creata: ' . $c];
+            }
+        } else {
+            $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Rate create con successo'];
+        }
+        // Redirect to the multi-rate preview/print page
+        // Redirect to the multi-rate preview/print page
+        $loc = '/pendenze/multirata/preview';
+        if (!empty($created[0])) $loc .= '?id=' . rawurlencode($created[0]);
+        return $response->withHeader('Location', $loc)->withStatus(302);
+    }
+
+    // Se siamo qui, almeno una rata ha fallito: ritorniamo al form con errori
+    return $this->twig->render($response, 'pendenze/rateizzazione.html.twig', [
+        'params' => $orig,
+        'importo' => $originalTotal,
+        'parts' => $parts,
+        'errors' => $allErrors,
+    ]);
+    }
+
+    /**
+     * Helper: invia singola pendenza al backoffice. Ritorna array con chiavi
+     * 'success' (bool), 'idPendenza' e 'errors' (array)
+     */
+    private function sendPendenzaToBackoffice(array $payload, ?string $idPendenza = null): array
+    {
+        $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
+        $idA2A = getenv('ID_A2A') ?: '';
+        $errors = [];
+        if (empty($backofficeUrl)) {
+            $errors[] = 'GOVPAY_BACKOFFICE_URL non impostata';
+            return ['success' => false, 'errors' => $errors];
+        }
+        if ($idA2A === '') {
+            $errors[] = 'ID_A2A non impostata';
+            return ['success' => false, 'errors' => $errors];
+        }
+
+        $guzzleOptions = [];
+        $authMethod = getenv('AUTHENTICATION_GOVPAY');
+        if ($authMethod !== false && strtolower((string)$authMethod) === 'sslheader') {
+            $cert = getenv('GOVPAY_TLS_CERT');
+            $key = getenv('GOVPAY_TLS_KEY');
+            $keyPass = getenv('GOVPAY_TLS_KEY_PASSWORD') ?: null;
+            if (!empty($cert) && !empty($key)) {
+                $guzzleOptions['cert'] = $cert;
+                $guzzleOptions['ssl_key'] = $keyPass ? [$key, $keyPass] : $key;
+            } else {
+                $errors[] = 'mTLS abilitato ma GOVPAY_TLS_CERT/GOVPAY_TLS_KEY non impostati';
+                return ['success' => false, 'errors' => $errors];
+            }
+        }
+
+        try {
+            $httpClient = new Client($guzzleOptions);
+            // Genera idPendenza se non fornito
+            $idP = trim((string)($idPendenza ?? ($payload['idPendenza'] ?? '')));
+            if ($idP === '') {
+                try {
+                    $rand = bin2hex(random_bytes(8));
+                } catch (\Throwable $_) {
+                    $rand = preg_replace('/[^A-Za-z0-9]/', '', uniqid());
+                }
+                $idPCand = 'GIL-' . substr($rand, 0, 16);
+                $idP = preg_replace('/[^A-Za-z0-9\-_]/', '-', substr($idPCand, 0, 35));
+            }
+
+            // Ensure idPendenza is not sent in the request body: the API expects it in the URL
+            if (array_key_exists('idPendenza', $payload)) {
+                if ((getenv('APP_DEBUG') !== false) && getenv('APP_DEBUG')) {
+                    Logger::getInstance()->debug('Removed idPendenza from request body (sent in URL)', ['idPendenza' => $payload['idPendenza']]);
+                }
+                unset($payload['idPendenza']);
+            }
+            // Defensive sanitization: filter proprieta to only allowed Backoffice fields
+            if (isset($payload['proprieta']) && is_array($payload['proprieta'])) {
+                $allowedPropKeys = [
+                    'descrizioneImporto', 'lineaTestoRicevuta1', 'lineaTestoRicevuta2',
+                    'linguaSecondaria', 'linguaSecondariaCausale'
+                ];
+                $payload['proprieta'] = array_intersect_key($payload['proprieta'], array_flip($allowedPropKeys));
+                if (empty($payload['proprieta'])) {
+                    unset($payload['proprieta']);
+                }
+                if ((getenv('APP_DEBUG') !== false) && getenv('APP_DEBUG')) {
+                    Logger::getInstance()->debug('Sanitized proprieta before sending pendenza', ['proprieta' => $payload['proprieta'] ?? null]);
+                }
+            }
+            // Remove empty string-like fields that the Backoffice enforces as non-empty
+            foreach (['cartellaPagamento', 'direzione', 'divisione'] as $sf) {
+                if (isset($payload[$sf]) && (!is_scalar($payload[$sf]) || trim((string)$payload[$sf]) === '')) {
+                    if ((getenv('APP_DEBUG') !== false) && getenv('APP_DEBUG')) {
+                        Logger::getInstance()->debug('Removed empty string-like field before send', ['field' => $sf]);
+                    }
+                    unset($payload[$sf]);
+                }
+            }
+
+            $url = rtrim($backofficeUrl, '/') . '/pendenze/' . rawurlencode($idA2A) . '/' . rawurlencode($idP);
+            $username = getenv('GOVPAY_USER');
+            $password = getenv('GOVPAY_PASSWORD');
+            $requestOptions = [
+                'headers' => ['Accept' => 'application/json'],
+                'json' => $payload,
+            ];
+            if ($username !== false && $password !== false && $username !== '' && $password !== '') {
+                $requestOptions['auth'] = [$username, $password];
+            }
+
+            if ((getenv('APP_DEBUG') !== false) && getenv('APP_DEBUG')) {
+                Logger::getInstance()->debug('Pendenze PUT ' . $url, ['payload' => $payload]);
+            }
+
+            $resp = $httpClient->request('PUT', $url, $requestOptions);
+            $code = $resp->getStatusCode();
+            $body = (string)$resp->getBody();
+            $data = json_decode($body, true);
+            return ['success' => $code >= 200 && $code < 300, 'idPendenza' => $idP, 'errors' => [], 'response' => $data];
+        } catch (ClientException $ce) {
+            $detail = '';
+            $resp = $ce->getResponse();
+            if ($resp) {
+                try {
+                    $stream = $resp->getBody();
+                    if (is_callable([$stream, 'rewind'])) {
+                        try { $stream->rewind(); } catch (\Throwable $_) { }
+                    }
+                    if (is_callable([$stream, 'getContents'])) {
+                        $detail = $stream->getContents();
+                    } else {
+                        $detail = (string)$stream;
+                    }
+                } catch (\Throwable $_) {
+                    try { $detail = (string)$resp->getBody(); } catch (\Throwable $_) { $detail = ''; }
+                }
+            }
+            $errors[] = $detail ?: $ce->getMessage();
+            // Non esponiamo il raw_response alla UI; i log Guzzle con APP_DEBUG
+            // contengono l'intera transazione per i debug necessari.
+            $parsed = null;
+            if ($detail !== '') {
+                $tmp = json_decode($detail, true);
+                $parsed = (json_last_error() === JSON_ERROR_NONE) ? $tmp : $detail;
+            }
+            return ['success' => false, 'errors' => $errors, 'response' => $parsed];
+        } catch (\Throwable $e) {
+            $errors[] = $e->getMessage();
+            return ['success' => false, 'errors' => $errors];
+        }
+    }
+
+    /**
+     * Costruisce le voci per l'inserimento applicando la logica DB-first.
+     * Restituisce le voci normalizzate e popola $errors se ci sono problemi.
+     */
+    private function buildVociForInsertionFromMerged(array $merged, array $voci, string $idDominio, array &$errors = []): array
+    {
+        $out = [];
+        $repo = null;
+        try { $repo = new EntrateRepository(); } catch (\Throwable $_) { $repo = null; }
+        foreach ($voci as $v) {
+            $vv = $v;
+            if (isset($vv['importo'])) {
+                $vv['importo'] = is_numeric(str_replace(',', '.', (string)$vv['importo'])) ? (float)str_replace(',', '.', (string)$vv['importo']) : 0.0;
+            } else {
+                $vv['importo'] = 0.0;
+            }
+
+            $vv['idVocePendenza'] = trim((string)($vv['idVocePendenza'] ?? ($vv['id_voce_pendenza'] ?? '')));
+
+            // DB-first: try to get defaults
+            $details = null;
+            if ($repo !== null && $idDominio !== '' && !empty($merged['idTipoPendenza'] ?? null)) {
+                try { $details = $repo->findDetails($idDominio, (string)$merged['idTipoPendenza']); } catch (\Throwable $_) { $details = null; }
+            }
+            $finalIban = '';
+            $finalCodEntrata = '';
+            $finalTipoBollo = '';
+            $finalTipoContabilita = '';
+            if ($details) {
+                if (!empty($details['iban_accredito'])) $finalIban = $details['iban_accredito'];
+                if (!empty($details['codice_contabilita'])) $finalCodEntrata = $details['codice_contabilita'];
+                if (!empty($details['tipo_bollo'])) $finalTipoBollo = $details['tipo_bollo'];
+                if (!empty($details['tipo_contabilita'])) $finalTipoContabilita = $details['tipo_contabilita'];
+            }
+            if (empty($finalIban) && !empty($merged['ibanAccredito'])) $finalIban = $merged['ibanAccredito'];
+            if (empty($finalCodEntrata) && (!empty($merged['codiceContabilita']) || !empty($merged['codEntrata']))) $finalCodEntrata = $merged['codiceContabilita'] ?? $merged['codEntrata'] ?? '';
+            if ($merged['idTipoPendenza'] ?? '') {
+                $finalCodEntrata = (string)$merged['idTipoPendenza'];
+            }
+            if (empty($finalTipoBollo) && !empty($merged['tipoBollo'])) $finalTipoBollo = $merged['tipoBollo'];
+            if (empty($finalTipoContabilita) && !empty($merged['tipoContabilita'])) $finalTipoContabilita = $merged['tipoContabilita'];
+
+            $voiceMode = null;
+            if ($finalTipoBollo !== '') {
+                $voiceMode = 'bollo';
+            } else {
+                $hasEntrata = ($finalIban !== '' && $finalTipoContabilita !== '' && $finalCodEntrata !== '');
+                if ($hasEntrata) $voiceMode = 'entrata';
+                elseif ($finalCodEntrata !== '') $voiceMode = 'riferimento';
+                else $voiceMode = null;
+            }
+            if ($voiceMode === 'bollo') {
+                $vv['tipoBollo'] = $finalTipoBollo;
+            } elseif ($voiceMode === 'entrata') {
+                $vv['ibanAccredito'] = $finalIban;
+                $vv['tipoContabilita'] = $finalTipoContabilita;
+                $vv['codiceContabilita'] = $finalCodEntrata;
+            } elseif ($voiceMode === 'riferimento') {
+                $vv['codEntrata'] = $finalCodEntrata;
+            } else {
+                $errors[] = "Voce '{$vv['idVocePendenza']}' priva di informazioni di contabilita' (IBAN+tipoContabilita+codiceContabilita o codEntrata o tipoBollo).";
+            }
+            $out[] = $vv;
+        }
+        return $out;
+    }
+
+    /**
+     * Recupera i dettagli di una pendenza dal Backoffice per ottenere campi come numeroAvviso
+     */
+    // (no longer needed) fetchPendenzaDetailFromBackoffice removed
+
+    /**
+     * Crea e invia un tracciato con le pendenze delle rate al Backoffice
+     * Restituisce ['success'=>bool, 'idTracciato'=>string|null, 'errors'=>[]]
+     */
+    private function sendTracciatoToBackoffice(array $merged, array $parts): array
+    {
+        $svc = $this->tracciatoService ?? new TracciatoService();
+        return $svc->sendTracciato($merged, $parts);
+    }
+
+    /**
+     * Crea un Guzzle client con opzioni di autenticazione e mTLS impostate
+     */
+    protected function makeHttpClient(array $guzzleOptions = []): Client
+    {
+        $authMethod = getenv('AUTHENTICATION_GOVPAY');
+        if ($authMethod !== false && strtolower((string)$authMethod) === 'sslheader') {
+            $cert = getenv('GOVPAY_TLS_CERT');
+            $key = getenv('GOVPAY_TLS_KEY');
+            $keyPass = getenv('GOVPAY_TLS_KEY_PASSWORD') ?: null;
+            if (!empty($cert) && !empty($key)) {
+                $guzzleOptions['cert'] = $cert;
+                $guzzleOptions['ssl_key'] = $keyPass ? [$key, $keyPass] : $key;
+            }
+        }
+        return new Client($guzzleOptions);
+    }
+
+    /**
+     * Helper: call Backoffice /pendenze endpoint with given query parameters
+     * Returns decoded response array or throws on error.
+     *
+     * @param array $query
+     * @return array
+     * @throws \Throwable
+     */
+    private function callBackofficeFindPendenze(array $query): array
+    {
+        $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
+        if (empty($backofficeUrl)) {
+            throw new \RuntimeException('Variabile GOVPAY_BACKOFFICE_URL non impostata');
+        }
+
+        $username = getenv('GOVPAY_USER');
+        $password = getenv('GOVPAY_PASSWORD');
+
+        $http = $this->makeHttpClient();
+        $requestOptions = [
+            'headers' => ['Accept' => 'application/json'],
+            'query' => $query,
+        ];
+        if ($username !== false && $password !== false && $username !== '' && $password !== '') {
+            $requestOptions['auth'] = [$username, $password];
+        }
+
+        $url = rtrim($backofficeUrl, '/') . '/pendenze';
+        $resp = $http->request('GET', $url, $requestOptions);
+        $json = (string)$resp->getBody();
+        $dataArr = json_decode($json, true);
+        if (json_last_error() !== JSON_ERROR_NONE || !is_array($dataArr)) {
+            throw new \RuntimeException('Parsing JSON fallito: ' . json_last_error_msg());
+        }
+        return $dataArr;
+    }
+
     public function showDetail(Request $request, Response $response, array $args): Response
     {
         $this->exposeCurrentUser();
@@ -919,7 +1550,7 @@ class PendenzeController
                 }
 
                 if (!$error) {
-                    $http = new Client($guzzleOptions);
+                    $http = $this->makeHttpClient($guzzleOptions);
                     $url = rtrim($backofficeUrl, '/') . '/pendenze/' . rawurlencode((string)$idA2A) . '/' . rawurlencode($idPendenza);
                     $resp = $http->request('GET', $url);
                     $json = (string)$resp->getBody();
@@ -937,6 +1568,149 @@ class PendenzeController
             }
         }
 
+        // Attempt to fetch related pendenze for the same document by searching
+        // for pendenze with the same debtor (idDebitore) and the same
+        // dataCaricamento day, then filter locally by documento.identificativo.
+        $relatedPendenze = [];
+        try {
+            if (is_array($pendenza) && !empty($pendenza)) {
+                $documentId = $pendenza['documento']['identificativo'] ?? $pendenza['documento']['identificativoDocumento'] ?? null;
+                // Deriva idDebitore dal soggettoPagatore.identificativo o da idDebitore diretto
+                $idDebitore = $pendenza['soggettoPagatore']['identificativo'] ?? $pendenza['idDebitore'] ?? null;
+                $dataCar = $pendenza['dataCaricamento'] ?? $pendenza['data_caricamento'] ?? null;
+                $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
+                $idA2A = getenv('ID_A2A') ?: '';
+                if ($documentId && $idDebitore && $dataCar && $backofficeUrl && $idA2A) {
+                    // build HTTP client options (reuse existing approach)
+                    $username = getenv('GOVPAY_USER');
+                    $password = getenv('GOVPAY_PASSWORD');
+                    $guzzleOptions = ['headers' => ['Accept' => 'application/json']];
+                    $authMethod = getenv('AUTHENTICATION_GOVPAY');
+                    if ($authMethod !== false && strtolower((string)$authMethod) === 'sslheader') {
+                        $cert = getenv('GOVPAY_TLS_CERT');
+                        $key = getenv('GOVPAY_TLS_KEY');
+                        $keyPass = getenv('GOVPAY_TLS_KEY_PASSWORD') ?: null;
+                        if (!empty($cert) && !empty($key)) {
+                            $guzzleOptions['cert'] = $cert;
+                            $guzzleOptions['ssl_key'] = $keyPass ? [$key, $keyPass] : $key;
+                        }
+                    }
+                    if ($username !== false && $password !== false && $username !== '' && $password !== '') {
+                        $guzzleOptions['auth'] = [$username, $password];
+                    }
+                    $http = $this->makeHttpClient($guzzleOptions);
+
+                    // Date range for the same generation day
+                    try {
+                        $dt = new \DateTime($dataCar);
+                        $start = $dt->format('Y-m-d') . 'T00:00:00';
+                        $end = $dt->format('Y-m-d') . 'T23:59:59';
+                    } catch (\Throwable $_) {
+                        $start = null;
+                        $end = null;
+                    }
+
+                    if ($start !== null && $end !== null) {
+                        $page = 1;
+                        $perPage = 100;
+                        $maxPages = 50; // safety cap to avoid infinite loops
+                        while ($page > 0 && $page <= $maxPages) {
+                            $query = [
+                                'idDominio' => $pendenza['idDominio'] ?? (getenv('ID_DOMINIO') ?: ''),
+                                'idA2A' => $idA2A,
+                                'idDebitore' => $idDebitore,
+                                'dataDa' => $start,
+                                'dataA' => $end,
+                                'pagina' => $page,
+                                'risultatiPerPagina' => $perPage,
+                            ];
+                            try {
+                                $dataArr = $this->callBackofficeFindPendenze($query);
+                                $candidates = $dataArr['risultati'] ?? $dataArr['results'] ?? $dataArr;
+                                if (is_array($candidates)) {
+                                    foreach ($candidates as $cand) {
+                                        $candDocId = $cand['documento']['identificativo'] ?? $cand['documento']['identificativoDocumento'] ?? null;
+                                        if ($candDocId !== null && (string)$candDocId === (string)$documentId) {
+                                            $relatedPendenze[] = $cand;
+                                        }
+                                    }
+                                }
+                                // paging heuristics: try to detect last page
+                                $numPagine = $dataArr['numPagine'] ?? $dataArr['num_pagine'] ?? ($dataArr['metaDatiPaginazione']['numPagine'] ?? null);
+                                if ($numPagine !== null) {
+                                    $numPagine = (int)$numPagine;
+                                    if ($page >= $numPagine) break;
+                                } else {
+                                    // if fewer results than page size, likely last page
+                                    if (!is_array($candidates) || count($candidates) < $perPage) break;
+                                }
+                                $page++;
+                            } catch (\Throwable $e) {
+                                // Log and break: don't fail the whole detail page
+                                Logger::getInstance()->warning('Errore ricerca pendenze correlate: ' . $e->getMessage(), ['idDebitore' => $idDebitore, 'documento' => $documentId]);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (\Throwable $_) {
+            // swallow: non vogliamo bloccare la visualizzazione del dettaglio
+            Logger::getInstance()->warning('Errore building related pendenze: ' . $_->getMessage());
+            $relatedPendenze = [];
+        }
+
+        // Build a quick lookup of related pendenze keyed by their rata indice (if available)
+        $relatedByRata = [];
+        if (is_array($relatedPendenze) && count($relatedPendenze) > 0) {
+            foreach ($relatedPendenze as $rp) {
+                $indices = [];
+                if (isset($rp['documento']['rata'])) {
+                    if (!is_array($rp['documento']['rata'])) {
+                        $indices[] = (string)$rp['documento']['rata'];
+                    } else {
+                        foreach ($rp['documento']['rata'] as $rra) {
+                            if (isset($rra['indice'])) $indices[] = (string)$rra['indice'];
+                        }
+                    }
+                }
+                if (isset($rp['proprieta']['rate']) && is_array($rp['proprieta']['rate'])) {
+                    foreach ($rp['proprieta']['rate'] as $rra) {
+                        if (isset($rra['indice'])) $indices[] = (string)$rra['indice'];
+                    }
+                }
+                $indices = array_filter(array_unique($indices), fn($v) => $v !== '');
+                foreach ($indices as $i) {
+                    $relatedByRata[(string)$i] = $rp;
+                }
+            }
+        }
+
+        // Determine explicitly whether the opened pendenza contains a scalar
+        // documento.rata (the only acceptable source for automatic highlighting).
+        $currentRate = null;
+        $rateInfoSource = 'none';
+        if (is_array($pendenza) && !empty($pendenza)) {
+            if (isset($pendenza['documento']['rata']) && !is_array($pendenza['documento']['rata'])) {
+                $currentRate = (string)$pendenza['documento']['rata'];
+                $rateInfoSource = 'documento_rata_scalar';
+            } elseif (isset($pendenza['documento']['rata']) && is_array($pendenza['documento']['rata'])) {
+                $rateInfoSource = 'documento_rata_array';
+            } elseif (isset($pendenza['proprieta']['rate']) && is_array($pendenza['proprieta']['rate'])) {
+                $rateInfoSource = 'proprieta_rate';
+            } elseif (isset($pendenza['proprieta']['numeroRate'])) {
+                $rateInfoSource = 'proprieta_numeroRate';
+            }
+
+            // IMPORTANT: do not attempt to infer the current rate from related
+            // pendenze. This was a heuristic that produced non-deterministic
+            // highlights and hid the real issue (missing scalar value in the
+            // primary pendenza). Log (when in debug) so we can diagnose.
+            if ($currentRate === null && ((getenv('APP_DEBUG') !== false) && getenv('APP_DEBUG'))) {
+                Logger::getInstance()->info('No scalar documento.rata found on pendenza; automatic highlighting disabled', ['idPendenza' => $idPendenza, 'rate_info_source' => $rateInfoSource]);
+            }
+        }
+
         return $this->twig->render($response, 'pendenze/dettaglio.html.twig', [
             'idPendenza' => $idPendenza,
             'return_url' => $ret,
@@ -944,6 +1718,10 @@ class PendenzeController
             'error' => $error,
             'id_dominio' => $pendenza['idDominio'] ?? (getenv('ID_DOMINIO') ?: ''),
             'came_from_insert' => $cameFromInsert,
+            'related_pendenze' => $relatedPendenze,
+            'related_by_rata' => $relatedByRata,
+            'current_rate' => $currentRate,
+            'rate_info_source' => $rateInfoSource,
         ]);
     }
 
@@ -1006,6 +1784,126 @@ class PendenzeController
         } catch (\Throwable $e) {
             $response->getBody()->write('Errore scaricamento avviso: ' . $e->getMessage());
             return $response->withStatus(500);
+        }
+    }
+
+    /**
+     * Scarica il PDF (o lo ritrasmette) che contiene gli avvisi associati a un documento.
+     * Supporta query param 'numeriAvviso' come CSV o array, e 'inline' per aprire nel browser.
+     */
+    public function downloadAvvisiDocumento(Request $request, Response $response, array $args): Response
+    {
+        $idDominio = $args['idDominio'] ?? '';
+        $numeroDocumento = $args['numeroDocumento'] ?? '';
+        if ($idDominio === '' || $numeroDocumento === '') {
+            $response->getBody()->write('Parametri mancanti');
+            return $response->withStatus(400);
+        }
+
+        // Gather numeriAvviso from query string or POST body and normalize
+        $params = (array)$request->getQueryParams();
+        $numeri = [];
+        if (!empty($params['numeriAvviso'])) {
+            if (is_array($params['numeriAvviso'])) {
+                $numeri = array_map('trim', $params['numeriAvviso']);
+            } else {
+                $numeri = array_filter(array_map('trim', explode(',', (string)$params['numeriAvviso'])));
+            }
+        }
+        if (empty($numeri)) {
+            $body = $request->getParsedBody();
+            if (is_array($body) && !empty($body['numeriAvviso'])) {
+                $numeri = is_array($body['numeriAvviso']) ? $body['numeriAvviso'] : array_filter(array_map('trim', explode(',', (string)$body['numeriAvviso'])));
+            }
+        }
+
+        $inline = isset($params['inline']) && ($params['inline'] === '1' || $params['inline'] === 'true');
+
+        // Validate numeriAvviso entries if present: must be 18 digits each (pattern from API)
+        $invalid = [];
+        foreach ($numeri as $n) {
+            $s = trim((string)$n);
+            if ($s === '') continue; // ignore blanks
+            if (!preg_match('/^[0-9]{18}$/', $s)) {
+                $invalid[] = $s;
+            }
+        }
+        if (!empty($invalid)) {
+            $response->getBody()->write('numeriAvviso non validi: ' . implode(', ', $invalid));
+            return $response->withStatus(400);
+        }
+
+        // Use Pendenze v2 client for avvisi/documento (no ID_A2A required)
+        $pendenzeHost = getenv('GOVPAY_PENDENZE_URL') ?: '';
+        if (empty($pendenzeHost) || !class_exists('\GovPay\Pendenze\Api\PendenzeApi')) {
+            $response->getBody()->write('Client Pendenze v2 non disponibile o GOVPAY_PENDENZE_URL non impostata');
+            return $response->withStatus(500);
+        }
+
+        try {
+            $config = new \GovPay\Pendenze\Configuration();
+            $config->setHost(rtrim($pendenzeHost, '/'));
+            $username = getenv('GOVPAY_USER');
+            $password = getenv('GOVPAY_PASSWORD');
+            if ($username !== false && $password !== false && $username !== '' && $password !== '') {
+                // Some generated clients accept basic auth via Configuration setters
+                if (method_exists($config, 'setUsername')) $config->setUsername($username);
+                if (method_exists($config, 'setPassword')) $config->setPassword($password);
+            }
+            $guzzleOptions = [];
+            $authMethod = getenv('AUTHENTICATION_GOVPAY');
+            if ($authMethod !== false && strtolower((string)$authMethod) === 'sslheader') {
+                $cert = getenv('GOVPAY_TLS_CERT');
+                $key = getenv('GOVPAY_TLS_KEY');
+                $keyPass = getenv('GOVPAY_TLS_KEY_PASSWORD') ?: null;
+                if (!empty($cert) && !empty($key)) {
+                    $guzzleOptions['cert'] = $cert;
+                    $guzzleOptions['ssl_key'] = $keyPass ? [$key, $keyPass] : $key;
+                } else {
+                    $response->getBody()->write('mTLS abilitato ma GOVPAY_TLS_CERT/GOVPAY_TLS_KEY non impostati');
+                    return $response->withStatus(500);
+                }
+            }
+
+            // Log parameters for debugging
+            \App\Logger::getInstance()->info('downloadAvvisiDocumento: calling Pendenze v2', [
+                'idDominio' => $idDominio,
+                'numeroDocumento' => $numeroDocumento,
+                'numeriAvviso' => $numeri
+            ]);
+
+            $httpClient = new Client($guzzleOptions);
+            $pApi = new \GovPay\Pendenze\Api\PendenzeApi($httpClient, $config);
+            // Pendenze v2 signature: getAvvisiDocumento($id_dominio, $numero_documento, $lingua_secondaria = null, $numeri_avviso = null)
+            $result = $pApi->getAvvisiDocumento($idDominio, $numeroDocumento, null, (!empty($numeri) ? $numeri : null));
+
+            if ($result instanceof \SplFileObject) {
+                $stream = fopen((string)$result->getRealPath(), 'rb');
+                $content = stream_get_contents($stream);
+                fclose($stream);
+                $disposition = $inline ? 'inline' : 'attachment';
+                $filename = 'avvisi-' . $numeroDocumento . '.pdf';
+                $response = $response->withHeader('Content-Type', 'application/pdf')
+                    ->withHeader('Content-Disposition', $disposition . '; filename="' . $filename . '"')
+                    ->withHeader('Cache-Control', 'no-store');
+                $response->getBody()->write($content);
+                return $response;
+            }
+
+            $response->getBody()->write('Risposta inattesa dal Backoffice');
+            return $response->withStatus(502);
+        } catch (\GovPay\Pendenze\ApiException $e) {
+            $code = $e->getCode() ?: 502;
+            $body = method_exists($e, 'getResponseBody') ? $e->getResponseBody() : null;
+            $obj = method_exists($e, 'getResponseObject') ? $e->getResponseObject() : null;
+            $msg = is_object($obj) ? ($obj->descrizione ?? json_encode($obj)) : ($body ?? $e->getMessage());
+            Logger::getInstance()->error('Errore getAvvisiDocumento (Pendenze v2 client)', ['code' => $code, 'body' => $body, 'exception' => $e->getMessage()]);
+            $response->getBody()->write('Errore chiamata Pendenze v2: ' . $msg);
+            return $response->withStatus($code);
+        } catch (\Throwable $e) {
+            Logger::getInstance()->error('Errore getAvvisiDocumento generico', ['error' => $e->getMessage()]);
+            $response->getBody()->write('Errore chiamata Pendenze v2: ' . $e->getMessage());
+            return $response->withStatus(502);
         }
     }
 
