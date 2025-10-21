@@ -184,10 +184,22 @@
         {% set displayed_rates = [] %}
         {# Aggiungi il piano esplicito (se presente) normalizzando l'indice #}
         {% for rt in rate_info %}
-          {% set idx = (rt.indice is defined) ? rt.indice : loop.index %}
+          {# Calcola indice in modo robusto:
+             - se rt è oggetto e contiene 'indice' usalo
+             - altrimenti se rt è oggetto e contiene 'rata' usalo
+             - se rt è scalare (es. "1") usalo come indice
+             - fallback su loop.index per conservare ordine se non troviamo altro #}
           {% if rt is iterable %}
+            {% if rt.indice is defined %}
+              {% set idx = rt.indice %}
+            {% elseif rt.rata is defined %}
+              {% set idx = rt.rata %}
+            {% else %}
+              {% set idx = loop.index %}
+            {% endif %}
             {% set normalized = rt|merge({'indice': idx}) %}
           {% else %}
+            {% set idx = (rt is not null and rt != '') ? (rt|default(0) + 0) : loop.index %}
             {% set normalized = {'indice': idx} %}
           {% endif %}
           {# Riempiamo campi mancanti con valori della pendenza principale quando sensato #}
@@ -205,6 +217,18 @@
           {% endif %}
           {% if (normalized.numeroAvviso is not defined or not normalized.numeroAvviso) and r.numeroAvviso is defined %}
             {% set normalized = normalized|merge({'numeroAvviso': r.numeroAvviso}) %}
+          {% endif %}
+          {# Normalizza id pendenza (diverse convenzioni: idPendenza / id_pendenza) #}
+          {% if (normalized.idPendenza is not defined or not normalized.idPendenza) %}
+            {% if rt.idPendenza is defined and rt.idPendenza %}
+              {% set normalized = normalized|merge({'idPendenza': rt.idPendenza}) %}
+            {% elseif rt.id_pendenza is defined and rt.id_pendenza %}
+              {% set normalized = normalized|merge({'idPendenza': rt.id_pendenza}) %}
+            {% elseif r.idPendenza is defined and r.idPendenza %}
+              {% set normalized = normalized|merge({'idPendenza': r.idPendenza}) %}
+            {% elseif r.id_pendenza is defined and r.id_pendenza %}
+              {% set normalized = normalized|merge({'idPendenza': r.id_pendenza}) %}
+            {% endif %}
           {% endif %}
           {% if (normalized.iuv is not defined or not normalized.iuv) and (r.identificativoUnivocoVersamento is defined or r.iuv is defined) %}
             {% set iuvFallback = r.identificativoUnivocoVersamento is defined ? r.identificativoUnivocoVersamento : (r.iuv|default('')) %}
@@ -256,6 +280,12 @@
                 {% if rp.numeroAvviso is defined %} {% set entry = entry|merge({'numeroAvviso': rp.numeroAvviso}) %} {% endif %}
                 {% if rp.identificativoUnivocoVersamento is defined %} {% set entry = entry|merge({'iuv': rp.identificativoUnivocoVersamento}) %} {% endif %}
                 {% if rp.codiceContestoPagamento is defined %} {% set entry = entry|merge({'ccp': rp.codiceContestoPagamento}) %} {% endif %}
+                {# Aggiungi idPendenza dalle pendenze correlate se presente (idPendenza o id_pendenza) #}
+                {% if rp.idPendenza is defined and rp.idPendenza %}
+                  {% set entry = entry|merge({'idPendenza': rp.idPendenza}) %}
+                {% elseif rp.id_pendenza is defined and rp.id_pendenza %}
+                  {% set entry = entry|merge({'idPendenza': rp.id_pendenza}) %}
+                {% endif %}
                 {% set displayed_rates = displayed_rates|merge([entry]) %}
               {% endif %}
             {% endif %}
@@ -403,10 +433,15 @@
                       {% endif %}
                       <td>{{ rt is not null and rt.idPendenza is defined ? rt.idPendenza : (rt is not null and rt.id_pendenza is defined ? rt.id_pendenza : '—') }}</td>
                       <td class="text-nowrap">
-                        {# Bottone stampa: endpoint ipotetico che stampa il documento per tutta la rateizzazione #}
-                        {% set parentId = idPendenza|default(r.idPendenza|default('')) %}
-                        {% set printUrl = '/pendenze/stampa-rateizzazione?parentId=' ~ (parentId|url_encode) ~ '&indice=' ~ (i) %}
-                        <a class="btn btn-outline-primary btn-sm px-2 py-0" href="{{ printUrl }}" target="_blank" rel="noopener" title="Stampa documento rateizzazione" aria-label="Stampa documento rateizzazione">Stampa</a>
+                        {# Link al dettaglio della pendenza (occhio) #}
+                        {% set rowId = rt is not null and rt.idPendenza is defined and rt.idPendenza ? rt.idPendenza : (rt is not null and rt.id_pendenza is defined and rt.id_pendenza ? rt.id_pendenza : '') %}
+                        {% if rowId %}
+                          <a class="btn btn-outline-secondary btn-sm px-2 py-0" href="/pendenze/dettaglio/{{ rowId|url_encode }}" title="Apri dettaglio pendenza {{ rowId }}" aria-label="Apri dettaglio pendenza {{ rowId }}">
+                            <i class="fas fa-eye" aria-hidden="true"></i>
+                          </a>
+                        {% else %}
+                          <span class="text-muted">—</span>
+                        {% endif %}
                       </td>
                     </tr>
                   {% endfor %}
