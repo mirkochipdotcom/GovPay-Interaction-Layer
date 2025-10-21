@@ -66,4 +66,45 @@ class Logger
     {
         $this->write('debug', $message, $context);
     }
+
+    /**
+     * Sanitize an error string for user display: remove truncation markers,
+     * ellipses and excessive whitespace. Keep the full error for logs.
+     */
+    public static function sanitizeErrorForDisplay(string $err): string
+    {
+        $clean = $err;
+    // Remove common truncation markers and sequences of ellipsis
+    $clean = preg_replace('/\(truncated[^)]*\)/i', '', $clean);
+    $clean = preg_replace('/\[truncated[^\]]*\]/i', '', $clean);
+    // Remove explicit 'truncated' token (case-insensitive) possibly left without brackets
+    $clean = preg_replace('/\btruncated\b/i', '', $clean);
+    // Rimuove sequenze di tre o più punti di sospensione (es. '...' o '....')
+    $clean = preg_replace('/\.{3,}/u', '', $clean);
+    $clean = preg_replace('/\xE2\x80\xA6/u', '', $clean);
+        // Remove repeated newlines and excessive whitespace
+        $clean = preg_replace('/\s+/', ' ', $clean);
+        $clean = trim($clean);
+        if (strlen($clean) > 1000) {
+            return substr($clean, 0, 1000) . '...';
+        }
+        return $clean;
+    }
+
+    /**
+     * Sanitize an error message for full display (remove truncation markers
+     * and collapse whitespace) without shortening the message. Use this for
+     * expanded views where the user requests the full text.
+     */
+    public static function sanitizeErrorForFullDisplay(string $err): string
+    {
+        $clean = $err;
+        $clean = preg_replace('/\(truncated[^)]*\)/i', '', $clean);
+        $clean = preg_replace('/\[truncated[^\]]*\]/i', '', $clean);
+        $clean = preg_replace('/\btruncated\b/i', '', $clean);
+        $clean = preg_replace('/\.{3,}/u', '', $clean);
+        $clean = preg_replace('/\xE2\x80\xA6/u', '', $clean);
+        $clean = preg_replace('/\s+/', ' ', $clean);
+        return trim($clean);
+    }
 }

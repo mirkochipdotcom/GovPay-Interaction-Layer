@@ -45,17 +45,24 @@ return function (App $app, Twig $twig): void {
     $app->get('/pendenze/inserimento', function(Request $request, Response $response) use ($twig): Response {
         $controller = new PendenzeController($twig);
         return $controller->showInsert($request, $response);
-    })->setName('pendenze.inserimento');
+    });
 
-    $app->post('/pendenze/conferma', function(Request $request, Response $response) use ($twig): Response {
+    // Anteprima/preview prima della creazione pendenza
+    $app->post('/pendenze/preview', function(Request $request, Response $response) use ($twig): Response {
         $controller = new PendenzeController($twig);
-        return $controller->conferma($request, $response);
-    })->setName('pendenze.conferma');
+        return $controller->preview($request, $response);
+    });
 
-    $app->post('/pendenze/inserisci', function(Request $request, Response $response) use ($twig): Response {
+    // Rateizzazione: mostra form per generare le rate della pendenza
+    $app->post('/pendenze/rateizza', function(Request $request, Response $response) use ($twig): Response {
         $controller = new PendenzeController($twig);
-        return $controller->inserisci($request, $response);
-    })->setName('pendenze.inserisci');
+        return $controller->showRateizzazione($request, $response);
+    });
+
+    $app->post('/pendenze/create-rateizzazione', function(Request $request, Response $response) use ($twig): Response {
+        $controller = new PendenzeController($twig);
+        return $controller->createRateizzazione($request, $response);
+    });
 
     $app->get('/pendenze/inserimento-massivo', function(Request $request, Response $response) use ($twig): Response {
         $controller = new PendenzeController($twig);
@@ -67,9 +74,32 @@ return function (App $app, Twig $twig): void {
         return $controller->showDetail($request, $response, $args);
     });
 
+    // Preview/print multi-rate document stored in session after createRateizzazione
+    $app->get('/pendenze/multirata/preview', function(Request $request, Response $response) use ($twig): Response {
+        // only in session
+        if (session_status() !== PHP_SESSION_ACTIVE) @session_start();
+        $doc = $_SESSION['multi_rate_document'] ?? null;
+        if (!$doc) return $response->withStatus(404);
+        return $twig->render($response, 'pendenze/multirata.html.twig', ['multi' => $doc]);
+    });
+
     $app->get('/avvisi/{idDominio}/{numeroAvviso}', function(Request $request, Response $response, array $args) use ($twig): Response {
         $controller = new PendenzeController($twig);
         return $controller->downloadAvviso($request, $response, $args);
+    });
+
+    // Scarica il PDF che contiene uno o più avvisi raggruppati per documento
+    // Support both GET (querystring) and POST (JSON) clients for requesting
+    // the document that aggregates one or more avvisi. The frontend posts
+    // JSON { numeriAvviso: [ ... ] } so we expose a POST route in addition
+    // to the existing GET to keep compatibility with direct links.
+    $app->get('/documenti/{idDominio}/{numeroDocumento}/avvisi', function(Request $request, Response $response, array $args) use ($twig): Response {
+        $controller = new PendenzeController($twig);
+        return $controller->downloadAvvisiDocumento($request, $response, $args);
+    });
+    $app->post('/documenti/{idDominio}/{numeroDocumento}/avvisi', function(Request $request, Response $response, array $args) use ($twig): Response {
+        $controller = new PendenzeController($twig);
+        return $controller->downloadAvvisiDocumento($request, $response, $args);
     });
 
     $app->get('/pendenze/rpp/{idDominio}/{iuv}/{ccp}/rt', function(Request $request, Response $response, array $args) use ($twig): Response {
@@ -127,7 +157,8 @@ return function (App $app, Twig $twig): void {
         return $controller->updateTipologiaGovpay($request, $response, $args);
     });
 
-    // Endpoint reset: cancella URL esterno e, se GovPay è attivo, riallinea lo stato locale a GovPay (override=null)
+    // Endpoint reset: cancella URL esterna e, se GovPay è attivo, riallinea lo stato locale a GovPay (override=null)
+
     $app->post('/configurazione/tipologie/{idEntrata}/reset', function($request, $response, $args) use ($twig) {
         $controller = new ConfigurazioneController($twig);
         return $controller->resetTipologia($request, $response, $args);
