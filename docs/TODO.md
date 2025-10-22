@@ -7,9 +7,6 @@
 - [ ] Select tipologia pendenza ricercabile
   - Rendere la select della tipologia pendenza nella maschera di ricerca pendenze ricercabile (autocomplete o select2/bootstrap-select), per facilitare la selezione in presenza di molte tipologie.
 
-- [ ] Sezione inserimento pendenze
-  - Realizzare la sezione di inserimento pendenze, con attenzione a UX, validazione, e supporto a tutte le tipologie di pendenza.
-
 - [ ] Bugfix menu hamburger mobile
   - Correggere il template header e assicurare il funzionamento del menu hamburger in mobile, rispettando le classi e la struttura Bootstrap Italia.
 
