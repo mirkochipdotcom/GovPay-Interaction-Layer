@@ -14,8 +14,7 @@
         "govpay/pagamenti-client": "dev-main",
         "govpay/ragioneria-client": "dev-main",
         "govpay/pendenze-client": "dev-main",
-    "govpay/backoffice-client": "dev-main",
-    "setasign/fpdi": "^2.4"
+        "govpay/backoffice-client": "dev-main"
     },
     "repositories": [
         {
