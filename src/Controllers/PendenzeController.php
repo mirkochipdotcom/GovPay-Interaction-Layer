@@ -1216,14 +1216,17 @@ class PendenzeController
             foreach ($created as $c) {
                 $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Pendenza creata: ' . $c];
             }
+            // Redirect to the dettaglio of the first created rata (behaviour like insertion)
+            $firstId = $created[0];
+            $loc = '/pendenze/dettaglio/' . rawurlencode((string)$firstId) . '?from=insert';
+            return $response->withHeader('Location', $loc)->withStatus(302);
         } else {
             $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Rate create con successo'];
+            // Fallback: preview multi-rate document
+            $loc = '/pendenze/multirata/preview';
+            if (!empty($created[0])) $loc .= '?id=' . rawurlencode($created[0]);
+            return $response->withHeader('Location', $loc)->withStatus(302);
         }
-        // Redirect to the multi-rate preview/print page
-        // Redirect to the multi-rate preview/print page
-        $loc = '/pendenze/multirata/preview';
-        if (!empty($created[0])) $loc .= '?id=' . rawurlencode($created[0]);
-        return $response->withHeader('Location', $loc)->withStatus(302);
     }
 
     // Se siamo qui, almeno una rata ha fallito: ritorniamo al form con errori
@@ -1711,17 +1714,41 @@ class PendenzeController
             }
         }
 
+        // Fetch tipologie for the template
+        $idDominio = $pendenza['idDominio'] ?? (getenv('ID_DOMINIO') ?: '');
+        $tipologie = [];
+        if ($idDominio) {
+            try {
+                $repo = new EntrateRepository();
+                $tipologie = $repo->listAbilitateByDominio($idDominio);
+            } catch (\Throwable $e) {
+                // ignore
+            }
+        }
+
+        // Define pendenza states for badges
+        $pendenza_states = [
+            'NON_ESEGUITA' => ['label' => 'Non eseguita', 'color' => 'secondary'],
+            'ESEGUITA' => ['label' => 'Eseguita', 'color' => 'success'],
+            'ESEGUITA_PARZIALE' => ['label' => 'Eseguita parziale', 'color' => 'warning'],
+            'ANNULLATA' => ['label' => 'Annullata', 'color' => 'danger'],
+            'SCADUTA' => ['label' => 'Scaduta', 'color' => 'dark'],
+            'INCASSATA' => ['label' => 'Incassata', 'color' => 'info'],
+        ];
+
         return $this->twig->render($response, 'pendenze/dettaglio.html.twig', [
             'idPendenza' => $idPendenza,
             'return_url' => $ret,
             'pendenza' => $pendenza,
             'error' => $error,
-            'id_dominio' => $pendenza['idDominio'] ?? (getenv('ID_DOMINIO') ?: ''),
+            'id_dominio' => $idDominio,
             'came_from_insert' => $cameFromInsert,
             'related_pendenze' => $relatedPendenze,
             'related_by_rata' => $relatedByRata,
             'current_rate' => $currentRate,
             'rate_info_source' => $rateInfoSource,
+            'tipologie' => $tipologie,
+            'pendenza_states' => $pendenza_states,
         ]);
     }
 
@@ -1793,7 +1820,7 @@ class PendenzeController
      */
     public function downloadAvvisiDocumento(Request $request, Response $response, array $args): Response
     {
-        $idDominio = $args['idDominio'] ?? '';
+        $idDominio = getenv('ID_DOMINIO') ?: '';
         $numeroDocumento = $args['numeroDocumento'] ?? '';
         if ($idDominio === '' || $numeroDocumento === '') {
             $response->getBody()->write('Parametri mancanti');
