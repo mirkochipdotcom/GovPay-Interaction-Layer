@@ -93,11 +93,11 @@ return function (App $app, Twig $twig): void {
     // the document that aggregates one or more avvisi. The frontend posts
     // JSON { numeriAvviso: [ ... ] } so we expose a POST route in addition
     // to the existing GET to keep compatibility with direct links.
-    $app->get('/documenti/{idDominio}/{numeroDocumento}/avvisi', function(Request $request, Response $response, array $args) use ($twig): Response {
+    $app->get('/documenti/{numeroDocumento}/avvisi', function(Request $request, Response $response, array $args) use ($twig): Response {
         $controller = new PendenzeController($twig);
         return $controller->downloadAvvisiDocumento($request, $response, $args);
     });
-    $app->post('/documenti/{idDominio}/{numeroDocumento}/avvisi', function(Request $request, Response $response, array $args) use ($twig): Response {
+    $app->post('/documenti/{numeroDocumento}/avvisi', function(Request $request, Response $response, array $args) use ($twig): Response {
         $controller = new PendenzeController($twig);
         return $controller->downloadAvvisiDocumento($request, $response, $args);
     });
