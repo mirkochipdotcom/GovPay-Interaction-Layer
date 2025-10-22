@@ -162,7 +162,7 @@
       {% set possible = (r.documento is defined and r.documento.rata is defined) ? r.documento.rata : ((r.proprieta is defined and r.proprieta.rate is defined) ? r.proprieta.rate : []) %}
       {% if possible is iterable %}
         {% set rate_info = possible %}
-      {% elseif possible is defined and possible|length > 0 %}
+      {% elseif possible is defined and possible is not empty %}
         {% set rate_info = [possible] %}
       {% else %}
         {% set rate_info = [] %}
@@ -609,10 +609,14 @@
                       {% set iuv = r.iuv|default('') %}
                     {% endif %}
                     {# idDominio: preferisci quello dalla RPT; fallback al dominio nella pendenza; infine ENV passato come id_dominio #}
-                    {% set idDom =
-                      (rr.rpt is defined and rr.rpt.dominio is defined and rr.rpt.dominio.identificativoDominio is defined and rr.rpt.dominio.identificativoDominio)
-                        ? rr.rpt.dominio.identificativoDominio
-                        : ((pendenza.dominio.idDominio|default('')) ?: (id_dominio|default(''))) %}
+                    {% set idDom = '' %}
+                    {% if rr.rpt is defined and rr.rpt.dominio is defined and rr.rpt.dominio.identificativoDominio is defined and rr.rpt.dominio.identificativoDominio %}
+                      {% set idDom = rr.rpt.dominio.identificativoDominio %}
+                    {% elseif r.dominio is defined and r.dominio.idDominio is defined and r.dominio.idDominio %}
+                      {% set idDom = r.dominio.idDominio %}
+                    {% else %}
+                      {% set idDom = id_dominio|default('') %}
+                    {% endif %}
                     {# CCP per RT via Pendenze: preferisci codiceContestoPagamento #}
                     {% set ccp = idPago %}
                     {# Mostra bottone ricevuta solo se esito positivo #}
