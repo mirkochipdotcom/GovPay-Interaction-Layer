@@ -210,13 +210,7 @@
         <div class="d-flex flex-wrap align-items-center gap-3">
           <div>
             <div class="text-muted small">Stato</div>
-            {% set st = r.stato|default('') %}
-            {% set conf = pendenza_states[st]|default(null) %}
-            {% if conf %}
-              <span class="badge bg-{{ conf.color }}">{{ conf.label }}</span>
-            {% else %}
-              <span class="badge bg-secondary">{{ st }}</span>
-            {% endif %}
+            {% include 'partials/state_badge.html.twig' with { state: r.stato|default(''), pill: false } %}
           </div>
           <div>
             <div class="text-muted small">Importo</div>
@@ -413,11 +407,8 @@
                       <td>{% if rt is not null and rt.dataScadenza is defined and rt.dataScadenza %}{{ rt.dataScadenza|date('d/m/Y') }}{% else %}—{% endif %}</td>
                       {# Stato: mostra badge colorato usando pendenza_states quando possibile #}
                       {% set st_rt = (rt is not null and rt.stato is defined) ? rt.stato : '' %}
-                      {% set conf_rt = (st_rt and pendenza_states is defined) ? (pendenza_states[st_rt]|default(null)) : null %}
-                      {% if conf_rt %}
-                        <td><span class="badge bg-{{ conf_rt.color }}">{{ conf_rt.label }}</span></td>
-                      {% elseif st_rt %}
-                        <td><span class="badge bg-secondary">{{ st_rt }}</span></td>
+                      {% if st_rt %}
+                        <td>{% include 'partials/state_badge.html.twig' with { state: st_rt, pill: false, small: true } %}</td>
                       {% else %}
                         <td>—</td>
                       {% endif %}
@@ -496,14 +487,7 @@
                     <td class="text-end">{% if voce.importo is defined %}{{ voce.importo|number_format(2, ',', '.') }} €{% else %}—{% endif %}</td>
                     <td>
                       {% set st_voce = voce.stato|default('') %}
-                      {% set conf_voce = pendenza_states[st_voce]|default(null) %}
-                      {% if conf_voce %}
-                        <span class="badge bg-{{ conf_voce.color }}">{{ conf_voce.label }}</span>
-                      {% elseif st_voce %}
-                        <span class="badge bg-secondary">{{ st_voce }}</span>
-                      {% else %}
-                        —
-                      {% endif %}
+                      {% include 'partials/state_badge.html.twig' with { state: st_voce, pill: false, small: true } %}
                     </td>
                     <td class="text-break small">
                       {% set codice = voce.codiceContabilita|default('') %}
