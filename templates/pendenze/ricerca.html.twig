@@ -233,13 +233,7 @@
                 </td>
                 <td class="text-center">{{ r.importo is defined ? (r.importo|number_format(2, ',', '.')) : '' }}</td>
                 <td>
-                  {% set st = r.stato|default('') %}
-                  {% set conf = pendenza_states[st]|default(null) %}
-                  {% if conf %}
-                    <span class="badge rounded-pill text-bg-{{ conf.color }}">{{ conf.label }}</span>
-                  {% else %}
-                    <span class="badge rounded-pill text-bg-secondary">{{ st }}</span>
-                  {% endif %}
+                  {% include 'partials/state_badge.html.twig' with { state: r.stato|default(''), pill: true } %}
                 </td>
                 <td class="text-center">
                   {% if r.idPendenza is defined and r.idPendenza %}

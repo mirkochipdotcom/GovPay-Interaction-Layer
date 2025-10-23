@@ -1,0 +1,24 @@
+{#
+  Partial: state_badge.html.twig
+  Inputs:
+    - state: string (nome stato)
+    - pill: boolean (optional) -> render pill style when true
+    - small: boolean (optional) -> render smaller badge
+#}
+{% set s = state|default('') %}
+{% set conf = (s and pendenza_states is defined) ? (pendenza_states[s]|default(null)) : null %}
+{% if conf %}
+  {% if pill %}
+    <span class="badge rounded-pill text-bg-{{ conf.color }}{% if small %} small{% endif %}">{{ conf.label }}</span>
+  {% else %}
+    <span class="badge text-bg-{{ conf.color }}{% if small %} small{% endif %}">{{ conf.label }}</span>
+  {% endif %}
+{% elseif s %}
+  {% if pill %}
+    <span class="badge rounded-pill text-bg-secondary{% if small %} small{% endif %}">{{ s }}</span>
+  {% else %}
+    <span class="badge text-bg-secondary{% if small %} small{% endif %}">{{ s }}</span>
+  {% endif %}
+{% else %}
+  —
+{% endif %}
