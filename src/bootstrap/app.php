@@ -66,8 +66,10 @@ return (function (): array {
 
     $pendenzaStates = [
         'NON_ESEGUITA' => ['label' => 'Da pagare', 'color' => 'secondary'],
+        'NON_ESEGUITO' => ['label' => 'Da pagare', 'color' => 'secondary'],
         'TENTATIVO_DI_PAGAMENTO' => ['label' => 'Tentativo di pagamento in corso', 'color' => 'warning'],
         'ESEGUITA' => ['label' => 'Pagato', 'color' => 'success'],
+        'ESEGUITO' => ['label' => 'Pagato', 'color' => 'success'],
         'RENDICONTATA' => ['label' => 'Rendicontato', 'color' => 'primary'],
         'ANNULLATA' => ['label' => 'Annullato', 'color' => 'light'],
         'SCADUTA' => ['label' => 'Scaduto', 'color' => 'danger'],

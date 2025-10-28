@@ -4,8 +4,13 @@
   - Permettere la modifica della descrizione per ogni tipologia di entrata nella sezione configurazione, visibile e modificabile solo ai superadmin. Prevedere form inline e salvataggio lato backend.
   - Controllare che dopo l'aggiornamento lato govpay, ovvero aggiunta o rimozione, la tabella si allinei di conseguenza
 
+- [ ] Migliorie inserimento pendenza
+  - Impostare dei check su validità di codice fiscale in accoppiata con nome e cognome, e validità partita iva.
+  - Nel multirata modificare la descrizione della voce di pendenza con il numero rata x di x
+  - Controllare che dopo l'aggiornamento lato govpay, ovvero aggiunta o rimozione, la tabella si allinei di conseguenza
+
 - [ ] Select tipologia pendenza ricercabile
-  - Rendere la select della tipologia pendenza nella maschera di ricerca pendenze ricercabile (autocomplete o select2/bootstrap-select), per facilitare la selezione in presenza di molte tipologie.
+  - Rendere la select della tipologia pendenza nelle mascherhe di ricerca pendenze ricercabile (autocomplete o select2/bootstrap-select), per facilitare la selezione in presenza di molte tipologie.
 
 - [ ] Bugfix menu hamburger mobile
   - Correggere il template header e assicurare il funzionamento del menu hamburger in mobile, rispettando le classi e la struttura Bootstrap Italia.

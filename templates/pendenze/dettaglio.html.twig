@@ -408,7 +408,7 @@
                       {# Stato: mostra badge colorato usando pendenza_states quando possibile #}
                       {% set st_rt = (rt is not null and rt.stato is defined) ? rt.stato : '' %}
                       {% if st_rt %}
-                        <td>{% include 'partials/state_badge.html.twig' with { state: st_rt, pill: false, small: true } %}</td>
+                        <td>{% include 'partials/state_badge.html.twig' with { state: st_rt, pill: true, small: false } %}</td>
                       {% else %}
                         <td>—</td>
                       {% endif %}
