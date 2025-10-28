@@ -69,22 +69,3 @@ html {
 	.user-initials-avatar { width: 32px; height: 32px; font-size: 0.85rem; }
 }
 
-/* Ensure header/nav overlays form labels and other content when expanded */
-.it-header-wrapper {
-	position: relative;
-	z-index: 1110; /* above panels (date-range uses 1060) */
-}
-.it-header-wrapper .it-header-navbar-wrapper,
-.it-header-wrapper .it-header-center-wrapper,
-.it-header-wrapper .it-header-slim-wrapper {
-	position: relative;
-	z-index: 1110;
-}
-.it-header-wrapper .navbar-collapsable,
-.it-header-wrapper .navbar-collapsable.collapse.show {
-	position: relative;
-	z-index: 1120;
-}
-.it-header-wrapper .dropdown-menu {
-	z-index: 1130;
-}
