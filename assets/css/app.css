@@ -13,13 +13,8 @@ footer.it-footer { margin-top: auto; }
 /* Quando il footer è fixed-bottom, evita che copra i contenuti */
 .pb-footer { padding-bottom: 6rem; }
 
-/* Contrasto migliore per item attivo nel dropdown del menu in tema scuro */
-.theme-dark .dropdown-menu .dropdown-item.active,
-.theme-dark .dropdown-menu .dropdown-item:active,
-.dropdown-menu .dropdown-item.active {
-	background-color: var(--bs-primary, #0d6efd);
-	color: #fff !important;
-}
+
+
 
 /* Evidenziazione riga pendenza al ritorno dal dettaglio */
 tr.highlight-row {
@@ -69,3 +64,12 @@ html {
 	.user-initials-avatar { width: 32px; height: 32px; font-size: 0.85rem; }
 }
 
+
+/* Stronger rule: ensure any inner spans also get white text (overrides vendor rules) */
+.it-header-wrapper .dropdown-menu .dropdown-item.list-item.active,
+.it-header-wrapper .dropdown-menu .dropdown-item.list-item.active > span,
+.theme-dark .dropdown-menu .dropdown-item.list-item.active,
+.theme-dark .dropdown-menu .dropdown-item.list-item.active > span {
+    background-color: var(--bs-primary, #0d6efd) !important;
+    color: #fff !important;
+}

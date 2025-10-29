@@ -1,13 +1,52 @@
 {# Header in stile Bootstrap Italia, semplificato e parametrizzato #}
 <header class="it-header-wrapper">
-  <div class="it-header-slim-wrapper theme-dark">
-    <div class="container">
+  <div class="it-header-slim-wrapper"> {# Kept theme-dark for consistency with current implementation #}
+    <div class="container-xxl">
       <div class="row">
         <div class="col-12">
-            <div class="it-header-slim-wrapper-content d-flex justify-content-between align-items-center">
-            <a class="d-lg-block navbar-brand text-white" href="#">{{ app_entity.government ?: app_entity.suffix }}</a>
-            <div class="it-header-slim-right-zone d-flex align-items-center gap-3">
-              {% if current_user %}
+          <div class="it-header-slim-wrapper-content">
+            <a class="d-none d-lg-block navbar-brand text-white" href="#">{{ app_entity.name }}</a> {# Using app_entity.name for "Ente appartenenza" #}
+            <div class="nav-mobile">
+              <nav aria-label="Navigazione secondaria">
+                <a class="it-opener d-lg-none" data-bs-toggle="collapse" href="#menuC1" role="button" aria-expanded="false" aria-controls="menuC1">
+                  <span>{{ app_entity.name }}</span> {# Using app_entity.name for "Ente appartenenza" #}
+                  <svg class="icon" aria-hidden="true"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-expand"></use></svg> {# Adjusted path for sprites.svg #}
+                </a>
+                <div class="link-list-wrapper collapse" id="menuC1">
+                  <ul class="link-list">
+                    {# Existing user profile/logout links #}
+                    {% if current_user %}
+                      <li>
+                        <a class="dropdown-item list-item {{ current_path == '/guida' ? 'active' : '' }}" href="/guida">Guida</a>
+                      </li>
+                    {% endif %}
+                  </ul>
+                </div>
+              </nav>
+            </div>
+            <div class="it-header-slim-right-zone">
+              {# Language selector - keeping it as is for now, as there's no existing language logic #}
+              <div class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                  <span class="visually-hidden">Selezione lingua: lingua selezionata</span>
+                  <span>ITA</span>
+                  <svg class="icon d-none d-lg-block"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-expand"></use></svg> {# Adjusted path for sprites.svg #}
+                </a>
+                <div class="dropdown-menu">
+                  <div class="row">
+                    <div class="col-12">
+                      <div class="link-list-wrapper">
+                        <ul class="link-list">
+                          <li><a class="dropdown-item list-item" href="#"><span>ITA <span class="visually-hidden">selezionata</span></span></a></li>
+                          {# <li><a class="dropdown-item list-item" href="#"><span>ENG</span></a></li>  #}
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="it-access-top-wrapper">
+                 {% if current_user %}
                 <div class="it-user-wrapper nav-item dropdown show">
                   <a aria-expanded="false" class="btn btn-primary btn-icon btn-full" data-bs-toggle="dropdown" href="#" id="userDropdown">
                     {# User icon: show on md+ only; on mobile we'll show initials in a circle instead #}
@@ -51,36 +90,39 @@
                     </div>
                   </div>
                 </div>
-              {% else %}
-                <a class="btn btn-sm btn-outline-light" href="/login">Login</a>
-              {% endif %}
+                {% else %}
+                  <a class="btn btn-primary btn-sm" href="/login">Accedi</a>
+                {% endif %}
+              </div>
             </div>
           </div>
         </div>
       </div>
     </div>
   </div>
-
   <div class="it-nav-wrapper">
-    <div class="it-header-center-wrapper theme-dark">
-      <div class="container">
+    <div class="it-header-center-wrapper"> {# Kept theme-dark for consistency with current implementation #}
+      <div class="container-xxl">
         <div class="row">
           <div class="col-12">
-            <div class="it-header-center-content-wrapper d-flex justify-content-between align-items-center py-2">
-              <div class="it-brand-wrapper d-flex align-items-center">
-                {% if app_logo.type == 'img' %}
-                  <img src="{{ app_logo.src }}" alt="{{ app_entity.name }}" class="me-2" style="height:40px; width:auto;" />
-                {% else %}
-                  <svg class="icon icon-white me-2" style="height:40px; width:40px;">
-                    <use xlink:href="{{ app_logo.src }}"></use>
-                  </svg>
-                {% endif %}
-                <div class="it-brand-text text-white">
-                  <h2 class="no_toc h5 mb-0">{{ app_entity.name }}</h2>
-                  <h3 class="no_toc h6 mb-0 d-none d-md-block">{{ app_entity.suffix }}</h3>
-                </div>
+            <div class="it-header-center-content-wrapper">
+              <div class="it-brand-wrapper">
+                <a href="/"> {# Link to home #}
+                  {% if app_logo.type == 'img' %}
+                    <img src="{{ app_logo.src }}" alt="{{ app_entity.name }}" class="me-2" style="height:40px; width:auto;" />
+                  {% else %}
+                    <svg class="icon icon-white me-2" style="height:40px; width:40px;"> {# Kept icon-white for consistency #}
+                      <use xlink:href="{{ app_logo.src ?: '/assets/bootstrap-italia/svg/sprites.svg#it-pa' }}"></use> {# Using app_logo.src if available, otherwise default to it-pa #}
+                    </svg>
+                  {% endif %}
+                  <div class="it-brand-text">
+                    <div class="it-brand-title">{{ app_entity.name }}</div>
+                    <div class="it-brand-tagline d-none d-md-block">{{ app_entity.suffix }}</div>
+                  </div>
+                </a>
               </div>
               <div class="it-right-zone">
+                {# Socials and Search - not present in current implementation, so omitting for now #}
                 {# spazio per messaggi o pulsanti #}
               </div>
             </div>
@@ -88,57 +130,81 @@
         </div>
       </div>
     </div>
-
-  <div class="it-header-navbar-wrapper theme-dark">
-      <div class="container">
+    <div class="it-header-navbar-wrapper"> {# Kept theme-dark for consistency with current implementation #}
+      <div class="container-xxl">
         <div class="row">
           <div class="col-12">
-            <nav class="navbar navbar-expand-lg has-megamenu">
-              <button class="custom-navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
-                <svg class="icon"><use xlink:href="/assets/bootstrap-italia/svg/sprites.svg#it-burger"></use></svg>
+            <!--start nav-->
+            <nav class="navbar navbar-expand-lg has-megamenu" aria-label="Navigazione principale">
+              <button class="custom-navbar-toggler" type="button" data-bs-toggle="navbarcollapsible" data-bs-target="#navC1" aria-controls="navC1" aria-label="Mostra/Nascondi la navigazione">
+                <svg class="icon">
+                  <use href="/assets/bootstrap-italia/svg/sprites.svg#it-burger"></use>
+                </svg>
               </button>
-              <div class="navbar-collapsable collapse" id="mainNav">
+              <div class="navbar-collapsable" id="navC1" tabindex="-1">
+                <div class="close-div">
+                  <button class="btn close-menu" type="button">
+                    <span class="visually-hidden">Nascondi la navigazione</span>
+                    <svg class="icon">
+                      <use href="/assets/bootstrap-italia/svg/sprites.svg#it-close-big"></use> {# Adjusted path for sprites.svg #}
+                    </svg>
+                  </button>
+                </div>
                 <div class="menu-wrapper">
                   <ul class="navbar-nav">
                     {% if current_user %}
-                      <li class="nav-item"><a class="nav-link {{ current_path == '/' ? 'active' : '' }}" href="/">Home</a></li>
+                      <li class="nav-item"><a class="nav-link {{ current_path == '/' ? 'active' : '' }}" href="/"><span>Home</span></a></li>
                       {% set in_pendenze = current_path starts with '/pendenze' %}
                       <li class="nav-item dropdown {{ in_pendenze ? 'active' : '' }}">
-                        <a class="nav-link dropdown-toggle {{ in_pendenze ? 'active' : '' }}" href="#" id="pendenzeDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                          Pendenze
+                        <a class="nav-link dropdown-toggle {{ in_pendenze ? 'active' : '' }}" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false" id="pendenzeDropdown">
+                          <span>Pendenze</span>
+                          <svg class="icon icon-xs">
+                            <use href="/assets/bootstrap-italia/svg/sprites.svg#it-expand"></use> {# Adjusted path for sprites.svg #}
+                          </svg>
                         </a>
-                        <div class="dropdown-menu" aria-labelledby="pendenzeDropdown">
-                          <a class="dropdown-item {{ current_path == '/pendenze/ricerca' ? 'active' : '' }}" href="/pendenze/ricerca">Ricerca</a>
-                          <a class="dropdown-item {{ current_path == '/pendenze/inserimento' ? 'active' : '' }}" href="/pendenze/inserimento">Inserimento</a>
-                          <a class="dropdown-item {{ current_path == '/pendenze/inserimento-massivo' ? 'active' : '' }}" href="/pendenze/inserimento-massivo">Inserimento massivo</a>
+                        <div class="dropdown-menu" role="region" aria-labelledby="pendenzeDropdown">
+                          <div class="link-list-wrapper">
+                            <ul class="link-list">
+                              <li><a class="dropdown-item list-item {{ current_path == '/pendenze/ricerca' ? 'active' : '' }}" href="/pendenze/ricerca"><span>Ricerca</span></a></li>
+                              <li><a class="dropdown-item list-item {{ current_path == '/pendenze/inserimento' ? 'active' : '' }}" href="/pendenze/inserimento"><span>Inserimento</span></a></li>
+                              <li><a class="dropdown-item list-item {{ current_path == '/pendenze/inserimento-massivo' ? 'active' : '' }}" href="/pendenze/inserimento-massivo"><span>Inserimento massivo</span></a></li>
+                            </ul>
+                          </div>
                         </div>
                       </li>
                       {% set in_pagamenti = current_path starts with '/pagamenti' %}
                       <li class="nav-item dropdown {{ in_pagamenti ? 'active' : '' }}">
-                        <a class="nav-link dropdown-toggle {{ in_pagamenti ? 'active' : '' }}" href="#" id="pagamentiDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                          Pagamenti
+                        <a class="nav-link dropdown-toggle {{ in_pagamenti ? 'active' : '' }}" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false" id="pagamentiDropdown">
+                          <span>Pagamenti</span>
+                          <svg class="icon icon-xs">
+                            <use href="/assets/bootstrap-italia/svg/sprites.svg#it-expand"></use> {# Adjusted path for sprites.svg #}
+                          </svg>
                         </a>
-                        <div class="dropdown-menu" aria-labelledby="pagamentiDropdown">
-                          <a class="dropdown-item {{ current_path == '/pagamenti/ricerca-incassi' ? 'active' : '' }}" href="/pagamenti/ricerca-incassi">Ricerca Incassi</a>
-                          <a class="dropdown-item {{ current_path == '/pagamenti/ricerca-flussi' ? 'active' : '' }}" href="/pagamenti/ricerca-flussi">Ricerca Flussi</a>
+                        <div class="dropdown-menu" role="region" aria-labelledby="pagamentiDropdown">
+                          <div class="link-list-wrapper">
+                            <ul class="link-list">
+                              <li><a class="dropdown-item list-item {{ current_path == '/pagamenti/ricerca-incassi' ? 'active' : '' }}" href="/pagamenti/ricerca-incassi"><span>Ricerca Incassi</span></a></li>
+                              <li><a class="dropdown-item list-item {{ current_path == '/pagamenti/ricerca-flussi' ? 'active' : '' }}" href="/pagamenti/ricerca-flussi"><span>Ricerca Flussi</span></a></li>
+                            </ul>
+                          </div>
                         </div>
                       </li>
                     {% endif %}
                     {% if current_user %}
                       {% if current_user.role in ['admin','superadmin'] %}
-                        <li class="nav-item"><a class="nav-link {{ current_path starts with '/users' ? 'active' : '' }}" href="/users">Utenti</a></li>
+                        <li class="nav-item"><a class="nav-link {{ current_path starts with '/users' ? 'active' : '' }}" href="/users"><span>Utenti</span></a></li>
                       {% endif %}
                       {% if current_user.role == 'superadmin' %}
                         {% set in_config = current_path starts with '/configurazione' %}
                         <li class="nav-item">
-                          <a class="nav-link {{ in_config ? 'active' : '' }}" href="/configurazione">Configurazione</a>
+                          <a class="nav-link {{ in_config ? 'active' : '' }}" href="/configurazione"><span>Configurazione</span></a>
                         </li>
                       {% endif %}
                     {% endif %}
-                    <li class="nav-item"><a class="nav-link {{ current_path == '/guida' ? 'active' : '' }}" href="/guida">Guida</a></li>
                     {% if not current_user %}
-                      <li class="nav-item"><a class="nav-link" href="/login">Login</a></li>
+                    <li class="nav-item"><a class="nav-link {{ current_path == '/guida' ? 'active' : '' }}" href="/guida"><span>Guida</span></a></li>
                     {% endif %}
+                    {# Login link is handled in the slim header now #}
                   </ul>
                 </div>
               </div>
