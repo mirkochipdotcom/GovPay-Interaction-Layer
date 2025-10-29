@@ -15,7 +15,7 @@ WORKDIR /app
 # ----------------------------------------------------------------------
 
 # Variabile per il tag di Bootstrap Italia
-ARG BOOTSTRAP_TAG="v2.16.2"
+ARG BOOTSTRAP_TAG="v2.17.0"
 
 # Variabili per Font Awesome
 ARG FA_VERSION="7.1.0"
