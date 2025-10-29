@@ -12,16 +12,15 @@
                   <span>{{ app_entity.name }}</span> {# Using app_entity.name for "Ente appartenenza" #}
                   <svg class="icon" aria-hidden="true"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-expand"></use></svg> {# Adjusted path for sprites.svg #}
                 </a>
+                {% if current_user %}
                 <div class="link-list-wrapper collapse" id="menuC1">
                   <ul class="link-list">
-                    {# Existing user profile/logout links #}
-                    {% if current_user %}
                       <li>
                         <a class="dropdown-item list-item {{ current_path == '/guida' ? 'active' : '' }}" href="/guida">Guida</a>
                       </li>
-                    {% endif %}
-                  </ul>
+                    </ul>
                 </div>
+                {% endif %}
               </nav>
             </div>
             <div class="it-header-slim-right-zone">
