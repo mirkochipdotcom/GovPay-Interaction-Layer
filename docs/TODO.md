@@ -12,9 +12,6 @@
 - [ ] Select tipologia pendenza ricercabile
   - Rendere la select della tipologia pendenza nelle mascherhe di ricerca pendenze ricercabile (autocomplete o select2/bootstrap-select), per facilitare la selezione in presenza di molte tipologie.
 
-- [ ] Bugfix menu hamburger mobile
-  - Correggere il template header e assicurare il funzionamento del menu hamburger in mobile, rispettando le classi e la struttura Bootstrap Italia.
-
 - [ ] Creare sezione ricerca flussi
   - Implementare una sezione dedicata alla ricerca dei flussi, con filtri avanzati e risultati tabellari.
 
