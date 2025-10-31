@@ -6,6 +6,12 @@
   <div class="d-flex align-items-center justify-content-between mb-3">
     <h2 class="h4 mb-0">Dettaglio pendenza <span class="text-muted">{{ idPendenza }}</span></h2>
     <div class="d-flex gap-2">
+      {% if pendenza and pendenza.stato == 'NON_ESEGUITA' %}
+        <a class="btn btn-warning" href="/pendenze/modifica/{{ idPendenza }}?return={{ return_url|url_encode }}">Modifica</a>
+        <button class="btn btn-danger" onclick="annullaPendenza('{{ idPendenza }}')">Annulla</button>
+      {% elseif pendenza and pendenza.stato == 'ANNULLATA' %}
+        <button class="btn btn-success" onclick="riattivaPendenza('{{ idPendenza }}')">Riattiva</button>
+      {% endif %}
       {% if came_from_insert %}
         <a class="btn btn-primary" href="/pendenze/inserimento">Inserisci nuova pendenza</a>
       {% else %}
@@ -688,4 +694,56 @@
       <a class="btn btn-outline-secondary" href="{{ return_url|default('/pendenze/ricerca') }}">&laquo; Torna alla ricerca</a>
     {% endif %}
   </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function annullaPendenza(idPendenza) {
+    if (confirm('Sei sicuro di voler annullare questa pendenza?')) {
+        fetch('/pendenze/annulla/' + encodeURIComponent(idPendenza), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Pendenza annullata con successo');
+                location.reload();
+            } else {
+                alert('Errore: ' + (data.error || 'Errore sconosciuto'));
+            }
+        })
+        .catch(error => {
+            alert('Errore di rete: ' + error.message);
+        });
+    }
+}
+
+function riattivaPendenza(idPendenza) {
+    if (confirm('Sei sicuro di voler riattivare questa pendenza?')) {
+        fetch('/pendenze/riattiva/' + encodeURIComponent(idPendenza), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Pendenza riattivata con successo');
+                location.reload();
+            } else {
+                alert('Errore: ' + (data.error || 'Errore sconosciuto'));
+            }
+        })
+        .catch(error => {
+            alert('Errore di rete: ' + error.message);
+        });
+    }
+}
+</script>
 {% endblock %}

@@ -74,6 +74,26 @@ return function (App $app, Twig $twig): void {
         return $controller->showDetail($request, $response, $args);
     });
 
+    $app->get('/pendenze/modifica/{idPendenza}', function(Request $request, Response $response, array $args) use ($twig): Response {
+        $controller = new PendenzeController($twig);
+        return $controller->showEdit($request, $response, $args);
+    });
+
+    $app->post('/pendenze/annulla/{idPendenza}', function(Request $request, Response $response, array $args) use ($twig): Response {
+        $controller = new PendenzeController($twig);
+        return $controller->annullaPendenza($request, $response, $args);
+    });
+
+    $app->post('/pendenze/riattiva/{idPendenza}', function(Request $request, Response $response, array $args) use ($twig): Response {
+        $controller = new PendenzeController($twig);
+        return $controller->riattivaPendenza($request, $response, $args);
+    });
+
+    $app->post('/pendenze/aggiorna/{idPendenza}', function(Request $request, Response $response, array $args) use ($twig): Response {
+        $controller = new PendenzeController($twig);
+        return $controller->aggiornaPendenza($request, $response, $args);
+    });
+
     // Preview/print multi-rate document stored in session after createRateizzazione
     $app->get('/pendenze/multirata/preview', function(Request $request, Response $response) use ($twig): Response {
         // only in session

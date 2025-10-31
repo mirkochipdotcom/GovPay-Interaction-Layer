@@ -2186,5 +2186,326 @@ class PendenzeController
             || str_contains($message, 'must be smaller than or equal to')
             || str_contains($message, 'length');
     }
+
+    public function showEdit(Request $request, Response $response, array $args): Response
+    {
+        $this->exposeCurrentUser();
+
+        $idPendenza = $args['idPendenza'] ?? '';
+        $q = $request->getQueryParams();
+        $returnUrl = $q['return'] ?? '/pendenze/ricerca';
+
+        $error = null;
+        $pendenza = null;
+
+        // Recupera i dati della pendenza esistente
+        $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
+        $idA2A = getenv('ID_A2A') ?: '';
+        if ($idPendenza === '') {
+            $error = 'ID pendenza non specificato';
+        } elseif (empty($backofficeUrl)) {
+            $error = 'Variabile GOVPAY_BACKOFFICE_URL non impostata';
+        } elseif ($idA2A === '') {
+            $error = 'Variabile ID_A2A non impostata nel file .env';
+        } else {
+            try {
+                $username = getenv('GOVPAY_USER');
+                $password = getenv('GOVPAY_PASSWORD');
+                $guzzleOptions = [
+                    'headers' => ['Accept' => 'application/json'],
+                ];
+                $authMethod = getenv('AUTHENTICATION_GOVPAY');
+                if ($authMethod !== false && strtolower((string)$authMethod) === 'sslheader') {
+                    $cert = getenv('GOVPAY_TLS_CERT');
+                    $key = getenv('GOVPAY_TLS_KEY');
+                    $keyPass = getenv('GOVPAY_TLS_KEY_PASSWORD') ?: null;
+                    if (!empty($cert) && !empty($key)) {
+                        $guzzleOptions['cert'] = $cert;
+                        $guzzleOptions['ssl_key'] = $keyPass ? [$key, $keyPass] : $key;
+                    } else {
+                        $error = 'mTLS abilitato ma GOVPAY_TLS_CERT/GOVPAY_TLS_KEY non impostati';
+                    }
+                }
+                if (!$error && $username !== false && $password !== false && $username !== '' && $password !== '') {
+                    $guzzleOptions['auth'] = [$username, $password];
+                }
+
+                if (!$error) {
+                    $http = $this->makeHttpClient($guzzleOptions);
+                    $url = rtrim($backofficeUrl, '/') . '/pendenze/' . rawurlencode((string)$idA2A) . '/' . rawurlencode($idPendenza);
+                    $resp = $http->request('GET', $url);
+                    $json = (string)$resp->getBody();
+                    $data = json_decode($json, true);
+                    if (json_last_error() !== JSON_ERROR_NONE) {
+                        throw new \RuntimeException('Parsing JSON fallito: ' . json_last_error_msg());
+                    }
+                    $pendenza = $data;
+                }
+            } catch (ClientException $ce) {
+                $code = $ce->getResponse() ? $ce->getResponse()->getStatusCode() : 0;
+                $error = $code === 404 ? 'Pendenza non trovata (404)' : 'Errore client nella chiamata pendenza: ' . $ce->getMessage();
+            } catch (\Throwable $e) {
+                $error = 'Errore chiamata pendenza: ' . $e->getMessage();
+            }
+        }
+
+        // Se ci sono errori o la pendenza non è modificabile, reindirizza al dettaglio
+        if ($error || !$pendenza || $pendenza['stato'] !== 'NON_ESEGUITA') {
+            return $response->withHeader('Location', '/pendenze/dettaglio/' . rawurlencode($idPendenza) . '?error=' . rawurlencode($error ?: 'Pendenza non modificabile'))->withStatus(302);
+        }
+
+        // Recupera tipologie abilitate per il dominio
+        $idDominio = getenv('ID_DOMINIO') ?: '';
+        $tipologie = [];
+        if ($idDominio) {
+            try {
+                $repo = new EntrateRepository();
+                $tipologie = $repo->listAbilitateByDominio($idDominio);
+            } catch (\Throwable $e) {
+                $tipologie = [];
+            }
+        }
+
+        // Prepara i dati per il form di modifica
+        $old = $this->preparePendenzaForForm($pendenza);
+
+        return $this->twig->render($response, 'pendenze/modifica.html.twig', [
+            'tipologie_pendenze' => $tipologie,
+            'id_dominio' => $idDominio,
+            'id_a2a' => $idA2A,
+            'old' => $old,
+            'idPendenza' => $idPendenza,
+            'return_url' => $returnUrl,
+            'default_anno' => (int)date('Y'),
+        ]);
+    }
+
+    public function annullaPendenza(Request $request, Response $response, array $args): Response
+    {
+        $this->exposeCurrentUser();
+
+        $idPendenza = $args['idPendenza'] ?? '';
+        $responseData = ['success' => false, 'error' => ''];
+
+        if ($idPendenza === '') {
+            $responseData['error'] = 'ID pendenza non specificato';
+        } else {
+            try {
+                $result = $this->updatePendenzaStatus($idPendenza, 'ANNULLATA');
+                if ($result['success']) {
+                    $responseData['success'] = true;
+                } else {
+                    $responseData['error'] = $result['error'];
+                }
+            } catch (\Throwable $e) {
+                $responseData['error'] = 'Errore: ' . $e->getMessage();
+            }
+        }
+
+        $response->getBody()->write(json_encode($responseData));
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+
+    public function riattivaPendenza(Request $request, Response $response, array $args): Response
+    {
+        $this->exposeCurrentUser();
+
+        $idPendenza = $args['idPendenza'] ?? '';
+        $responseData = ['success' => false, 'error' => ''];
+
+        if ($idPendenza === '') {
+            $responseData['error'] = 'ID pendenza non specificato';
+        } else {
+            try {
+                $result = $this->updatePendenzaStatus($idPendenza, 'NON_ESEGUITA');
+                if ($result['success']) {
+                    $responseData['success'] = true;
+                } else {
+                    $responseData['error'] = $result['error'];
+                }
+            } catch (\Throwable $e) {
+                $responseData['error'] = 'Errore: ' . $e->getMessage();
+            }
+        }
+
+        $response->getBody()->write(json_encode($responseData));
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+
+    public function aggiornaPendenza(Request $request, Response $response, array $args): Response
+    {
+        $this->exposeCurrentUser();
+
+        $idPendenza = $args['idPendenza'] ?? '';
+        $params = (array)($request->getParsedBody() ?? []);
+
+        if ($idPendenza === '') {
+            return $this->twig->render($response, 'pendenze/modifica.html.twig', [
+                'errors' => ['ID pendenza non specificato'],
+                'old' => $params,
+                'idPendenza' => $idPendenza,
+                'return_url' => $params['return_url'] ?? '/pendenze/ricerca',
+            ]);
+        }
+
+        // Validazione e costruzione payload simile al metodo create
+        $errors = [];
+        $warnings = [];
+
+        // Validazioni di base (causale, importo, ecc.)
+        $causale = trim((string)($params['causale'] ?? ''));
+        if ($causale === '') {
+            $errors[] = 'Causale obbligatoria';
+        }
+
+        $importoRaw = $params['importo'] ?? '';
+        if ($importoRaw === '' || !is_numeric(str_replace(',', '.', (string)$importoRaw))) {
+            $errors[] = 'Importo non valido';
+        }
+        $importo = (float)str_replace(',', '.', (string)$importoRaw);
+
+        // Se ci sono errori, ricarica il form
+        if ($errors) {
+            $idDominio = getenv('ID_DOMINIO') ?: '';
+            $tipologie = [];
+            if ($idDominio) {
+                try {
+                    $repo = new EntrateRepository();
+                    $tipologie = $repo->listAbilitateByDominio($idDominio);
+                } catch (\Throwable $e) {}
+            }
+            return $this->twig->render($response, 'pendenze/modifica.html.twig', [
+                'errors' => $errors,
+                'old' => $params,
+                'tipologie_pendenze' => $tipologie,
+                'id_dominio' => $idDominio,
+                'id_a2a' => getenv('ID_A2A') ?: '',
+                'idPendenza' => $idPendenza,
+                'return_url' => $params['return_url'] ?? '/pendenze/ricerca',
+                'default_anno' => (int)date('Y'),
+            ]);
+        }
+
+        // Costruzione payload per aggiornamento
+        $payload = [
+            'causale' => $causale,
+            'importo' => $importo,
+        ];
+
+        // Aggiungi altri campi se forniti
+        if (!empty($params['dataValidita'])) $payload['dataValidita'] = $params['dataValidita'];
+        if (!empty($params['dataScadenza'])) $payload['dataScadenza'] = $params['dataScadenza'];
+
+        // Soggetto pagatore
+        if (!empty($params['soggettoPagatore'])) {
+            $payload['soggettoPagatore'] = $params['soggettoPagatore'];
+        }
+
+        // Voci
+        if (!empty($params['voci'])) {
+            $payload['voci'] = $params['voci'];
+        }
+
+        // Invia l'aggiornamento
+        $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
+        $idA2A = getenv('ID_A2A') ?: '';
+
+        if (empty($backofficeUrl) || $idA2A === '') {
+            $errors[] = 'Configurazione GovPay incompleta';
+        } else {
+            try {
+                $http = $this->makeHttpClient();
+                $url = rtrim($backofficeUrl, '/') . '/pendenze/' . rawurlencode((string)$idA2A) . '/' . rawurlencode($idPendenza);
+
+                // Usa PATCH per aggiornamenti parziali
+                $resp = $http->request('PATCH', $url, [
+                    'json' => [$payload] // JSON Patch format
+                ]);
+
+                if ($resp->getStatusCode() === 200) {
+                    $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Pendenza aggiornata con successo'];
+                    $redirectUrl = $params['return_url'] ?? '/pendenze/dettaglio/' . rawurlencode($idPendenza);
+                    return $response->withHeader('Location', $redirectUrl)->withStatus(302);
+                } else {
+                    $errors[] = 'Errore nell\'aggiornamento della pendenza';
+                }
+            } catch (\Throwable $e) {
+                $errors[] = 'Errore chiamata GovPay: ' . $e->getMessage();
+            }
+        }
+
+        // In caso di errore, ricarica il form
+        $idDominio = getenv('ID_DOMINIO') ?: '';
+        $tipologie = [];
+        if ($idDominio) {
+            try {
+                $repo = new EntrateRepository();
+                $tipologie = $repo->listAbilitateByDominio($idDominio);
+            } catch (\Throwable $e) {}
+        }
+        return $this->twig->render($response, 'pendenze/modifica.html.twig', [
+            'errors' => $errors,
+            'old' => $params,
+            'tipologie_pendenze' => $tipologie,
+            'id_dominio' => $idDominio,
+            'id_a2a' => getenv('ID_A2A') ?: '',
+            'idPendenza' => $idPendenza,
+            'return_url' => $params['return_url'] ?? '/pendenze/ricerca',
+            'default_anno' => (int)date('Y'),
+        ]);
+    }
+
+    private function updatePendenzaStatus(string $idPendenza, string $newStatus): array
+    {
+        $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
+        $idA2A = getenv('ID_A2A') ?: '';
+
+        if (empty($backofficeUrl) || $idA2A === '') {
+            return ['success' => false, 'error' => 'Configurazione GovPay incompleta'];
+        }
+
+        try {
+            $http = $this->makeHttpClient();
+            $url = rtrim($backofficeUrl, '/') . '/pendenze/' . rawurlencode((string)$idA2A) . '/' . rawurlencode($idPendenza);
+
+            // JSON Patch per aggiornare solo lo stato
+            $patch = [
+                [
+                    'op' => 'REPLACE',
+                    'path' => '/stato',
+                    'value' => $newStatus
+                ]
+            ];
+
+            $resp = $http->request('PATCH', $url, [
+                'json' => $patch
+            ]);
+
+            if ($resp->getStatusCode() === 200) {
+                return ['success' => true];
+            } else {
+                return ['success' => false, 'error' => 'Errore nell\'aggiornamento dello stato'];
+            }
+        } catch (\Throwable $e) {
+            return ['success' => false, 'error' => 'Errore chiamata GovPay: ' . $e->getMessage()];
+        }
+    }
+
+    private function preparePendenzaForForm(array $pendenza): array
+    {
+        // Converte i dati della pendenza nel formato atteso dal form
+        $form = [
+            'idTipoPendenza' => $pendenza['tipo']['idTipoPendenza'] ?? '',
+            'causale' => $pendenza['causale'] ?? '',
+            'importo' => $pendenza['importo'] ?? '',
+            'annoRiferimento' => $pendenza['annoRiferimento'] ?? '',
+            'soggettoPagatore' => $pendenza['soggettoPagatore'] ?? [],
+            'voci' => $pendenza['voci'] ?? [],
+            'dataValidita' => $pendenza['dataValidita'] ?? '',
+            'dataScadenza' => $pendenza['dataScadenza'] ?? '',
+        ];
+
+        return $form;
+    }
 }
 
