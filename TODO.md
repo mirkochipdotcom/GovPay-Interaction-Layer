@@ -6,8 +6,11 @@
 
 - [ ] Migliorie inserimento pendenza
   - Impostare dei check su validità di codice fiscale in accoppiata con nome e cognome, e validità partita iva.
-  - Nel multirata modificare la descrizione della voce di pendenza con il numero rata x di x
   - Controllare che dopo l'aggiornamento lato govpay, ovvero aggiunta o rimozione, la tabella si allinei di conseguenza
+
+- [ ] Gestione pendenza
+  - Gestire l'annullamento di una pendenza
+  - Gestire il crud sulle pendenze
 
 - [ ] Select tipologia pendenza ricercabile
   - Rendere la select della tipologia pendenza nelle mascherhe di ricerca pendenze ricercabile (autocomplete o select2/bootstrap-select), per facilitare la selezione in presenza di molte tipologie.
