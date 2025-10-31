@@ -936,9 +936,11 @@ class PendenzeController
                 $doc['identificativo'] = 'RATA-' . uniqid();
             }
         }
-        if (empty($doc['descrizione'])) {
-            $doc['descrizione'] = 'Rateizzazione ' . count($parts) . ' rate';
-        }
+        // Imposta la descrizione del documento sulla causale originale (dal form precedente),
+        // aggiungendo il numero di rate tra parentesi.
+        $originalCausale = $orig['causale'] ?? 'Pagamento rateizzato';
+        $numRate = count($parts);
+        $doc['descrizione'] = trim((string)$originalCausale) . " ({$numRate} rate)";
 
         $doc['rata'] = [];
         foreach ($parts as $idx => $p) {
@@ -983,6 +985,7 @@ class PendenzeController
     $responses = [];
     $allErrors = [];
     $baseId = $merged['idPendenza'] ?? '';
+    $totalParts = count($parts); // Numero totale delle rate
     foreach ($parts as $idx => $p) {
         $rIndex = isset($p['indice']) ? (int)$p['indice'] : ($idx + 1);
         $single = $merged;
@@ -990,9 +993,26 @@ class PendenzeController
         $single['importo'] = is_numeric(str_replace(',', '.', (string)($p['importo'] ?? ''))) ? (float)str_replace(',', '.', (string)$p['importo']) : 0.0;
         if (!empty($p['dataValidita'])) $single['dataValidita'] = $p['dataValidita'];
         if (!empty($p['dataScadenza'])) $single['dataScadenza'] = $p['dataScadenza'];
-        // documento: manteniamo identificativo/descrizione ma rata deve essere INT
         $docSingle = is_array($single['documento'] ?? null) ? $single['documento'] : [];
         $docSingle['rata'] = $rIndex;
+
+        // *** INIZIO MODIFICA DESCRIZIONE SINGOLA RATA ***
+        // Recupera la causale originale (che è la "Descrizione originale" dal form)
+        $originalCausale = $orig['causale'] ?? 'Pagamento rateizzato';
+        // Assicurati che rIndex sia un intero valido
+        if (!is_int($rIndex) || $rIndex < 1) {
+            $rIndex = $idx + 1;
+        }
+        // Assicurati che totalParts sia un intero valido
+        if (!is_int($totalParts) || $totalParts < 1) {
+            $totalParts = count($parts);
+        }
+        // Imposta la causale della singola rata
+        $single['causale'] = trim((string)$originalCausale) . " (Rata {$rIndex} di {$totalParts})";
+        // Imposta anche la descrizione del documento della singola rata (per completezza)
+        $docSingle['descrizione'] = trim((string)$originalCausale) . " (Rate {$totalParts})";
+        // *** FINE MODIFICA DESCRIZIONE SINGOLA RATA ***
+
         $single['documento'] = $docSingle;
         // idPendenza per la rata
         $idPForRate = ($baseId !== '' ? $baseId : (function() {
@@ -1062,6 +1082,14 @@ class PendenzeController
             // Apply allocated amounts back to built voci
             for ($i = 0; $i < $numBuilt; $i++) {
                 $single['voci'][$i]['importo'] = ($allocatedCents[$i] ?? 0) / 100.0;
+
+                // *** INIZIO MODIFICA RICHIESTA ***
+                // Modifica la descrizione della voce per includere il numero rata
+                $originalDesc = $single['voci'][$i]['descrizione'] ?? $merged['causale'] ?? 'Pagamento';
+                // Rimuovi eventuale "Rata X di Y" precedente se la descrizione la conteneva già
+                $originalDesc = preg_replace('/\s*\(Rata \d+ di \d+\)$/', '', $originalDesc);
+                $single['voci'][$i]['descrizione'] = trim($originalDesc) . " (Rata {$rIndex} di {$totalParts})";
+                // *** FINE MODIFICA RICHIESTA ***
             }
 
             if ((getenv('APP_DEBUG') !== false) && getenv('APP_DEBUG')) {
@@ -1149,19 +1177,19 @@ class PendenzeController
 
         $single = array_intersect_key($single, array_flip($allowed));
 
-    // Rimuoviamo idPendenza dal body (deve essere passato solo nell'URL)
-    $idForUrl = $idPForRate;
-    if (isset($single['idPendenza'])) unset($single['idPendenza']);
+        // Rimuoviamo idPendenza dal body (deve essere passato solo nell'URL)
+        $idForUrl = $idPForRate;
+        if (isset($single['idPendenza'])) unset($single['idPendenza']);
 
-    // Invia singola pendenza
-    $res = $this->sendPendenzaToBackoffice($single, $idForUrl);
-    $responses[] = $res;
-    if (!empty($res) && !empty($res['success'])) {
-        $created[] = $res['idPendenza'] ?? $idForUrl;
-    } else {
-        $errs = $res['errors'] ?? ['Errore invio pendenza rata ' . $rIndex];
-        foreach ((array)$errs as $e) $allErrors[] = "Rata {$rIndex}: " . (string)$e;
-    }
+        // Invia singola pendenza
+        $res = $this->sendPendenzaToBackoffice($single, $idForUrl);
+        $responses[] = $res;
+        if (!empty($res) && !empty($res['success'])) {
+            $created[] = $res['idPendenza'] ?? $idForUrl;
+        } else {
+            $errs = $res['errors'] ?? ['Errore invio pendenza rata ' . $rIndex];
+            foreach ((array)$errs as $e) $allErrors[] = "Rata {$rIndex}: " . (string)$e;
+        }
     }
 
     // moved buildVociForInsertionFromMerged to class scope (below)
