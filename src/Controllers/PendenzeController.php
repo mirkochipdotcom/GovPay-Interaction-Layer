@@ -12,13 +12,13 @@ use App\Database\EntrateRepository;
 use App\Logger;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\ClientException;
+use GuzzleHttp\Exception\RequestException;
 use GovPay\Backoffice\Api\PendenzeApi as BackofficePendenzeApi;
 use GovPay\Backoffice\Configuration as BackofficeConfiguration;
 use GovPay\Backoffice\Model\RaggruppamentoStatistica;
 use GovPay\Backoffice\Model\StatoPendenza;
 use GovPay\Backoffice\ObjectSerializer as BackofficeSerializer;
 use GovPay\Pendenze\Api\PendenzeApi;
-use GovPay\Pendenze\Configuration as PendenzeConfiguration;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
@@ -1494,6 +1494,14 @@ class PendenzeController
                 $guzzleOptions['ssl_key'] = $keyPass ? [$key, $keyPass] : $key;
             }
         }
+
+        // Crea un handler stack senza middleware di retry per evitare problemi con il body
+        $handlerStack = \GuzzleHttp\HandlerStack::create();
+        // Rimuovi il middleware di retry se presente
+        $handlerStack->remove('retry');
+
+        $guzzleOptions['handler'] = $handlerStack;
+
         return new Client($guzzleOptions);
     }
 
@@ -2293,17 +2301,21 @@ class PendenzeController
             try {
                 $result = $this->updatePendenzaStatus($idPendenza, 'ANNULLATA');
                 if ($result['success']) {
-                    $responseData['success'] = true;
+                    $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Pendenza annullata con successo'];
+                    return $response->withHeader('Location', '/pendenze/dettaglio/' . rawurlencode($idPendenza))->withStatus(302);
                 } else {
-                    $responseData['error'] = $result['error'];
+                    $_SESSION['flash'][] = ['type' => 'error', 'text' => $result['error']];
+                    return $response->withHeader('Location', '/pendenze/dettaglio/' . rawurlencode($idPendenza))->withStatus(302);
                 }
             } catch (\Throwable $e) {
-                $responseData['error'] = 'Errore: ' . $e->getMessage();
+                $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Errore: ' . $e->getMessage()];
+                return $response->withHeader('Location', '/pendenze/dettaglio/' . rawurlencode($idPendenza))->withStatus(302);
             }
         }
 
-        $response->getBody()->write(json_encode($responseData));
-        return $response->withHeader('Content-Type', 'application/json');
+        // Fallback error
+        $_SESSION['flash'][] = ['type' => 'error', 'text' => $responseData['error'] ?: 'Errore sconosciuto'];
+        return $response->withHeader('Location', '/pendenze/dettaglio/' . rawurlencode($idPendenza))->withStatus(302);
     }
 
     public function riattivaPendenza(Request $request, Response $response, array $args): Response
@@ -2319,17 +2331,21 @@ class PendenzeController
             try {
                 $result = $this->updatePendenzaStatus($idPendenza, 'NON_ESEGUITA');
                 if ($result['success']) {
-                    $responseData['success'] = true;
+                    $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Pendenza riattivata con successo'];
+                    return $response->withHeader('Location', '/pendenze/dettaglio/' . rawurlencode($idPendenza))->withStatus(302);
                 } else {
-                    $responseData['error'] = $result['error'];
+                    $_SESSION['flash'][] = ['type' => 'error', 'text' => $result['error']];
+                    return $response->withHeader('Location', '/pendenze/dettaglio/' . rawurlencode($idPendenza))->withStatus(302);
                 }
             } catch (\Throwable $e) {
-                $responseData['error'] = 'Errore: ' . $e->getMessage();
+                $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Errore: ' . $e->getMessage()];
+                return $response->withHeader('Location', '/pendenze/dettaglio/' . rawurlencode($idPendenza))->withStatus(302);
             }
         }
 
-        $response->getBody()->write(json_encode($responseData));
-        return $response->withHeader('Content-Type', 'application/json');
+        // Fallback error
+        $_SESSION['flash'][] = ['type' => 'error', 'text' => $responseData['error'] ?: 'Errore sconosciuto'];
+        return $response->withHeader('Location', '/pendenze/dettaglio/' . rawurlencode($idPendenza))->withStatus(302);
     }
 
     public function aggiornaPendenza(Request $request, Response $response, array $args): Response
@@ -2386,41 +2402,114 @@ class PendenzeController
             ]);
         }
 
-        // Costruzione payload per aggiornamento
-        $payload = [
-            'causale' => $causale,
-            'importo' => $importo,
-        ];
+        // Costruzione payload JSON Patch per l'aggiornamento
+        $patchOperations = [];
+        $patchOperations[] = ['op' => 'REPLACE', 'path' => '/causale', 'value' => $causale];
+        $patchOperations[] = ['op' => 'REPLACE', 'path' => '/importo', 'value' => $importo];
 
         // Aggiungi altri campi se forniti
-        if (!empty($params['dataValidita'])) $payload['dataValidita'] = $params['dataValidita'];
-        if (!empty($params['dataScadenza'])) $payload['dataScadenza'] = $params['dataScadenza'];
+        if (!empty($params['dataValidita'])) {
+            $patchOperations[] = ['op' => 'REPLACE', 'path' => '/dataValidita', 'value' => $params['dataValidita']];
+        }
+        if (!empty($params['dataScadenza'])) {
+            $patchOperations[] = ['op' => 'REPLACE', 'path' => '/dataScadenza', 'value' => $params['dataScadenza']];
+        }
 
         // Soggetto pagatore
         if (!empty($params['soggettoPagatore'])) {
-            $payload['soggettoPagatore'] = $params['soggettoPagatore'];
+            $patchOperations[] = ['op' => 'REPLACE', 'path' => '/soggettoPagatore', 'value' => $params['soggettoPagatore']];
         }
 
         // Voci
         if (!empty($params['voci'])) {
-            $payload['voci'] = $params['voci'];
+            $patchOperations[] = ['op' => 'REPLACE', 'path' => '/voci', 'value' => $params['voci']];
         }
 
         // Invia l'aggiornamento
-        $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
+        $patchUrl = getenv('GOVPAY_PENDENZE_PATCH_URL') ?: getenv('GOVPAY_BACKOFFICE_URL');
         $idA2A = getenv('ID_A2A') ?: '';
 
-        if (empty($backofficeUrl) || $idA2A === '') {
-            $errors[] = 'Configurazione GovPay incompleta';
+        if (empty($patchUrl) || $idA2A === '') {
+            $errors[] = 'Configurazione GovPay incompleta (URL PATCH o ID_A2A mancanti)';
         } else {
             try {
                 $http = $this->makeHttpClient();
-                $url = rtrim($backofficeUrl, '/') . '/pendenze/' . rawurlencode((string)$idA2A) . '/' . rawurlencode($idPendenza);
+                $url = rtrim($patchUrl, '/') . '/pendenze/' . rawurlencode((string)$idA2A) . '/' . rawurlencode($idPendenza);
 
-                // Usa PATCH per aggiornamenti parziali
-                $resp = $http->request('PATCH', $url, [
-                    'json' => [$payload] // JSON Patch format
+                // Usa PATCH per aggiornamenti parziali: allineiamo headers/opts al client cURL funzionante
+                // Content-Type application/json e Accept */* (come nel client legacy)
+                $reqHeaders = [
+                    'Content-Type' => 'application/json',
+                    'Accept'       => '*/*'
+                ];
+                $reqBody = json_encode($patchOperations);
+
+                // Check for method override flag
+                $forceOverride = getenv('GOVPAY_FORCE_METHOD_OVERRIDE') === '1';
+                $method = $forceOverride ? 'POST' : 'PATCH';
+                if ($forceOverride) {
+                    $reqHeaders['X-Http-Method-Override'] = 'PATCH';
+                }
+
+                // Log request
+                \App\Logger::getInstance()->debug('PATCH request preparing', [
+                    'url' => $url,
+                    'method' => $method,
+                    'headers' => $reqHeaders,
+                    'body' => $reqBody,
+                    'force_override' => $forceOverride
                 ]);
+
+                try {
+                    // Enable verbose curl output to a debug log to inspect TLS handshake and headers
+                    $verboseLog = __DIR__ . '/../../storage/logs/guzzle_curl_verbose.log';
+                    $stderr = fopen($verboseLog, 'a');
+                    $curlOptions = [
+                        \CURLOPT_CUSTOMREQUEST => $method,
+                        \CURLOPT_VERBOSE => true,
+                        \CURLOPT_STDERR => $stderr,
+                        \CURLOPT_ENCODING => '',
+                        \CURLOPT_FOLLOWLOCATION => true,
+                        \CURLOPT_HTTP_VERSION => \CURL_HTTP_VERSION_1_1
+                    ];
+
+                    $resp = $http->request($method, $url, [
+                        'headers' => $reqHeaders,
+                        'body' => $reqBody,
+                        'curl' => $curlOptions
+                    ]);
+
+                    $respBody = (string)$resp->getBody();
+                    \App\Logger::getInstance()->debug('PATCH response received', [
+                        'status' => $resp->getStatusCode(),
+                        'body' => $respBody
+                    ]);
+                } catch (RequestException $e) {
+                    $resp = $e->getResponse();
+                    $respBody = $resp ? (string)$resp->getBody() : null;
+                    $respStatus = $resp ? $resp->getStatusCode() : null;
+                    $respHeaders = $resp ? $resp->getHeaders() : null;
+                    \App\Logger::getInstance()->error('PATCH request failed (RequestException)', [
+                        'message' => $e->getMessage(),
+                        'status' => $respStatus,
+                        'response_headers' => $respHeaders,
+                        'response_body' => $respBody,
+                        'url' => $url,
+                        'headers' => $reqHeaders,
+                        'body' => $reqBody
+                    ]);
+                    // Add a readable error for user and continue
+                    $errors[] = 'Errore chiamata GovPay: HTTP ' . ($respStatus ?? 'N/A') . ' - ' . \App\Logger::sanitizeErrorForDisplay((string)$respBody);
+                } catch (\Throwable $e) {
+                    \App\Logger::getInstance()->error('PATCH request failed (Throwable)', [
+                        'message' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString(),
+                        'url' => $url,
+                        'headers' => $reqHeaders,
+                        'body' => $reqBody
+                    ]);
+                    $errors[] = 'Errore chiamata GovPay: ' . $e->getMessage();
+                }
 
                 if ($resp->getStatusCode() === 200) {
                     $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Pendenza aggiornata con successo'];
@@ -2457,34 +2546,103 @@ class PendenzeController
 
     private function updatePendenzaStatus(string $idPendenza, string $newStatus): array
     {
-        $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
+        $patchUrl = getenv('GOVPAY_PENDENZE_PATCH_URL') ?: getenv('GOVPAY_BACKOFFICE_URL');
         $idA2A = getenv('ID_A2A') ?: '';
 
-        if (empty($backofficeUrl) || $idA2A === '') {
-            return ['success' => false, 'error' => 'Configurazione GovPay incompleta'];
+        if (empty($patchUrl) || $idA2A === '') {
+            return ['success' => false, 'error' => 'Configurazione GovPay incompleta (URL PATCH o ID_A2A mancanti)'];
         }
 
         try {
             $http = $this->makeHttpClient();
-            $url = rtrim($backofficeUrl, '/') . '/pendenze/' . rawurlencode((string)$idA2A) . '/' . rawurlencode($idPendenza);
+            $url = rtrim($patchUrl, '/') . '/pendenze/' . rawurlencode((string)$idA2A) . '/' . rawurlencode($idPendenza);
 
-            // JSON Patch per aggiornare solo lo stato
-            $patch = [
+            // JSON Patch per aggiornare solo lo stato, come da documentazione e codice di esempio
+            $payload = [
                 [
-                    'op' => 'REPLACE',
-                    'path' => '/stato',
+                    'op'    => 'REPLACE',
+                    'path'  => '/stato',
                     'value' => $newStatus
                 ]
             ];
 
-            $resp = $http->request('PATCH', $url, [
-                'json' => $patch
+            // Allineiamo headers al client cURL funzionante: Content-Type application/json e accept */*
+            $reqHeaders = [
+                'Content-Type' => 'application/json',
+                'accept'       => '*/*'
+            ];
+            $reqBody = json_encode($payload);
+
+            \App\Logger::getInstance()->debug('PATCH status request preparing', [
+                'url' => $url,
+                'method' => 'PATCH',
+                'headers' => $reqHeaders,
+                'body' => $reqBody
             ]);
 
-            if ($resp->getStatusCode() === 200) {
-                return ['success' => true];
-            } else {
-                return ['success' => false, 'error' => 'Errore nell\'aggiornamento dello stato'];
+            try {
+                // Enable verbose curl output to a debug log to inspect TLS handshake and headers
+                $verboseLog = __DIR__ . '/../../storage/logs/guzzle_curl_verbose.log';
+                $stderr = fopen($verboseLog, 'a');
+                $curlOptions = [
+                    \CURLOPT_VERBOSE => true,
+                    \CURLOPT_STDERR => $stderr,
+                    \CURLOPT_SSL_VERIFYHOST => 2,
+                    \CURLOPT_TIMEOUT => 10,
+                    \CURLOPT_CONNECTTIMEOUT => 30,
+                    \CURLOPT_FOLLOWLOCATION => true,
+                    \CURLOPT_SSLVERSION => 2,
+                    \CURLOPT_ENCODING => '',
+                    \CURLOPT_HTTP_VERSION => \CURL_HTTP_VERSION_1_1,
+                    \CURLOPT_CUSTOMREQUEST => 'PATCH',
+                    \CURLOPT_FORBID_REUSE => true
+                ];
+
+                $resp = $http->request('PATCH', $url, [
+                    'headers' => $reqHeaders,
+                    'body' => $reqBody,
+                    'curl' => $curlOptions,
+                    'http_errors' => false,
+                    'timeout' => 10,
+                    'connect_timeout' => 30
+                ]);
+
+                $respBody = (string)$resp->getBody();
+                \App\Logger::getInstance()->debug('PATCH status response received', [
+                    'status' => $resp->getStatusCode(),
+                    'body' => $respBody
+                ]);
+
+                if ($resp->getStatusCode() === 200) {
+                    return ['success' => true];
+                } else {
+                    $body = $resp->getBody()->getContents();
+                    return ['success' => false, 'error' => 'Errore nell\'aggiornamento dello stato: HTTP ' . $resp->getStatusCode() . ' - ' . $body];
+                }
+            } catch (RequestException $e) {
+                $resp = $e->getResponse();
+                $respBody = $resp ? (string)$resp->getBody() : null;
+                $respStatus = $resp ? $resp->getStatusCode() : null;
+                $respHeaders = $resp ? $resp->getHeaders() : null;
+                \App\Logger::getInstance()->error('PATCH status request failed (RequestException)', [
+                    'message' => $e->getMessage(),
+                    'status' => $respStatus,
+                    'response_headers' => $respHeaders,
+                    'response_body' => $respBody,
+                    'url' => $url,
+                    'headers' => $reqHeaders,
+                    'body' => $reqBody
+                ]);
+                return ['success' => false, 'error' => 'Errore chiamata GovPay: HTTP ' . ($respStatus ?? 'N/A') . ' - ' . \App\Logger::sanitizeErrorForDisplay((string)$respBody)];
+            } catch (\Throwable $e) {
+                \App\Logger::getInstance()->error('PATCH status request failed (Throwable)', [
+                    'message' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                    'url' => $url,
+                    'headers' => $reqHeaders,
+                    'body' => $reqBody
+                ]);
+                return ['success' => false, 'error' => 'Errore chiamata GovPay: ' . $e->getMessage()];
             }
         } catch (\Throwable $e) {
             return ['success' => false, 'error' => 'Errore chiamata GovPay: ' . $e->getMessage()];
