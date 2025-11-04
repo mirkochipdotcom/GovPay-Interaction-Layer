@@ -64,8 +64,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && docker-php-ext-install intl mbstring pdo_mysql zip \
     && a2enmod ssl rewrite headers \
     && echo "ServerName localhost" >> /etc/apache2/apache2.conf \
-    # Mantiene runtime le librerie condivise necessarie a zip (libzip4) purgando solo headers/dev superflui
-    && apt-get install -y --no-install-recommends libzip4 \
     && apt-get purge -y --auto-remove libicu-dev libzip-dev libonig-dev \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
