@@ -1,7 +1,7 @@
 ######################################################################
 # STAGE 1: Asset Builder (Bootstrap Italia + Font Awesome)
 ######################################################################
-FROM node:20-bookworm-slim AS asset_builder
+FROM node:20-trixie-slim AS asset_builder
 
 # Installa dipendenze necessarie per la fase di build (Git, Wget, Unzip)
 RUN apt-get update && \
@@ -54,7 +54,7 @@ RUN composer install --no-dev --prefer-dist --optimize-autoloader --no-interacti
 ######################################################################
 # STAGE 3: Runtime (Apache + PHP) harden
 ######################################################################
-FROM php:8.4-apache-bookworm
+FROM php:8.4-apache-trixie
 
 # Installazione delle dipendenze di sistema e PHP (inclusi unzip e wget)
 ARG DEBIAN_FRONTEND=noninteractive
