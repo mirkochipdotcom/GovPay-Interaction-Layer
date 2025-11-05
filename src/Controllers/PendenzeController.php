@@ -2554,7 +2554,6 @@ class PendenzeController
         }
 
         try {
-            $http = $this->makeHttpClient();
             $url = rtrim($patchUrl, '/') . '/pendenze/' . rawurlencode((string)$idA2A) . '/' . rawurlencode($idPendenza);
 
             // JSON Patch per aggiornare solo lo stato, come da documentazione e codice di esempio
@@ -2568,8 +2567,8 @@ class PendenzeController
 
             // Allineiamo headers al client cURL funzionante: Content-Type application/json e accept */*
             $reqHeaders = [
-                'Content-Type' => 'application/json',
-                'accept'       => '*/*'
+                'Content-Type: application/json',
+                'accept: */*'
             ];
             $reqBody = json_encode($payload);
 
@@ -2580,69 +2579,73 @@ class PendenzeController
                 'body' => $reqBody
             ]);
 
-            try {
-                // Enable verbose curl output to a debug log to inspect TLS handshake and headers
-                $verboseLog = __DIR__ . '/../../storage/logs/guzzle_curl_verbose.log';
-                $stderr = fopen($verboseLog, 'a');
-                $curlOptions = [
-                    \CURLOPT_VERBOSE => true,
-                    \CURLOPT_STDERR => $stderr,
-                    \CURLOPT_SSL_VERIFYHOST => 2,
-                    \CURLOPT_TIMEOUT => 10,
-                    \CURLOPT_CONNECTTIMEOUT => 30,
-                    \CURLOPT_FOLLOWLOCATION => true,
-                    \CURLOPT_SSLVERSION => 2,
-                    \CURLOPT_ENCODING => '',
-                    \CURLOPT_HTTP_VERSION => \CURL_HTTP_VERSION_1_1,
-                    \CURLOPT_CUSTOMREQUEST => 'PATCH',
-                    \CURLOPT_FORBID_REUSE => true
-                ];
+            // Usa cURL direttamente invece di Guzzle per evitare problemi di retry
+            $ch = curl_init();
 
-                $resp = $http->request('PATCH', $url, [
-                    'headers' => $reqHeaders,
-                    'body' => $reqBody,
-                    'curl' => $curlOptions,
-                    'http_errors' => false,
-                    'timeout' => 10,
-                    'connect_timeout' => 30
-                ]);
+            curl_setopt_array($ch, [
+                CURLOPT_URL => $url,
+                CURLOPT_CUSTOMREQUEST => 'PATCH',
+                CURLOPT_POSTFIELDS => $reqBody,
+                CURLOPT_HTTPHEADER => $reqHeaders,
+                CURLOPT_SSL_VERIFYHOST => 2,
+                CURLOPT_TIMEOUT => 10,
+                CURLOPT_CONNECTTIMEOUT => 30,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_SSLVERSION => 2,
+                CURLOPT_ENCODING => '',
+                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+                CURLOPT_FORBID_REUSE => true,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_VERBOSE => true
+            ]);
 
-                $respBody = (string)$resp->getBody();
-                \App\Logger::getInstance()->debug('PATCH status response received', [
-                    'status' => $resp->getStatusCode(),
-                    'body' => $respBody
-                ]);
-
-                if ($resp->getStatusCode() === 200) {
-                    return ['success' => true];
-                } else {
-                    return ['success' => false, 'error' => 'Errore nell\'aggiornamento dello stato: HTTP ' . $resp->getStatusCode() . ' - ' . $respBody];
+            // Imposta certificati mTLS
+            $cert = getenv('GOVPAY_TLS_CERT');
+            $key = getenv('GOVPAY_TLS_KEY');
+            if (!empty($cert) && !empty($key)) {
+                curl_setopt($ch, CURLOPT_SSLCERT, $cert);
+                curl_setopt($ch, CURLOPT_SSLKEY, $key);
+                $keyPass = getenv('GOVPAY_TLS_KEY_PASSWORD');
+                if (!empty($keyPass)) {
+                    curl_setopt($ch, CURLOPT_SSLKEYPASSWD, $keyPass);
                 }
-            } catch (RequestException $e) {
-                $resp = $e->getResponse();
-                $respBody = $resp ? (string)$resp->getBody() : null;
-                $respStatus = $resp ? $resp->getStatusCode() : null;
-                $respHeaders = $resp ? $resp->getHeaders() : null;
-                \App\Logger::getInstance()->error('PATCH status request failed (RequestException)', [
-                    'message' => $e->getMessage(),
-                    'status' => $respStatus,
-                    'response_headers' => $respHeaders,
-                    'response_body' => $respBody,
-                    'url' => $url,
-                    'headers' => $reqHeaders,
-                    'body' => $reqBody
-                ]);
-                $errorMsg = $respBody ? \App\Logger::sanitizeErrorForDisplay($respBody) : $e->getMessage();
-                return ['success' => false, 'error' => 'Errore chiamata GovPay: HTTP ' . ($respStatus ?? 'N/A') . ' - ' . $errorMsg];
-            } catch (\Throwable $e) {
-                \App\Logger::getInstance()->error('PATCH status request failed (Throwable)', [
-                    'message' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString(),
-                    'url' => $url,
-                    'headers' => $reqHeaders,
-                    'body' => $reqBody
-                ]);
-                return ['success' => false, 'error' => 'Errore chiamata GovPay: ' . $e->getMessage()];
+            }
+
+            // Log verbose to file
+            $verboseLog = __DIR__ . '/../../storage/logs/guzzle_curl_verbose.log';
+            $stderr = fopen($verboseLog, 'a');
+            curl_setopt($ch, CURLOPT_STDERR, $stderr);
+
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($ch);
+            $curlErrno = curl_errno($ch);
+
+            fclose($stderr);
+            curl_close($ch);
+
+            // Gestisci correttamente la risposta
+            if ($response === false) {
+                $response = '';
+            } elseif (!is_string($response)) {
+                $response = (string)$response;
+            }
+
+            \App\Logger::getInstance()->debug('PATCH status response received', [
+                'status' => $httpCode,
+                'body' => $response,
+                'curl_error' => $curlError,
+                'curl_errno' => $curlErrno
+            ]);
+
+            if ($curlErrno !== 0) {
+                return ['success' => false, 'error' => 'Errore cURL: ' . $curlError];
+            }
+
+            if ($httpCode === 200) {
+                return ['success' => true];
+            } else {
+                return ['success' => false, 'error' => 'Errore nell\'aggiornamento dello stato: HTTP ' . $httpCode . ' - ' . $response];
             }
         } catch (\Throwable $e) {
             return ['success' => false, 'error' => 'Errore chiamata GovPay: ' . $e->getMessage()];
