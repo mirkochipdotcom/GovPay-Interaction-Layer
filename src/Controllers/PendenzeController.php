@@ -2616,8 +2616,7 @@ class PendenzeController
                 if ($resp->getStatusCode() === 200) {
                     return ['success' => true];
                 } else {
-                    $body = $resp->getBody()->getContents();
-                    return ['success' => false, 'error' => 'Errore nell\'aggiornamento dello stato: HTTP ' . $resp->getStatusCode() . ' - ' . $body];
+                    return ['success' => false, 'error' => 'Errore nell\'aggiornamento dello stato: HTTP ' . $resp->getStatusCode() . ' - ' . $respBody];
                 }
             } catch (RequestException $e) {
                 $resp = $e->getResponse();
@@ -2633,7 +2632,8 @@ class PendenzeController
                     'headers' => $reqHeaders,
                     'body' => $reqBody
                 ]);
-                return ['success' => false, 'error' => 'Errore chiamata GovPay: HTTP ' . ($respStatus ?? 'N/A') . ' - ' . \App\Logger::sanitizeErrorForDisplay((string)$respBody)];
+                $errorMsg = $respBody ? \App\Logger::sanitizeErrorForDisplay($respBody) : $e->getMessage();
+                return ['success' => false, 'error' => 'Errore chiamata GovPay: HTTP ' . ($respStatus ?? 'N/A') . ' - ' . $errorMsg];
             } catch (\Throwable $e) {
                 \App\Logger::getInstance()->error('PATCH status request failed (Throwable)', [
                     'message' => $e->getMessage(),
