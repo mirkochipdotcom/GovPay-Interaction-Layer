@@ -41,26 +41,33 @@
       </div>
       <div class="row">
         <div class="form-group col-md-6">
-          <label for="idTipoPendenza" class="active">Tipologia pendenza</label>
-          <select id="idTipoPendenza" name="idTipoPendenza" class="form-select" required aria-label="Tipologia pendenza">
-            <option value="">-- seleziona --</option>
-            {% for t in tipologie_pendenze|default([]) %}
-              <option value="{{ t.id_entrata }}" {% if old.idTipoPendenza is defined and old.idTipoPendenza == t.id_entrata %}selected{% endif %}>{{ t.nome|default(t.descrizione)|e }}</option>
-            {% endfor %}
-          </select>
+          <div class="select-wrapper">
+            <label for="idTipoPendenza" class="active">Tipologia pendenza</label>
+            <select id="idTipoPendenza" name="idTipoPendenza" required aria-label="Tipologia pendenza">
+              <option value="">-- seleziona --</option>
+              {% for t in tipologie_pendenze|default([]) %}
+                <option value="{{ t.id_entrata }}" {% if old.idTipoPendenza is defined and old.idTipoPendenza == t.id_entrata %}selected{% endif %}>{{ t.nome|default(t.descrizione)|e }}</option>
+              {% endfor %}
+            </select>
+          </div>
         </div>
         <div class="form-group col-md-3">
-          <label for="annoRiferimento" class="active">Anno di riferimento</label>
-          {% set current = default_anno|default(date('Y')) %}
-          <select id="annoRiferimento" name="annoRiferimento" class="form-select" required aria-label="Anno di riferimento">
-            {% for y in range(current + 1, current - 10) %}
-              <option value="{{ y }}" {% if (old.annoRiferimento is defined and old.annoRiferimento == y) or (old.annoRiferimento is not defined and y == current) %}selected{% endif %}>{{ y }}</option>
-            {% endfor %}
-          </select>
+          <div class="select-wrapper">
+            <label for="annoRiferimento" class="active">Anno di riferimento</label>
+            {% set current = default_anno|default(date('Y')) %}
+            <select id="annoRiferimento" name="annoRiferimento" required aria-label="Anno di riferimento">
+              {% for y in range(current + 1, current - 10) %}
+                <option value="{{ y }}" {% if (old.annoRiferimento is defined and old.annoRiferimento == y) or (old.annoRiferimento is not defined and y == current) %}selected{% endif %}>{{ y }}</option>
+              {% endfor %}
+            </select>
+          </div>
         </div>
         <div class="form-group col-md-3">
-          <label for="importo" class="active">Importo</label>
-          <input id="importo" name="importo" type="number" step="0.01" min="0" class="form-control" required placeholder="0.00" value="{{ old.importo is defined ? old.importo : '' }}">
+          <label for="importo" class="input-symbol-label active">Importo</label>
+          <div class="input-group input-number">
+            <span class="input-group-text fw-semibold">€</span>
+            <input id="importo" name="importo" type="number" step="0.01" min="0.01" class="form-control" required placeholder="0.00" value="{{ old.importo is defined ? old.importo : '' }}">
+          </div>
           <div class="form-text">Inserisci l'importo in euro (es. 100.50).</div>
         </div>
       </div>
@@ -92,7 +99,7 @@
 
       <h3 class="h6">Soggetto pagatore</h3>
       <div class="row g-3 align-items-end">
-        <div class="col-12">
+        <div class="form-group col-12">
           <div class="form-check form-check-inline">
             <input class="form-check-input" type="radio" name="soggettoPagatore[tipo]" id="soggettoPF" value="F" {% if old.soggettoPagatore is defined and old.soggettoPagatore.tipo is defined and old.soggettoPagatore.tipo == 'G' %}{% else %}checked{% endif %}>
             <label class="form-check-label" for="soggettoPF">Persona fisica</label>
@@ -102,32 +109,28 @@
             <label class="form-check-label" for="soggettoPJ">Persona giuridica</label>
           </div>
         </div>
-
-        <div class="col-md-4">
-          <div class="form-group">
-            <label for="identificativo" class="active">Codice fiscale / Partita IVA</label>
-            <input id="identificativo" name="soggettoPagatore[identificativo]" type="text" class="form-control" placeholder="CF o P.IVA" required autocomplete="off" value="{{ old.soggettoPagatore.identificativo|default('') }}">
-          </div>
+      </div>
+      <div class="row">
+        <div class="form-group col-md-4">
+          <label for="identificativo" class="active">Codice fiscale / Partita IVA</label>
+          <input id="identificativo" name="soggettoPagatore[identificativo]" type="text" class="form-control" placeholder="CF o P.IVA" required autocomplete="off" value="{{ old.soggettoPagatore.identificativo|default('') }}">
         </div>
-        <div class="col-md-4">
-          <div class="form-group">
-            <label id="lblAnagrafica" for="anagrafica" class="active">Cognome</label>
-            <input id="anagrafica" name="soggettoPagatore[anagrafica]" type="text" class="form-control" placeholder="Cognome o Ragione sociale" required value="{{ old.soggettoPagatore.anagrafica|default('') }}">
-          </div>
+        <div class="form-group col-md-4">
+          <label id="lblAnagrafica" for="anagrafica" class="active">Cognome</label>
+          <input id="anagrafica" name="soggettoPagatore[anagrafica]" type="text" class="form-control" placeholder="Cognome o Ragione sociale" required value="{{ old.soggettoPagatore.anagrafica|default('') }}">
         </div>
-        <div class="col-md-4" id="colNome">
-          <div class="form-group">
-            <label for="nome" class="active">Nome (se persona fisica)</label>
-            <input id="nome" name="soggettoPagatore[nome]" type="text" class="form-control" placeholder="Nome" autocomplete="off" value="{{ old.soggettoPagatore.nome|default('') }}">
-          </div>
-        </div>
-        <div class="col-md-6">
-          <div class="form-group">
-            <label for="email" class="active">Email (opzionale)</label>
-            <input id="email" name="soggettoPagatore[email]" type="email" class="form-control" placeholder="esempio@dominio.it" value="{{ old.soggettoPagatore.email|default('') }}">
-          </div>
+        <div class="form-group col-md-4">
+          <label for="nome" class="active">Nome (se persona fisica)</label>
+          <input id="nome" name="soggettoPagatore[nome]" type="text" class="form-control" placeholder="Nome" autocomplete="off" value="{{ old.soggettoPagatore.nome|default('') }}">
         </div>
       </div>
+      <div class="row">
+        <div class="form-group col-md-6">
+          <label for="email" class="active">Email (opzionale)</label>
+          <input id="email" name="soggettoPagatore[email]" type="email" class="form-control" placeholder="esempio@dominio.it" value="{{ old.soggettoPagatore.email|default('') }}">
+        </div>
+      </div>
+      
 
       <hr>
 
@@ -156,15 +159,15 @@
           <div class="row g-3 align-items-end voce-item" data-index="0">
             <div class="col-md-3">
               <label for="voce_id_0" class="active">ID voce</label>
-              <input id="voce_id_0" name="voci[0][idVocePendenza]" type="text" class="form-control" placeholder="1" value="{{ old.voci[0].idVocePendenza|default('1') }}" required>
+              <input id="voce_id_0" name="voci[0][idVocePendenza]" type="text" class="form-control" placeholder="1" value="1" required>
             </div>
             <div class="col-md-6">
               <label for="voce_desc_0" class="active">Descrizione voce</label>
-              <input id="voce_desc_0" name="voci[0][descrizione]" type="text" class="form-control" placeholder="Descrizione voce" value="{{ old.voci[0].descrizione|default(old.causale|default('')) }}" required>
+              <input id="voce_desc_0" name="voci[0][descrizione]" type="text" class="form-control" placeholder="Descrizione voce" value="{{ old.causale|default('') }}" required>
             </div>
             <div class="col-md-3">
               <label for="voce_imp_0" class="active">Importo voce</label>
-              <input id="voce_imp_0" name="voci[0][importo]" type="number" step="0.01" min="0" class="form-control" placeholder="0.00" value="{{ old.voci[0].importo|default(old.importo|default('')) }}" required>
+              <input id="voce_imp_0" name="voci[0][importo]" type="number" step="0.01" min="0" class="form-control" placeholder="0.00" value="{{ old.importo|default('') }}" required>
             </div>
           </div>
         {% endif %}
