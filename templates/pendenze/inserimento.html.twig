@@ -111,19 +111,45 @@
         </div>
       </div>
       <div class="row">
+        {% set tipoSoggetto = old.soggettoPagatore.tipo|default('F') %}
         <div class="form-group col-md-4">
-          <label for="identificativo" class="active">Codice fiscale / Partita IVA</label>
-          <input id="identificativo" name="soggettoPagatore[identificativo]" type="text" class="form-control" placeholder="CF o P.IVA" required autocomplete="off" value="{{ old.soggettoPagatore.identificativo|default('') }}">
+          <label id="identificativoLabel" for="identificativo" class="active">{{ tipoSoggetto == 'G' ? 'Partita IVA' : 'Codice fiscale' }}</label>
+          <input id="identificativo" name="soggettoPagatore[identificativo]" type="text" class="form-control" placeholder="{{ tipoSoggetto == 'G' ? 'P.IVA' : 'CF' }}" required autocomplete="off" value="{{ old.soggettoPagatore.identificativo|default('') }}">
         </div>
         <div class="form-group col-md-4">
-          <label id="lblAnagrafica" for="anagrafica" class="active">Cognome</label>
-          <input id="anagrafica" name="soggettoPagatore[anagrafica]" type="text" class="form-control" placeholder="Cognome o Ragione sociale" required value="{{ old.soggettoPagatore.anagrafica|default('') }}">
+          <label id="lblAnagrafica" for="anagrafica" class="active">{{ tipoSoggetto == 'G' ? 'Ragione sociale' : 'Cognome' }}</label>
+          <input id="anagrafica" name="soggettoPagatore[anagrafica]" type="text" class="form-control" placeholder="{{ tipoSoggetto == 'G' ? 'Ragione sociale' : 'Cognome' }}" required value="{{ old.soggettoPagatore.anagrafica|default('') }}">
         </div>
-        <div class="form-group col-md-4" id="colNome">
+        <div class="form-group col-md-4" id="colNome" style="{{ tipoSoggetto == 'G' ? 'display:none;' : '' }}">
           <label for="nome" class="active">Nome (se persona fisica)</label>
           <input id="nome" name="soggettoPagatore[nome]" type="text" class="form-control" placeholder="Nome" autocomplete="off" value="{{ old.soggettoPagatore.nome|default('') }}">
         </div>
       </div>
+      <script>
+      (function(){
+        const pf = document.getElementById('soggettoPF');
+        const pj = document.getElementById('soggettoPJ');
+        const idLabel = document.getElementById('identificativoLabel');
+        const ident = document.getElementById('identificativo');
+        const lblAnag = document.getElementById('lblAnagrafica');
+        const colNome = document.getElementById('colNome');
+        function update(t){
+          if(!idLabel || !ident || !lblAnag) return;
+          if(t === 'G'){
+            idLabel.textContent = 'Partita IVA';
+            ident.placeholder = 'P.IVA';
+            lblAnag.textContent = 'Ragione sociale';
+            if(colNome) colNome.style.display = 'none';
+          } else {
+            idLabel.textContent = 'Codice fiscale';
+            ident.placeholder = 'CF';
+            lblAnag.textContent = 'Cognome';
+            if(colNome) colNome.style.display = '';
+          }
+        }
+        [pf,pj].forEach(function(r){ if(r) r.addEventListener('change', function(){ if(this.checked) update(this.value); }); });
+      })();
+      </script>
       <div class="row">
         <div class="form-group col-md-6">
           <label for="email" class="active">Email (opzionale)</label>

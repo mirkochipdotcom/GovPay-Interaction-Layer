@@ -5,12 +5,17 @@
 {% block content %}
   <h1 class="it-title">Rateizzazione</h1>
 
-  <form method="post" action="/pendenze/create-rateizzazione">
+  <form method="post" action="/pendenze/preview">
     <input type="hidden" name="original_params" value="{{ params|json_encode|e }}">
     {# Reincludi i principali campi originali come hidden per sicurezza (soggettoPagatore, idTipoPendenza, ecc.) #}
     {% for k,v in params %}
-      {% if k == 'voci' %}
-        {# skip voci: verranno ricostruite dalle parts #}
+      {% if v is iterable and k == 'voci' %}
+        {# Include anche le voci originali come hidden così il Preview le può mostrare se torni indietro #}
+        {% for idx, vv in v %}
+          <input type="hidden" name="voci[{{ idx }}][idVocePendenza]" value="{{ vv.idVocePendenza|e }}">
+          <input type="hidden" name="voci[{{ idx }}][descrizione]" value="{{ vv.descrizione|e }}">
+          <input type="hidden" name="voci[{{ idx }}][importo]" value="{{ vv.importo|e }}">
+        {% endfor %}
       {% elseif v is iterable %}
         {% for sk, sv in v %}
           {% if sv is iterable %}
@@ -44,8 +49,8 @@
               <tr>
                 <td>{{ p.indice }}</td>
                 <td><input type="number" step="0.01" name="parts[{{ loop.index0 }}][importo]" value="{{ p.importo }}" class="form-control"></td>
-                <td><input type="date" name="parts[{{ loop.index0 }}][dataValidita]" value="{{ p.dataValidita }}" class="form-control"></td>
-                <td><input type="date" name="parts[{{ loop.index0 }}][dataScadenza]" value="{{ p.dataScadenza }}" class="form-control"></td>
+                <td><input type="date" name="parts[{{ loop.index0 }}][dataValidita]" value="{{ p.dataValidita|default(p.data_validita|default('')) }}" class="form-control"></td>
+                <td><input type="date" name="parts[{{ loop.index0 }}][dataScadenza]" value="{{ params.parts is defined ? (p.dataScadenza|default(p.data_scadenza|default(''))) : '' }}" class="form-control"></td>
               </tr>
             {% endfor %}
           </tbody>
@@ -55,12 +60,15 @@
 
     <div class="d-flex gap-2">
       <div class="me-auto d-flex gap-2 align-items-center">
-        <label for="rateCount" class="mb-0 small text-muted">Numero rate</label>
-        <input id="rateCount" name="rate" type="number" min="1" value="{{ parts|length }}" class="form-control form-control-sm" style="width:80px"> 
-        <button id="recalcBtn" type="button" class="btn btn-sm btn-outline-secondary">Ricalcola</button>
+  <label for="rateCount" class="mb-0 small text-muted">Numero rate</label>
+  <input id="rateCount" name="rate" type="number" min="1" value="{{ parts|length }}" class="form-control form-control-sm" style="width:80px"> 
+  <button id="recalcBtn" type="button" class="btn btn-sm btn-outline-secondary">Ricalcola</button>
+  <button id="copyDatesBtn" type="button" class="btn btn-sm btn-outline-secondary" title="Copia tutte le validità nelle scadenze">Copia validità → scadenza</button>
       </div>
-  <button type="submit" class="btn btn-primary">Crea rate</button>
-      <a href="/pendenze/inserimento" class="btn btn-outline-secondary">Annulla</a>
+      <!-- Invia a preview/conferma includendo le "parts" modificate -->
+      <button type="submit" class="btn btn-primary">Aggiungi rate</button>
+      <!-- Annulla: costruisce e invia esplicitamente un form POST verso /pendenze/preview -->
+      <button type="button" id="btnAnnulla" class="btn btn-outline-secondary">Annulla</button>
     </div>
   </form>
 
@@ -82,7 +90,8 @@
         const y = d.getFullYear();
         const m = String(d.getMonth()+1).padStart(2,'0');
         const day = String(d.getDate()).padStart(2,'0');
-        rows.push({indice:i+1, importo: parts[i].toFixed(2), dataValidita: y + '-' + m + '-' + day, dataScadenza: y + '-' + m + '-' + day});
+        // default: populate only dataValidita; leave dataScadenza empty so user can decide
+        rows.push({indice:i+1, importo: parts[i].toFixed(2), dataValidita: y + '-' + m + '-' + day, dataScadenza: ''});
       }
       return rows;
     }
@@ -113,10 +122,62 @@
         tr.innerHTML = `<td>${r.indice}</td>
           <td><input type="number" step="0.01" name="parts[${idx}][importo]" value="${r.importo}" class="form-control"></td>
           <td><input type="date" name="parts[${idx}][dataValidita]" value="${r.dataValidita}" class="form-control"></td>
-          <td><input type="date" name="parts[${idx}][dataScadenza]" value="${r.dataScadenza}" class="form-control"></td>`;
+          <td><input type="date" name="parts[${idx}][dataScadenza]" value="" class="form-control"></td>`;
         tbody.appendChild(tr);
       });
     });
+    // Copy validita -> scadenza when requested
+    const copyBtn = document.getElementById('copyDatesBtn');
+    if (copyBtn) {
+      copyBtn.addEventListener('click', function(){
+        const tbody = document.getElementById('rateRows');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        rows.forEach(function(tr, idx){
+          const validita = tr.querySelector('input[name="parts['+idx+'][dataValidita]"]');
+          let scadenza = tr.querySelector('input[name="parts['+idx+'][dataScadenza]"]');
+          if (!scadenza) {
+            scadenza = document.createElement('input');
+            scadenza.type = 'hidden';
+            scadenza.name = 'parts['+idx+'][dataScadenza]';
+            tr.appendChild(scadenza);
+          }
+          if (validita && scadenza) scadenza.value = validita.value || '';
+        });
+      });
+    }
+      // Annulla: submit a sanitized clone of the form to /pendenze/preview
+      const annullaBtn = document.getElementById('btnAnnulla');
+      if (annullaBtn) {
+        annullaBtn.addEventListener('click', function(){
+          const origForm = document.querySelector('form');
+          if (!origForm) return;
+          const f = document.createElement('form');
+          f.method = 'post';
+          f.action = '/pendenze/preview';
+          // clone inputs (serialize current visible values)
+          Array.from(origForm.elements).forEach(function(el){
+            if (!el.name) return;
+            // If this is a parts input (rate fields) skip it: Annulla should NOT persist rate edits
+            if (el.name.indexOf('parts[') === 0) return;
+            // skip the client-side rate count control
+            if (el.name === 'rate') return;
+            // skip buttons
+            if (el.type === 'button' || el.type === 'submit' || el.disabled) return;
+            // handle checkboxes/radios
+            if ((el.type === 'checkbox' || el.type === 'radio') && !el.checked) return;
+            if (el.tagName === 'SELECT') {
+              const val = el.value;
+              const inp = document.createElement('input'); inp.type = 'hidden'; inp.name = el.name; inp.value = val; f.appendChild(inp);
+              return;
+            }
+            if (el.type === 'file') return; // skip files
+            // preserve array-like names (except parts) by creating hidden inputs with same name
+            const inp = document.createElement('input'); inp.type = 'hidden'; inp.name = el.name; inp.value = el.value; f.appendChild(inp);
+          });
+          document.body.appendChild(f);
+          f.submit();
+        });
+      }
   })();
   </script>
 {% endblock %}
