@@ -46,6 +46,11 @@ return function (App $app, Twig $twig): void {
         $controller = new PendenzeController($twig);
         return $controller->showInsert($request, $response);
     });
+    // Support POST back to inserimento so 'Modifica' from preview can resend params
+    $app->post('/pendenze/inserimento', function(Request $request, Response $response) use ($twig): Response {
+        $controller = new PendenzeController($twig);
+        return $controller->showInsert($request, $response);
+    });
 
     // Anteprima/preview prima della creazione pendenza
     $app->post('/pendenze/preview', function(Request $request, Response $response) use ($twig): Response {

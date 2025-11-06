@@ -15,19 +15,104 @@
 
   <div class="card mb-3">
     <div class="card-body">
-      <dl class="row">
-        <dt class="col-sm-3">Tipologia</dt>
-        <dd class="col-sm-9">{{ tipologia.descrizione|default(params.idTipoPendenza|default('')) }}</dd>
+      <div class="row">
+        <div class="col-md-8">
+          <dl class="row small mb-0">
+            {% if tipologia is defined and tipologia.descrizione is defined and tipologia.descrizione != '' %}
+              <dt class="col-4">Tipologia</dt>
+              <dd class="col-8">{{ tipologia.descrizione }}</dd>
+            {% elseif params.idTipoPendenza is defined and params.idTipoPendenza != '' %}
+              <dt class="col-4">Tipologia</dt>
+              <dd class="col-8">{{ params.idTipoPendenza }}</dd>
+            {% endif %}
 
-        <dt class="col-sm-3">Causale</dt>
-        <dd class="col-sm-9">{{ params.causale|default('') }}</dd>
+            {% if params.causale is defined and params.causale != '' %}
+              <dt class="col-4">Causale</dt>
+              <dd class="col-8">{{ params.causale }}</dd>
+            {% endif %}
 
-        <dt class="col-sm-3">Importo</dt>
-        <dd class="col-sm-9">{{ importo|number_format(2, ',', '.') }} €</dd>
+            {% if importo is defined and importo is not null %}
+              <dt class="col-4">Importo</dt>
+              <dd class="col-8">{{ importo|number_format(2, ',', '.') }} €</dd>
+            {% endif %}
 
-        <dt class="col-sm-3">Numero voci</dt>
-        <dd class="col-sm-9">{{ voci|length }}</dd>
-      </dl>
+            {% if voci is defined and voci|length > 0 %}
+              <dt class="col-4">Numero voci</dt>
+              <dd class="col-8">{{ voci|length }}</dd>
+            {% endif %}
+
+            {% if params.dataValidita is defined and params.dataValidita != '' %}
+              <dt class="col-4">Data validità</dt>
+              <dd class="col-8">{{ params.dataValidita }}</dd>
+            {% endif %}
+
+            {% if params.dataScadenza is defined and params.dataScadenza != '' %}
+              <dt class="col-4">Data scadenza</dt>
+              <dd class="col-8">{{ params.dataScadenza }}</dd>
+            {% endif %}
+
+            {% if (params.codiceContabilita is defined and params.codiceContabilita != '') or (params.codEntrata is defined and params.codEntrata != '') %}
+              <dt class="col-4">Codice contabilità / Entrata</dt>
+              <dd class="col-8">{{ params.codiceContabilita|default(params.codEntrata|default('')) }}</dd>
+            {% endif %}
+
+            {% if params.ibanAccredito is defined and params.ibanAccredito != '' %}
+              <dt class="col-4">IBAN accredito</dt>
+              <dd class="col-8">{{ params.ibanAccredito }}</dd>
+            {% endif %}
+
+            {% if params.tipoBollo is defined and params.tipoBollo != '' %}
+              <dt class="col-4">Tipo bollo</dt>
+              <dd class="col-8">{{ params.tipoBollo }}</dd>
+            {% endif %}
+
+            {% if params.tipoContabilita is defined and params.tipoContabilita != '' %}
+              <dt class="col-4">Tipo contabilità</dt>
+              <dd class="col-8">{{ params.tipoContabilita }}</dd>
+            {% endif %}
+
+            {% set dir = (params.direzione|default('')) ~ ' ' ~ (params.divisione|default('')) ~ ' ' ~ (params.cartellaPagamento|default('')) %}
+            {% if dir|trim != '' %}
+              <dt class="col-4">Direzione / Divisione / Cartella</dt>
+              <dd class="col-8">{{ dir|trim }}</dd>
+            {% endif %}
+
+            {% if params.documento is defined and (params.documento.identificativo is defined or params.documento.descrizione is defined) %}
+              <dt class="col-4">Documento</dt>
+              <dd class="col-8">{{ params.documento.identificativo|default('') }} {{ params.documento.descrizione|default('') }}</dd>
+            {% endif %}
+          </dl>
+        </div>
+
+        {% if params.soggettoPagatore is defined %}
+          <div class="col-md-4">
+            <div class="border rounded p-2">
+              <h6 class="mb-2">Soggetto pagatore</h6>
+              {% set tipo = params.soggettoPagatore.tipo|default('F') %}
+              {% set idLabel = tipo == 'G' ? 'Partita IVA' : 'Codice fiscale' %}
+              {% set nameLabel = tipo == 'G' ? 'Ragione sociale' : 'Cognome' %}
+              <dl class="row small mb-0">
+                {% if params.soggettoPagatore.identificativo is defined and params.soggettoPagatore.identificativo != '' %}
+                  <dt class="col-5">{{ idLabel }}</dt>
+                  <dd class="col-7">{{ params.soggettoPagatore.identificativo }}</dd>
+                {% endif %}
+                {% if params.soggettoPagatore.anagrafica is defined and params.soggettoPagatore.anagrafica != '' %}
+                  <dt class="col-5">{{ nameLabel }}</dt>
+                  <dd class="col-7">{{ params.soggettoPagatore.anagrafica }}</dd>
+                {% endif %}
+                {% if params.soggettoPagatore.nome is defined and params.soggettoPagatore.nome != '' %}
+                  <dt class="col-5">Nome</dt>
+                  <dd class="col-7">{{ params.soggettoPagatore.nome }}</dd>
+                {% endif %}
+                {% if params.soggettoPagatore.email is defined and params.soggettoPagatore.email != '' %}
+                  <dt class="col-5">Email</dt>
+                  <dd class="col-7">{{ params.soggettoPagatore.email }}</dd>
+                {% endif %}
+              </dl>
+            </div>
+          </div>
+        {% endif %}
+      </div>
 
       <hr>
 
@@ -50,6 +135,36 @@
         </table>
       </div>
 
+      {# Soggetto pagatore ora mostrato nella colonna di destra sopra, quindi non ripetiamo qui #}
+
+      {# Se sono presenti 'parts' (rateizzazione), mostriamole qui #}
+      {% if params.parts is defined and params.parts is iterable %}
+        <hr>
+        <h3>Rate / Parts</h3>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead><tr><th>#</th><th class="text-end">Importo</th><th>Validità</th><th>Scadenza</th></tr></thead>
+            <tbody>
+              {% for p in params.parts %}
+                <tr>
+                  <td>{{ loop.index }}</td>
+                  <td class="text-end">{{ (p.importo is defined and p.importo != '') ? (p.importo|number_format(2, ',', '.')) : '0,00' }} €</td>
+                  <td>{{ p.dataValidita|default(p.data_validita|default('')) }}</td>
+                  <td>{{ p.dataScadenza|default(p.data_scadenza|default('')) }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% endif %}
+
+      {# Raw params for debugging (collapsible) #}
+      <hr>
+      <p><a class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" href="#rawParams" role="button" aria-expanded="false">Mostra/nascondi tutti i parametri</a></p>
+      <div class="collapse" id="rawParams">
+        <pre class="small">{{ params|json_encode(constant('JSON_PRETTY_PRINT'))|e }}</pre>
+      </div>
+
       <form method="post" action="/pendenze">
         {# Mantieni una copia JSON completa dei parametri per i flussi che la richiedono #}
         <input type="hidden" name="original_params" value="{{ params|json_encode|e }}">
@@ -62,6 +177,13 @@
                 <input type="hidden" name="voci[{{ idx }}][idVocePendenza]" value="{{ vv.idVocePendenza|e }}">
                 <input type="hidden" name="voci[{{ idx }}][descrizione]" value="{{ vv.descrizione|e }}">
                 <input type="hidden" name="voci[{{ idx }}][importo]" value="{{ vv.importo|e }}">
+              {% endfor %}
+            {% elseif k == 'parts' %}
+              {# Parts (rate): serializziamo come array annidato in modo che PHP li parsifichi correttamente #}
+              {% for idx, part in v %}
+                <input type="hidden" name="parts[{{ idx }}][importo]" value="{{ part.importo|e }}">
+                <input type="hidden" name="parts[{{ idx }}][dataValidita]" value="{{ part.dataValidita|default(part.data_validita)|e }}">
+                <input type="hidden" name="parts[{{ idx }}][dataScadenza]" value="{{ part.dataScadenza|default(part.data_scadenza)|e }}">
               {% endfor %}
             {% else %}
               {# Serie di campi annidati (es. soggettoPagatore): serializza a livello 1 #}
@@ -78,12 +200,18 @@
             <input type="hidden" name="{{ k|e }}" value="{{ v|e }}">
           {% endif %}
         {% endfor %}
+        {# If parts are present, include a confirmation flag so createRateizzazione knows this is an intentional create #}
+        {% if params.parts is defined and params.parts|length > 0 %}
+          <input type="hidden" name="confirm_create_rate" value="1">
+        {% endif %}
 
-        <div class="d-flex gap-2">
-          <button type="submit" class="btn btn-primary">Conferma e crea</button>
-          <a href="/pendenze/inserimento" class="btn btn-outline-secondary">Modifica</a>
-          <button type="submit" formaction="/pendenze/rateizza" formmethod="post" class="btn btn-outline-warning">Rateizza</button>
-        </div>
+          <div class="d-flex gap-2">
+            {# If parts are present, submit to create-rateizzazione so controller will create rates; otherwise submit to /pendenze #}
+            <button type="submit" class="btn btn-primary" {% if params.parts is defined and params.parts|length > 0 %}formaction="/pendenze/create-rateizzazione" formmethod="post"{% endif %}>Conferma e crea</button>
+            <!-- Modifica: reinvia gli stessi parametri via POST a /pendenze/inserimento -->
+            <button type="submit" formaction="/pendenze/inserimento" formmethod="post" class="btn btn-outline-secondary">Modifica</button>
+            <button type="submit" formaction="/pendenze/rateizza" formmethod="post" class="btn btn-outline-warning">Rateizza</button>
+          </div>
       </form>
     </div>
   </div>

@@ -802,6 +802,10 @@ class PendenzeController
     {
         $this->exposeCurrentUser();
 
+        // If the inserimento route is called with POST (from preview->Modifica),
+        // use posted params to prefill the form via `old` variable in the template.
+        $posted = (array)($request->getParsedBody() ?? []);
+
         // Recupera tipologie abilitata per il dominio (se configurato)
         $idDominio = getenv('ID_DOMINIO') ?: '';
         $tipologie = [];
@@ -820,6 +824,7 @@ class PendenzeController
             'id_dominio' => $idDominio,
             'id_a2a' => getenv('ID_A2A') ?: '',
             'default_anno' => (int)date('Y'),
+            'old' => $posted,
         ]);
     }
 
@@ -895,6 +900,13 @@ class PendenzeController
     {
         $this->exposeCurrentUser();
         $params = (array)($request->getParsedBody() ?? []);
+        // Safety guard: require an explicit confirmation flag to actually create the rates.
+        // This avoids accidental creation when a POST targeting this route is triggered
+        // by navigation or ambiguous submissions (e.g. from the rateizzazione 'Annulla').
+        if (empty($params['confirm_create_rate'])) {
+            // Delegate back to preview to show the confirmation page instead of creating.
+            return $this->preview($request, $response);
+        }
         $originalJson = $params['original_params'] ?? null;
         $orig = $originalJson ? json_decode($originalJson, true) : [];
         // Merge explicit posted scalar values over decoded original (safety)
