@@ -75,7 +75,7 @@
       <div class="row g-3 mt-1">
         <div class="form-group col-12">
           <label for="causale" class="active">Causale / Descrizione</label>
-          <input type="text" id="causale" name="causale" class="form-control" rows="2" placeholder="Inserisci la causale della pendenza">{{ old.causale|default('') }}</textarea>
+          <input type="text" id="causale" name="causale" class="form-control" placeholder="Inserisci la causale della pendenza" value="{{ old.causale|default('') }}">
           <div class="form-text small">La causale verrà usata automaticamente per la prima voce se non ne viene specificata una diversa.</div>
         </div>
       </div>
@@ -119,7 +119,7 @@
           <label id="lblAnagrafica" for="anagrafica" class="active">Cognome</label>
           <input id="anagrafica" name="soggettoPagatore[anagrafica]" type="text" class="form-control" placeholder="Cognome o Ragione sociale" required value="{{ old.soggettoPagatore.anagrafica|default('') }}">
         </div>
-        <div class="form-group col-md-4">
+        <div class="form-group col-md-4" id="colNome">
           <label for="nome" class="active">Nome (se persona fisica)</label>
           <input id="nome" name="soggettoPagatore[nome]" type="text" class="form-control" placeholder="Nome" autocomplete="off" value="{{ old.soggettoPagatore.nome|default('') }}">
         </div>
@@ -135,39 +135,53 @@
       <hr>
 
       <h3 class="h6">Voci di pendenza</h3>
-      <p class="text-muted small">Il sistema crea almeno una voce di pendenza; puoi aggiungerne altre se necessario.</p>
+      <div class="d-flex align-items-center justify-content-between mb-5">
+        <p class="text-muted small mb-0">Il sistema crea almeno una voce di pendenza; puoi aggiungerne altre se necessario.</p>
+      </div>
       <div id="vociList">
         {% set existingVoci = old.voci|default([]) %}
         {% if existingVoci is iterable and existingVoci|length > 0 %}
           {% for idx, voce in existingVoci %}
             <div class="row g-3 align-items-end voce-item" data-index="{{ idx }}">
-              <div class="col-md-3">
+              <div class="form-group col-md-3">
                 <label for="voce_id_{{ idx }}" class="active">ID voce</label>
                 <input id="voce_id_{{ idx }}" name="voci[{{ idx }}][idVocePendenza]" type="text" class="form-control" placeholder="1" value="{{ voce.idVocePendenza|default(voce.idVocePendenza|default('')) }}" required>
               </div>
-              <div class="col-md-6">
+              <div class="form-group col-md-5">
                 <label for="voce_desc_{{ idx }}" class="active">Descrizione voce</label>
                 <input id="voce_desc_{{ idx }}" name="voci[{{ idx }}][descrizione]" type="text" class="form-control" placeholder="Descrizione voce" value="{{ voce.descrizione|default('') }}" required>
               </div>
-              <div class="col-md-3">
-                <label for="voce_imp_{{ idx }}" class="active">Importo voce</label>
-                <input id="voce_imp_{{ idx }}" name="voci[{{ idx }}][importo]" type="number" step="0.01" min="0" class="form-control" placeholder="0.00" value="{{ voce.importo|default('') }}" required>
+              <div class="form-group col-md-3">
+                <label for="voce_imp_{{ idx }}" class="input-symbol-label active">Importo voce</label>
+                <div class="input-group input-number">
+                    <span class="input-group-text fw-semibold">€</span>
+                    <input id="voce_imp_{{ idx }}" name="voci[{{ idx }}][importo]" type="number" step="0.01" min="0.01" class="form-control" placeholder="0.00" value="{{ voce.importo|default('') }}" required>
+                </div>
+              </div>
+              <div class="col-md-1 d-flex align-items-center">
+                {# Spazio per pulsante rimuovi - lasciato vuoto per voci esistenti #}
               </div>
             </div>
           {% endfor %}
         {% else %}
           <div class="row g-3 align-items-end voce-item" data-index="0">
-            <div class="col-md-3">
+            <div class="form-group col-md-3">
               <label for="voce_id_0" class="active">ID voce</label>
               <input id="voce_id_0" name="voci[0][idVocePendenza]" type="text" class="form-control" placeholder="1" value="1" required>
             </div>
-            <div class="col-md-6">
+            <div class="form-group col-md-5">
               <label for="voce_desc_0" class="active">Descrizione voce</label>
               <input id="voce_desc_0" name="voci[0][descrizione]" type="text" class="form-control" placeholder="Descrizione voce" value="{{ old.causale|default('') }}" required>
             </div>
-            <div class="col-md-3">
-              <label for="voce_imp_0" class="active">Importo voce</label>
-              <input id="voce_imp_0" name="voci[0][importo]" type="number" step="0.01" min="0" class="form-control" placeholder="0.00" value="{{ old.importo|default('') }}" required>
+            <div class="form-group col-md-3">
+              <label for="voce_imp_0" class="input-symbol-label active">Importo voce</label>
+              <div class="input-group input-number">
+                <span class="input-group-text fw-semibold">€</span>
+                <input id="voce_imp_0" name="voci[0][importo]" type="number" step="0.01" min="0.01" class="form-control" placeholder="0.00" value="{{ old.importo|default('') }}" required>
+              </div>
+            </div>
+            <div class="col-md-1 d-flex align-items-center">
+              {# Spazio per pulsante rimuovi - lasciato vuoto per prima voce #}
             </div>
           </div>
         {% endif %}
@@ -175,7 +189,6 @@
       <div class="mt-2 mb-4">
         <button type="button" id="addVoceBtn" class="btn btn-outline-secondary btn-sm">Aggiungi voce</button>
       </div>
-
       <div class="collapse" id="apiExtra">
         <div class="card card-body">
           <h4 class="h6">Campi avanzati (API)</h4>
@@ -242,14 +255,12 @@
       const colNome = document.getElementById('colNome');
       const lblAnagrafica = document.getElementById('lblAnagrafica');
       const anag = document.getElementById('anagrafica');
-      const descVoce0 = document.getElementById('voce_desc_0');
       const importoMain = document.getElementById('importo');
-      const voceImp0 = document.getElementById('voce_imp_0');
       const causale = document.getElementById('causale');
 
       function refreshPersona(){
         const isPF = pf.checked;
-        colNome.style.display = isPF ? '' : 'none';
+        if (colNome) colNome.style.display = isPF ? '' : 'none';
         lblAnagrafica.textContent = isPF ? 'Cognome' : 'Ragione sociale';
         anag.placeholder = isPF ? 'Cognome' : 'Ragione sociale';
       }
@@ -257,15 +268,26 @@
       pj.addEventListener('change', refreshPersona);
       refreshPersona();
 
-      // Sincronizza la prima voce con causale/importo (se presente)
+      // Sincronizza la prima voce con causale/importo (solo se è vuota)
       const firstVoceDesc = document.querySelector('#vociList .voce-item input[name$="[descrizione]"]');
       const firstVoceImp = document.querySelector('#vociList .voce-item input[name$="[importo]"]');
+      let userModifiedFirstVoce = firstVoceDesc && firstVoceDesc.value.trim() !== '';
+
       const syncVoce0 = function(){
-        if (firstVoceDesc) firstVoceDesc.value = causale.value || '';
-        if (firstVoceImp) firstVoceImp.value = importoMain.value || '';
+        if (userModifiedFirstVoce) return;
+        if (firstVoceDesc && causale) firstVoceDesc.value = causale.value || '';
+        if (firstVoceImp && importoMain) firstVoceImp.value = importoMain.value || '';
       };
-      causale.addEventListener('input', syncVoce0);
-      importoMain.addEventListener('input', syncVoce0);
+
+      // Ferma sincronizzazione se utente modifica manualmente la prima voce
+      if (firstVoceDesc) {
+        firstVoceDesc.addEventListener('input', function() {
+          userModifiedFirstVoce = true;
+        });
+      }
+
+      if (causale) causale.addEventListener('input', syncVoce0);
+      if (importoMain) importoMain.addEventListener('input', syncVoce0);
       syncVoce0();
 
   // Aggiungi nuove voci
@@ -276,20 +298,23 @@
         row.className = 'row g-3 align-items-end voce-item';
         row.setAttribute('data-index', voceIndex);
         row.innerHTML = `
-          <div class="col-md-3">
+          <div class="form-group col-md-3">
             <label for="voce_id_${voceIndex}" class="active">ID voce</label>
             <input id="voce_id_${voceIndex}" name="voci[${voceIndex}][idVocePendenza]" type="text" class="form-control" placeholder="1" value="${voceIndex + 1}" required>
           </div>
-          <div class="col-md-6">
+          <div class="form-group col-md-5">
             <label for="voce_desc_${voceIndex}" class="active">Descrizione voce</label>
             <input id="voce_desc_${voceIndex}" name="voci[${voceIndex}][descrizione]" type="text" class="form-control" placeholder="Descrizione voce" required>
           </div>
-          <div class="col-md-2">
-            <label for="voce_imp_${voceIndex}" class="active">Importo voce</label>
-            <input id="voce_imp_${voceIndex}" name="voci[${voceIndex}][importo]" type="number" step="0.01" min="0" class="form-control" placeholder="0.00" required>
+          <div class="form-group col-md-2">
+            <label for="voce_imp_${voceIndex}" class="input-symbol-label active">Importo voce</label>
+            <div class="input-group input-number">
+              <span class="input-group-text fw-semibold">€</span>
+              <input id="voce_imp_${voceIndex}" name="voci[${voceIndex}][importo]" type="number" step="0.01" min="0.01" class="form-control" placeholder="0.00" required>
+            </div>
           </div>
-            <div class="col-md-1 d-flex align-items-center">
-            <button type="button" class="btn btn-outline-danger btn-sm ms-auto remove-voce">✖</button>
+          <div class="form-group col-md-1 d-flex align-items-center">
+            <button type="button" class="btn btn-outline-danger btn-sm remove-voce">✖</button>
           </div>
         `;
         container.appendChild(row);
