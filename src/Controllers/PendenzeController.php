@@ -883,8 +883,25 @@ class PendenzeController
         $importo = is_numeric(str_replace(',', '.', (string)($params['importo'] ?? ''))) ? (float)str_replace(',', '.', (string)$params['importo']) : 0.0;
         $defaultRates = (int)($params['rate'] ?? 3);
         $rate = max(1, $defaultRates);
-        // Build default parts using service
-        $parts = \App\Services\RateizzazioneService::buildPartsWithDates($importo, $rate);
+        // If the caller provided explicit parts (from preview/previous edit), prefer them
+        // and preserve any empty dataScadenza values the user left blank. Only when no
+        // parts are provided we generate defaults via the service.
+        $parts = [];
+        if (!empty($params['parts']) && is_array($params['parts'])) {
+            foreach ($params['parts'] as $k => $pp) {
+                $idx = is_numeric($k) ? ((int)$k) : $k;
+                $parts[] = [
+                    'indice' => isset($pp['indice']) ? (int)$pp['indice'] : ($idx + 1),
+                    'importo' => isset($pp['importo']) ? $pp['importo'] : (isset($pp['amount']) ? $pp['amount'] : ''),
+                    // preserve submitted names and empty strings (do not fill defaults)
+                    'dataValidita' => $pp['dataValidita'] ?? $pp['data_validita'] ?? '',
+                    'dataScadenza' => array_key_exists('dataScadenza', $pp) ? ($pp['dataScadenza'] ?? '') : ($pp['data_scadenza'] ?? ''),
+                ];
+            }
+        } else {
+            // Build default parts using service
+            $parts = \App\Services\RateizzazioneService::buildPartsWithDates($importo, $rate);
+        }
         return $this->twig->render($response, 'pendenze/rateizzazione.html.twig', [
             'params' => $params,
             'importo' => $importo,

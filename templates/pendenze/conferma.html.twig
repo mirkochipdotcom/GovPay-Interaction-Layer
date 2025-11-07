@@ -43,12 +43,14 @@
 
             {% if params.dataValidita is defined and params.dataValidita != '' %}
               <dt class="col-4">Data validità</dt>
-              <dd class="col-8">{{ params.dataValidita }}</dd>
+              {% set _dv = params.dataValidita %}
+              <dd class="col-8">{{ _dv ? (_dv|date('d/m/Y')) : _dv }}</dd>
             {% endif %}
 
             {% if params.dataScadenza is defined and params.dataScadenza != '' %}
               <dt class="col-4">Data scadenza</dt>
-              <dd class="col-8">{{ params.dataScadenza }}</dd>
+              {% set _ds = params.dataScadenza %}
+              <dd class="col-8">{{ _ds ? (_ds|date('d/m/Y')) : _ds }}</dd>
             {% endif %}
 
             {% if (params.codiceContabilita is defined and params.codiceContabilita != '') or (params.codEntrata is defined and params.codEntrata != '') %}
@@ -140,17 +142,19 @@
       {# Se sono presenti 'parts' (rateizzazione), mostriamole qui #}
       {% if params.parts is defined and params.parts is iterable %}
         <hr>
-        <h3>Rate / Parts</h3>
+        <h3>Rate</h3>
         <div class="table-responsive">
           <table class="table table-sm align-middle">
             <thead><tr><th>#</th><th class="text-end">Importo</th><th>Validità</th><th>Scadenza</th></tr></thead>
             <tbody>
               {% for p in params.parts %}
+                {% set _pdv = p.dataValidita|default(p.data_validita|default('')) %}
+                {% set _pds = p.dataScadenza|default(p.data_scadenza|default('')) %}
                 <tr>
                   <td>{{ loop.index }}</td>
                   <td class="text-end">{{ (p.importo is defined and p.importo != '') ? (p.importo|number_format(2, ',', '.')) : '0,00' }} €</td>
-                  <td>{{ p.dataValidita|default(p.data_validita|default('')) }}</td>
-                  <td>{{ p.dataScadenza|default(p.data_scadenza|default('')) }}</td>
+                  <td>{{ _pdv ? (_pdv|date('d/m/Y')) : '' }}</td>
+                  <td>{{ _pds ? (_pds|date('d/m/Y')) : '' }}</td>
                 </tr>
               {% endfor %}
             </tbody>
