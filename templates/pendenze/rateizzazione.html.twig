@@ -250,7 +250,7 @@
           f.action = '/pendenze/preview';
           // clone inputs (serialize current visible values)
           Array.from(origForm.elements).forEach(function(el){
-            if (!el.name) return;
+            if (!el.name) return;                        
             // If this is a parts input (rate fields) skip it: Annulla should NOT persist rate edits
             if (el.name.indexOf('parts[') === 0) return;
             // skip the client-side rate count control
