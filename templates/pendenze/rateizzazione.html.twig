@@ -55,6 +55,9 @@
             {% endfor %}
           </tbody>
         </table>
+          <div class="d-flex justify-content-end mt-2">
+            <div id="partsSum" class="fw-semibold">Totale rate: €<span id="partsSumValue">0.00</span></div>
+          </div>
       </div>
     </div>
 
@@ -125,6 +128,8 @@
           <td><input type="date" name="parts[${idx}][dataScadenza]" value="" class="form-control"></td>`;
         tbody.appendChild(tr);
       });
+      // update total after rebuild
+      updatePartsSum();
     });
     // Copy validita -> scadenza when requested
     const copyBtn = document.getElementById('copyDatesBtn');
@@ -145,6 +150,28 @@
         });
       });
     }
+      // helper: update live sum of parts importo
+      function updatePartsSum(){
+        const inputs = Array.from(document.querySelectorAll('#rateRows input[name$="[importo]"]'));
+        let sum = 0;
+        inputs.forEach(function(i){ sum += parseFloat(i.value) || 0; });
+        const rounded = Math.round(sum * 100) / 100;
+        const el = document.getElementById('partsSumValue');
+        if (el) el.textContent = rounded.toFixed(2);
+      }
+
+      // live update on input changes via delegation
+      const rateRowsEl = document.getElementById('rateRows');
+      if (rateRowsEl) {
+        rateRowsEl.addEventListener('input', function(e){
+          if (!e.target) return; // defensive
+          if (e.target.name && e.target.name.indexOf('[importo]') !== -1) updatePartsSum();
+        });
+      }
+
+      // initialize sum on load
+      updatePartsSum();
+
       // Annulla: submit a sanitized clone of the form to /pendenze/preview
       const annullaBtn = document.getElementById('btnAnnulla');
       if (annullaBtn) {
