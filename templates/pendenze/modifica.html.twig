@@ -139,8 +139,9 @@
           {% for idx, voce in existingVoci %}
             <div class="row g-3 align-items-end voce-item" data-index="{{ idx }}">
               <div class="col-md-3">
-                <label for="voce_id_{{ idx }}" class="active">ID voce</label>
-                <input id="voce_id_{{ idx }}" name="voci[{{ idx }}][idVocePendenza]" type="text" class="form-control" placeholder="1" value="{{ voce.idVocePendenza|default(voce.idVocePendenza|default('')) }}" required>
+                <label class="active">ID voce</label>
+                <div class="form-control-plaintext">{{ voce.idVocePendenza|default('') }}</div>
+                <input type="hidden" name="voci[{{ idx }}][idVocePendenza]" value="{{ voce.idVocePendenza|default('') }}">
               </div>
               <div class="col-md-6">
                 <label for="voce_desc_{{ idx }}" class="active">Descrizione voce</label>
@@ -155,8 +156,9 @@
         {% else %}
           <div class="row g-3 align-items-end voce-item" data-index="0">
             <div class="col-md-3">
-              <label for="voce_id_0" class="active">ID voce</label>
-              <input id="voce_id_0" name="voci[0][idVocePendenza]" type="text" class="form-control" placeholder="1" value="{{ old.voci[0].idVocePendenza|default('1') }}" required>
+              <label class="active">ID voce</label>
+              <div class="form-control-plaintext">{{ old.voci[0].idVocePendenza|default('1') }}</div>
+              <input type="hidden" name="voci[0][idVocePendenza]" value="{{ old.voci[0].idVocePendenza|default('1') }}">
             </div>
             <div class="col-md-6">
               <label for="voce_desc_0" class="active">Descrizione voce</label>
@@ -274,8 +276,9 @@
         row.setAttribute('data-index', voceIndex);
         row.innerHTML = `
           <div class="col-md-3">
-            <label for="voce_id_${voceIndex}" class="active">ID voce</label>
-            <input id="voce_id_${voceIndex}" name="voci[${voceIndex}][idVocePendenza]" type="text" class="form-control" placeholder="1" value="${voceIndex + 1}" required>
+            <label class="active">ID voce</label>
+            <div class="form-control-plaintext">${voceIndex + 1}</div>
+            <input type="hidden" name="voci[${voceIndex}][idVocePendenza]" value="${voceIndex + 1}">
           </div>
           <div class="col-md-6">
             <label for="voce_desc_${voceIndex}" class="active">Descrizione voce</label>

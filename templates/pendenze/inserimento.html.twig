@@ -170,8 +170,9 @@
           {% for idx, voce in existingVoci %}
             <div class="row g-3 align-items-end voce-item" data-index="{{ idx }}">
               <div class="form-group col-md-3">
-                <label for="voce_id_{{ idx }}" class="active">ID voce</label>
-                <input id="voce_id_{{ idx }}" name="voci[{{ idx }}][idVocePendenza]" type="text" class="form-control" placeholder="1" value="{{ voce.idVocePendenza|default(voce.idVocePendenza|default('')) }}" required>
+                <label class="active">ID voce</label>
+                <div class="form-control-plaintext">{{ voce.idVocePendenza|default('') }}</div>
+                <input type="hidden" name="voci[{{ idx }}][idVocePendenza]" value="{{ voce.idVocePendenza|default('') }}">
               </div>
               <div class="form-group col-md-5">
                 <label for="voce_desc_{{ idx }}" class="active">Descrizione voce</label>
@@ -192,9 +193,10 @@
         {% else %}
           <div class="row g-3 align-items-end voce-item" data-index="0">
             <div class="form-group col-md-3">
-              <label for="voce_id_0" class="active">ID voce</label>
-              <input id="voce_id_0" name="voci[0][idVocePendenza]" type="text" class="form-control" placeholder="1" value="1" required>
-            </div>
+                <label class="active">ID voce</label>
+                <div class="form-control-plaintext">1</div>
+                <input type="hidden" name="voci[0][idVocePendenza]" value="1">
+              </div>
             <div class="form-group col-md-5">
               <label for="voce_desc_0" class="active">Descrizione voce</label>
               <input id="voce_desc_0" name="voci[0][descrizione]" type="text" class="form-control" placeholder="Descrizione voce" value="{{ old.causale|default('') }}" required>
@@ -325,8 +327,9 @@
         row.setAttribute('data-index', voceIndex);
         row.innerHTML = `
           <div class="form-group col-md-3">
-            <label for="voce_id_${voceIndex}" class="active">ID voce</label>
-            <input id="voce_id_${voceIndex}" name="voci[${voceIndex}][idVocePendenza]" type="text" class="form-control" placeholder="1" value="${voceIndex + 1}" required>
+            <label class="active">ID voce</label>
+            <div class="form-control-plaintext">${voceIndex + 1}</div>
+            <input type="hidden" name="voci[${voceIndex}][idVocePendenza]" value="${voceIndex + 1}">
           </div>
           <div class="form-group col-md-5">
             <label for="voce_desc_${voceIndex}" class="active">Descrizione voce</label>
