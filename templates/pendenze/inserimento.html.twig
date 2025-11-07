@@ -301,6 +301,11 @@
       const firstVoceDesc = document.querySelector('#vociList .voce-item input[name$="[descrizione]"]');
       const firstVoceImp = document.querySelector('#vociList .voce-item input[name$="[importo]"]');
       let userModifiedFirstVoce = firstVoceDesc && firstVoceDesc.value.trim() !== '';
+      // Se sono già presenti almeno due voci all'apertura, disattiva la sincronizzazione automatica
+      try {
+        const initialVoceCount = document.querySelectorAll('#vociList .voce-item').length;
+        if (initialVoceCount > 1) userModifiedFirstVoce = true;
+      } catch(e) {}
 
       const syncVoce0 = function(){
         if (userModifiedFirstVoce) return;
@@ -311,6 +316,11 @@
       // Ferma sincronizzazione se utente modifica manualmente la prima voce
       if (firstVoceDesc) {
         firstVoceDesc.addEventListener('input', function() {
+          userModifiedFirstVoce = true;
+        });
+      }
+      if (firstVoceImp) {
+        firstVoceImp.addEventListener('input', function(){
           userModifiedFirstVoce = true;
         });
       }
@@ -359,6 +369,8 @@
   // Aggiungi nuove voci
   let voceIndex = Math.max(0, document.querySelectorAll('#vociList .voce-item').length);
       document.getElementById('addVoceBtn').addEventListener('click', function(){
+        // Aggiunta di una seconda voce: blocca la sincronizzazione della prima
+        userModifiedFirstVoce = true;
         const container = document.getElementById('vociList');
         const row = document.createElement('div');
         row.className = 'row g-3 align-items-end voce-item';
