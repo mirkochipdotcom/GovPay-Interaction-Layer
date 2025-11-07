@@ -39,25 +39,13 @@ class EntrateRepository
             return;
         }
 
-        $descrizione = $e['tipoEntrata']['descrizione'] ?? null;
+    $descrizione = $e['tipoEntrata']['descrizione'] ?? null;
     $iban = $e['ibanAccredito'] ?? null;
     $codiceCont = $e['codiceContabilita'] ?? ($e['tipoEntrata']['codiceContabilita'] ?? null);
     $tipoBollo = $e['tipoBollo'] ?? ($e['tipoEntrata']['tipoBollo'] ?? null);
     $tipoContabilita = $e['tipoContabilita'] ?? ($e['tipoEntrata']['tipoContabilita'] ?? null);
-    // Normalizza/sanitizza tipo contabilita' (enum: CAPITOLO,SPECIALE,SIOPE,ALTRO)
-    $originalTipoCont = $tipoContabilita;
-    $tipoContabilita = self::sanitizeTipoContabilita($tipoContabilita);
-    if ($originalTipoCont !== $tipoContabilita && $originalTipoCont !== null) {
-        Logger::getInstance()->warning('Sanitizzazione tipo_contabilita durante upsertFromBackoffice', ['id_dominio' => $idDominio, 'id_entrata' => $idEntrata, 'orig' => $originalTipoCont, 'sanitized' => $tipoContabilita]);
-    }
-    // Sanitizza il codice contabile per rispettare il pattern API (solo caratteri consentiti, max 35)
-    $originalCodice = $codiceCont;
-    $codiceCont = self::sanitizeCodEntrata($codiceCont);
-    if ($originalCodice !== $codiceCont && $originalCodice !== null) {
-        Logger::getInstance()->warning('Sanitizzazione codice_contabilita durante upsertFromBackoffice', ['id_dominio' => $idDominio, 'id_entrata' => $idEntrata, 'orig' => $originalCodice, 'sanitized' => $codiceCont]);
-    }
-        $abilitatoBo = !empty($e['abilitato']);
-        $now = date('Y-m-d H:i:s');
+    $abilitatoBo = !empty($e['abilitato']);
+    $now = date('Y-m-d H:i:s');
 
     $sql = 'INSERT INTO entrate_tipologie (id_dominio, id_entrata, descrizione, iban_accredito, codice_contabilita, tipo_bollo, tipo_contabilita, abilitato_backoffice, sorgente, created_at, updated_at)
         VALUES (:id_dominio, :id_entrata, :descrizione, :iban, :codice, :tipo_bollo, :tipo_contabilita, :bo, "backoffice", :now_created, :now_updated)
@@ -111,13 +99,6 @@ class EntrateRepository
         return $stmt->fetchAll();
     }
 
-    private static function sanitizeTipoContabilita(?string $value): ?string
-    {
-        if ($value === null) return null;
-        $v = strtoupper(trim((string)$value));
-        $allowed = ['CAPITOLO', 'SPECIALE', 'SIOPE', 'ALTRO'];
-        return in_array($v, $allowed, true) ? $v : null;
-    }
 
     /** @return array{id_entrata:string,abilitato_backoffice:int,override_locale:?int,external_url:?string}|null */
     public function findOne(string $idDominio, string $idEntrata): ?array
