@@ -217,6 +217,7 @@
       <div class="mt-2 mb-4">
         <button type="button" id="addVoceBtn" class="btn btn-outline-secondary btn-sm">Aggiungi voce</button>
       </div>
+      <div id="vociSumError" class="alert alert-danger d-none" role="alert"></div>
       <div class="collapse" id="apiExtra">
         <div class="card card-body">
           <h4 class="h6">Campi avanzati (API)</h4>
@@ -317,6 +318,43 @@
       if (causale) causale.addEventListener('input', syncVoce0);
       if (importoMain) importoMain.addEventListener('input', syncVoce0);
       syncVoce0();
+
+      // Validation: ensure sum of voci importo == main importo before submit
+      const formEl = document.querySelector('form');
+      const vociSumError = document.getElementById('vociSumError');
+      function clearVociErrors() {
+        vociSumError.classList.add('d-none');
+        Array.from(document.querySelectorAll('#vociList input[name$="[importo]"]')).forEach(function(i){
+          i.classList.remove('is-invalid');
+        });
+      }
+      function validateVociSum(e){
+        clearVociErrors();
+        const total = parseFloat((importoMain && importoMain.value) ? importoMain.value : '0') || 0;
+        let sum = 0;
+        const inputs = Array.from(document.querySelectorAll('#vociList input[name$="[importo]"]'));
+        inputs.forEach(function(inp){ sum += parseFloat(inp.value) || 0; });
+        // Round to cents
+        const sumRounded = Math.round(sum * 100) / 100;
+        const totalRounded = Math.round(total * 100) / 100;
+        if (Math.abs(sumRounded - totalRounded) > 0.01) {
+          if (e) e.preventDefault();
+          vociSumError.textContent = 'La somma delle voci (' + sumRounded.toFixed(2) + ') non corrisponde all\'importo principale (' + totalRounded.toFixed(2) + ').';
+          vociSumError.classList.remove('d-none');
+          inputs.forEach(function(i){ i.classList.add('is-invalid'); });
+          // scroll to error
+          vociSumError.scrollIntoView({behavior:'smooth',block:'center'});
+          return false;
+        }
+        return true;
+      }
+      if (formEl) {
+        formEl.addEventListener('submit', function(ev){
+          // only validate for POST submissions that create/preview pendenza
+          // allow non-submit buttons/links to function
+          if (!validateVociSum(ev)) return false;
+        });
+      }
 
   // Aggiungi nuove voci
   let voceIndex = Math.max(0, document.querySelectorAll('#vociList .voce-item').length);
