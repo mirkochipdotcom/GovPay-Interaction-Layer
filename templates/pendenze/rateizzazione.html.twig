@@ -158,6 +158,18 @@
         const rounded = Math.round(sum * 100) / 100;
         const el = document.getElementById('partsSumValue');
         if (el) el.textContent = rounded.toFixed(2);
+        // highlight in red if differs from main importo
+        try {
+          const total = Math.round(({{ importo }} || 0) * 100) / 100;
+          const container = document.getElementById('partsSum');
+          if (Math.abs(rounded - total) > 0.01) {
+            if (container) container.classList.add('text-danger');
+          } else {
+            if (container) container.classList.remove('text-danger');
+          }
+        } catch(e) {
+          // ignore if importo not available
+        }
       }
 
       // live update on input changes via delegation
