@@ -40,9 +40,27 @@
   {% endif %}
     <div class="card mb-3">
       <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <div class="d-flex gap-2 align-items-center">
+            <label for="rateCount" class="mb-0 small text-muted">Numero rate</label>
+            <input id="rateCount" name="rate" type="number" min="1" value="{{ parts|length }}" class="form-control form-control-sm" style="width:80px">
+            <button id="recalcBtn" type="button" class="btn btn-sm btn-outline-secondary">Ricalcola</button>
+          </div>
+          <div class="d-flex gap-2 align-items-center">
+            <label for="validitaFrequency" class="mb-0 small text-muted">Intervallo validità</label>
+            <select id="validitaFrequency" class="form-select form-select-sm" style="width:140px">
+              <option value="1">Mensile</option>
+              <option value="2">Bimestrale</option>
+              <option value="6">Semestrale</option>
+              <option value="12">Annuale</option>
+            </select>
+            <button id="recalcValiditaBtn" type="button" class="btn btn-sm btn-outline-secondary">Ricalcola validità</button>
+          </div>
+        </div>
+
         <table class="table table-sm align-middle">
           <thead>
-            <tr><th>#</th><th class="w-50">Importo</th><th>Validità</th><th>Scadenza</th></tr>
+            <tr><th>#</th><th class="w-50">Importo</th><th>Validità</th><th>Scadenza <button id="copyDatesBtnHeader" type="button" class="btn btn-link btn-sm p-0 ms-2" title="Copia validità → scadenza">Copia</button><button id="clearDatesBtnHeader" type="button" class="btn btn-link btn-sm p-0 ms-2 text-danger" title="Azzera scadenze">Azzera</button></th></tr>
           </thead>
           <tbody id="rateRows">
             {% for p in parts %}
@@ -62,12 +80,8 @@
     </div>
 
     <div class="d-flex gap-2">
-      <div class="me-auto d-flex gap-2 align-items-center">
-  <label for="rateCount" class="mb-0 small text-muted">Numero rate</label>
-  <input id="rateCount" name="rate" type="number" min="1" value="{{ parts|length }}" class="form-control form-control-sm" style="width:80px"> 
-  <button id="recalcBtn" type="button" class="btn btn-sm btn-outline-secondary">Ricalcola</button>
-  <button id="copyDatesBtn" type="button" class="btn btn-sm btn-outline-secondary" title="Copia tutte le validità nelle scadenze">Copia validità → scadenza</button>
-      </div>
+    <div class="me-auto d-flex gap-2 align-items-center">
+    </div>
       <!-- Invia a preview/conferma includendo le "parts" modificate -->
       <button type="submit" class="btn btn-primary">Aggiungi rate</button>
       <!-- Annulla: costruisce e invia esplicitamente un form POST verso /pendenze/preview -->
@@ -131,15 +145,39 @@
       // update total after rebuild
       updatePartsSum();
     });
-    // Copy validita -> scadenza when requested
-    const copyBtn = document.getElementById('copyDatesBtn');
+    // Ricalcola le validità successive a partire dalla prima in base all'intervallo scelto
+    const recalcValiditaBtn = document.getElementById('recalcValiditaBtn');
+    if (recalcValiditaBtn) {
+      recalcValiditaBtn.addEventListener('click', function(){
+        const freq = parseInt(document.getElementById('validitaFrequency').value || '1', 10);
+        const tbody = document.getElementById('rateRows');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        if (rows.length === 0) return;
+        const firstValiditaInput = rows[0].querySelector('input[name^="parts"][name$="[dataValidita]"]');
+        if (!firstValiditaInput || !firstValiditaInput.value) { alert('Imposta la validità della prima rata prima di ricalcolare le successive.'); return; }
+        const firstDate = new Date(firstValiditaInput.value + 'T00:00:00');
+        rows.forEach(function(tr, idx){
+          if (idx === 0) return; // skip first
+          const monthsToAdd = freq * idx;
+          const d = new Date(firstDate.getTime());
+          d.setMonth(d.getMonth() + monthsToAdd);
+          const y = d.getFullYear();
+          const m = String(d.getMonth()+1).padStart(2,'0');
+          const day = String(d.getDate()).padStart(2,'0');
+          const input = tr.querySelector('input[name^="parts"][name$="[dataValidita]"]');
+          if (input) input.value = y + '-' + m + '-' + day;
+        });
+      });
+    }
+    // Copy validita -> scadenza when requested (header button)
+    const copyBtn = document.getElementById('copyDatesBtnHeader');
     if (copyBtn) {
       copyBtn.addEventListener('click', function(){
         const tbody = document.getElementById('rateRows');
         const rows = Array.from(tbody.querySelectorAll('tr'));
         rows.forEach(function(tr, idx){
-          const validita = tr.querySelector('input[name="parts['+idx+'][dataValidita]"]');
-          let scadenza = tr.querySelector('input[name="parts['+idx+'][dataScadenza]"]');
+          const validita = tr.querySelector('input[name^="parts"][name$="[dataValidita]"]');
+          let scadenza = tr.querySelector('input[name^="parts"][name$="[dataScadenza]"]');
           if (!scadenza) {
             scadenza = document.createElement('input');
             scadenza.type = 'hidden';
@@ -147,6 +185,23 @@
             tr.appendChild(scadenza);
           }
           if (validita && scadenza) scadenza.value = validita.value || '';
+        });
+      });
+    }
+    // Clear (azzera) all dataScadenza values when requested
+    const clearBtn = document.getElementById('clearDatesBtnHeader');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', function(){
+        const tbody = document.getElementById('rateRows');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        rows.forEach(function(tr, idx){
+          let scadenza = tr.querySelector('input[name^="parts"][name$="[dataScadenza]"]');
+          if (scadenza) {
+            scadenza.value = '';
+          } else {
+            // create hidden empty input so POST includes empty value
+            const inp = document.createElement('input'); inp.type = 'hidden'; inp.name = 'parts['+idx+'][dataScadenza]'; inp.value = ''; tr.appendChild(inp);
+          }
         });
       });
     }
