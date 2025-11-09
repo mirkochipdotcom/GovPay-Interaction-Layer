@@ -91,6 +91,18 @@ try {
     // non fatale: proseguiamo
 }
 
+// Aggiunge colonna descrizione_locale per personalizzazione descrizione (non toccata dal sync)
+try {
+    $stmt = $pdo->query("SHOW COLUMNS FROM entrate_tipologie LIKE 'descrizione_locale'");
+    $has = $stmt ? $stmt->fetch() : false;
+    if (!$has) {
+        $pdo->exec("ALTER TABLE entrate_tipologie ADD COLUMN descrizione_locale VARCHAR(255) NULL AFTER descrizione");
+        echo "Added column descrizione_locale to entrate_tipologie\n";
+    }
+} catch (Throwable $e) {
+    // non fatale
+}
+
 // Seeding opzionale: crea superadmin se ADMIN_EMAIL e ADMIN_PASSWORD sono definiti
 $adminEmail = getenv('ADMIN_EMAIL') ?: '';
 $adminPass = getenv('ADMIN_PASSWORD') ?: '';

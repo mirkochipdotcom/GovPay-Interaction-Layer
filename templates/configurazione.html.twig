@@ -173,8 +173,14 @@
             <button id="entrateClear" type="button" class="btn btn-sm btn-outline-secondary">Pulisci</button>
           </div>
           <div class="accordion" id="accordionEntrate">
-            {% for e in elenco %}
-              {% set descr = e.tipoEntrata.descrizione|default(e.idEntrata|default('Tipologia')) %}
+              {% for e in elenco %}
+              {% set idEnt = e.idEntrata|default(e.tipoEntrata.idEntrata|default('')) %}
+              {% set descrLocaleMap = entrate._descr_map|default({}) %}
+              {% set descrEffMap = entrate._descr_eff_map|default({}) %}
+              {% set descrBackoffice = e.tipoEntrata.descrizione|default(idEnt|default('Tipologia')) %}
+              {% set descrLocale = descrLocaleMap[idEnt]|default(null) %}
+              {% set descrEff = descrEffMap[idEnt]|default(descrBackoffice) %}
+              {% set descr = descrEff %}
               {% set eid = 'entrata_' ~ (e.idEntrata|default(loop.index)) %}
               {% set boMap = entrate._bo_map|default({}) %}
               {% set ovrMap = entrate._override_map|default({}) %}
@@ -249,6 +255,28 @@
                         </div>
                       </div>
                     </div>
+                    {% if current_user and current_user.role == 'superadmin' and idEnt %}
+                      <div class="row g-3 small mt-1">
+                        <div class="col-md-12">
+                          <form method="post" action="/configurazione/tipologie/{{ idEnt }}/descrizione" class="d-flex align-items-start gap-2 flex-wrap">
+                            <div class="flex-grow-1" style="min-width:260px">
+                              <label for="descr_{{ eid }}" class="text-muted">Descrizione personalizzata</label>
+                              <input id="descr_{{ eid }}" name="descrizione" type="text" maxlength="255" value="{{ descrLocale is not null ? descrLocale : descrBackoffice }}" class="form-control form-control-sm" placeholder="Inserisci descrizione personalizzata" autocomplete="off">
+                              <div class="form-text">
+                                {% if descrLocale is not null %}
+                                  Personalizzata (originale GovPay: <span class="text-muted">{{ descrBackoffice }}</span>)
+                                {% else %}
+                                  Nessuna personalizzazione locale. Puoi sovrascrivere la descrizione GovPay.
+                                {% endif %}
+                              </div>
+                            </div>
+                            <div class="pt-4">
+                              <button type="submit" class="btn btn-sm btn-primary">Salva descrizione</button>
+                            </div>
+                          </form>
+                        </div>
+                      </div>
+                    {% endif %}
                     {% if current_user and current_user.role == 'superadmin' and idEnt %}
                       <hr>
                       <div class="d-flex flex-column gap-3">

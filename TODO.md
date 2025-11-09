@@ -1,12 +1,7 @@
 # TODO
 
-- [ ] Aggiungi campo descrizione personalizzabile tipologia entrata
-  - Permettere la modifica della descrizione per ogni tipologia di entrata nella sezione configurazione, visibile e modificabile solo ai superadmin. Prevedere form inline e salvataggio lato backend.
-  - Controllare che dopo l'aggiornamento lato govpay, ovvero aggiunta o rimozione, la tabella si allinei di conseguenza
-
 - [ ] Migliorie inserimento pendenza
   - Impostare dei check su validità di codice fiscale in accoppiata con nome e cognome, e validità partita iva.
-  - Controllare che dopo l'aggiornamento lato govpay, ovvero aggiunta o rimozione, la tabella si allinei di conseguenza
 
 - [ ] Gestione pendenza
   - Gestire l'annullamento di una pendenza
