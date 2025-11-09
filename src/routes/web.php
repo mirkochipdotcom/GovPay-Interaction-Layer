@@ -176,6 +176,12 @@ return function (App $app, Twig $twig): void {
         return $controller->updateTipologiaUrl($request, $response, $args);
     });
 
+    // Endpoint per aggiornare la descrizione locale della tipologia (solo superadmin)
+    $app->post('/configurazione/tipologie/{idEntrata}/descrizione', function($request, $response, $args) use ($twig) {
+        $controller = new ConfigurazioneController($twig);
+        return $controller->updateTipologiaDescrizione($request, $response, $args);
+    });
+
     // Endpoint per attivare/disattivare la tipologia direttamente su GovPay (solo superadmin)
     $app->post('/configurazione/tipologie/{idEntrata}/govpay', function($request, $response, $args) use ($twig) {
         $controller = new ConfigurazioneController($twig);

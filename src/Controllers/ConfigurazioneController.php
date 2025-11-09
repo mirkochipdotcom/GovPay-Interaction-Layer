@@ -148,15 +148,21 @@ class ConfigurazioneController
                                         $boMap = [];
                                         $ovrMap = [];
                                         $urlMap = [];
+                                        $descrMap = [];
+                                        $descrEffMap = [];
                                         foreach ($entrateEff as $r) {
                                             $idE = $r['id_entrata'];
                                             $boMap[$idE] = (int)$r['abilitato_backoffice'] === 1;
                                             $ovrMap[$idE] = isset($r['override_locale']) ? ((int)$r['override_locale'] === 1 ? 1 : 0) : null;
                                             $urlMap[$idE] = $r['external_url'] ?? null;
+                                            $descrMap[$idE] = $r['descrizione_locale'] ?? null;
+                                            $descrEffMap[$idE] = $r['descrizione_effettiva'] ?? ($r['descrizione'] ?? null);
                                         }
                                         $entrateArr['_bo_map'] = $boMap;
                                         $entrateArr['_override_map'] = $ovrMap;
                                         $entrateArr['_exturl_map'] = $urlMap;
+                                        $entrateArr['_descr_map'] = $descrMap;
+                                        $entrateArr['_descr_eff_map'] = $descrEffMap;
                                     }
                                 } catch (\Throwable $e) {
                                     $errors[] = 'Sync DB entrate fallito: ' . $e->getMessage();
@@ -587,6 +593,39 @@ class ConfigurazioneController
             Logger::getInstance()->error('Error resetting tipologia', ['id_dominio' => $idDominio, 'id_entrata' => $idEntrata, 'user_id' => $_SESSION['user']['id'] ?? null, 'error' => $e->getMessage()]);
         }
 
+        return $this->redirectToTab($response, 'tipologie');
+    }
+
+    public function updateTipologiaDescrizione(Request $request, Response $response, array $args): Response
+    {
+        if (!$this->isSuperadmin()) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Accesso negato'];
+            return $this->redirectToTab($response, 'tipologie');
+        }
+        $idEntrata = $args['idEntrata'] ?? '';
+        $idDominio = getenv('ID_DOMINIO') ?: '';
+        if ($idEntrata === '' || $idDominio === '') {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Parametri mancanti'];
+            return $this->redirectToTab($response, 'tipologie');
+        }
+        $data = (array)($request->getParsedBody() ?? []);
+        $descr = trim((string)($data['descrizione'] ?? ''));
+        if ($descr === '') {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Descrizione non valida'];
+            return $this->redirectToTab($response, 'tipologie');
+        }
+        if (mb_strlen($descr) > 255) {
+            $descr = mb_substr($descr, 0, 255);
+        }
+        try {
+            $repo = new EntrateRepository();
+            $repo->updateDescrizione($idDominio, $idEntrata, $descr);
+            $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Descrizione aggiornata'];
+            Logger::getInstance()->info('Tipologia descrizione aggiornata', ['id_dominio' => $idDominio, 'id_entrata' => $idEntrata, 'user_id' => $_SESSION['user']['id'] ?? null]);
+        } catch (\Throwable $e) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Errore aggiornamento descrizione: ' . $e->getMessage()];
+            Logger::getInstance()->error('Errore aggiornamento descrizione tipologia', ['id_dominio' => $idDominio, 'id_entrata' => $idEntrata, 'user_id' => $_SESSION['user']['id'] ?? null, 'error' => $e->getMessage()]);
+        }
         return $this->redirectToTab($response, 'tipologie');
     }
 
