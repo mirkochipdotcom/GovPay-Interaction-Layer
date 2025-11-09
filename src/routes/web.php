@@ -182,6 +182,12 @@ return function (App $app, Twig $twig): void {
         return $controller->updateTipologiaDescrizione($request, $response, $args);
     });
 
+    // Ripristina la descrizione originale di GovPay (cancella descrizione_locale)
+    $app->post('/configurazione/tipologie/{idEntrata}/descrizione/restore', function($request, $response, $args) use ($twig) {
+        $controller = new ConfigurazioneController($twig);
+        return $controller->restoreTipologiaDescrizione($request, $response, $args);
+    });
+
     // Endpoint per attivare/disattivare la tipologia direttamente su GovPay (solo superadmin)
     $app->post('/configurazione/tipologie/{idEntrata}/govpay', function($request, $response, $args) use ($twig) {
         $controller = new ConfigurazioneController($twig);

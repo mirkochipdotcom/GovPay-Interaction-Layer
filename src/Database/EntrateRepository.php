@@ -155,4 +155,16 @@ class EntrateRepository
         ]);
     }
 
+    /** Rimuove la descrizione locale (ripristina il valore GovPay) */
+    public function clearDescrizioneLocale(string $idDominio, string $idEntrata): void
+    {
+        $sql = 'UPDATE entrate_tipologie SET descrizione_locale = NULL, updated_at = :now WHERE id_dominio = :dom AND id_entrata = :ent';
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([
+            ':now' => date('Y-m-d H:i:s'),
+            ':dom' => $idDominio,
+            ':ent' => $idEntrata,
+        ]);
+    }
+
 }

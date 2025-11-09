@@ -270,8 +270,13 @@
                                 {% endif %}
                               </div>
                             </div>
-                            <div class="pt-4">
+                            <div class="pt-4 d-flex gap-2">
                               <button type="submit" class="btn btn-sm btn-primary">Salva descrizione</button>
+                              {% if descrLocale is not null %}
+                                <form method="post" action="/configurazione/tipologie/{{ idEnt }}/descrizione/restore" class="m-0">
+                                  <button type="submit" class="btn btn-sm btn-outline-secondary" onclick="return confirm('Sei sicuro di voler ripristinare la descrizione originale da GovPay?')">Ripristina GovPay</button>
+                                </form>
+                              {% endif %}
                             </div>
                           </form>
                         </div>

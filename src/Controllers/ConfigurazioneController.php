@@ -629,6 +629,30 @@ class ConfigurazioneController
         return $this->redirectToTab($response, 'tipologie');
     }
 
+    public function restoreTipologiaDescrizione(Request $request, Response $response, array $args): Response
+    {
+        if (!$this->isSuperadmin()) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Accesso negato'];
+            return $this->redirectToTab($response, 'tipologie');
+        }
+        $idEntrata = $args['idEntrata'] ?? '';
+        $idDominio = getenv('ID_DOMINIO') ?: '';
+        if ($idEntrata === '' || $idDominio === '') {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Parametri mancanti'];
+            return $this->redirectToTab($response, 'tipologie');
+        }
+        try {
+            $repo = new EntrateRepository();
+            $repo->clearDescrizioneLocale($idDominio, $idEntrata);
+            $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Descrizione ripristinata da GovPay'];
+            Logger::getInstance()->info('Tipologia descrizione ripristinata', ['id_dominio' => $idDominio, 'id_entrata' => $idEntrata, 'user_id' => $_SESSION['user']['id'] ?? null]);
+        } catch (\Throwable $e) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Errore ripristino descrizione: ' . $e->getMessage()];
+            Logger::getInstance()->error('Errore ripristino descrizione tipologia', ['id_dominio' => $idDominio, 'id_entrata' => $idEntrata, 'user_id' => $_SESSION['user']['id'] ?? null, 'error' => $e->getMessage()]);
+        }
+        return $this->redirectToTab($response, 'tipologie');
+    }
+
     private function redirectToTab(Response $response, string $tab): Response
     {
         return $response->withHeader('Location', '/configurazione?tab=' . $tab)->withStatus(302);
