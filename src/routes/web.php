@@ -152,6 +152,12 @@ return function (App $app, Twig $twig): void {
         return $controller->index($request, $response);
     });
 
+    // Aggiorna dati dominio (Backoffice addDominio) - solo superadmin
+    $app->post('/configurazione/dominio', function($request, $response) use ($twig) {
+        $controller = new ConfigurazioneController($twig);
+        return $controller->updateDominio($request, $response);
+    });
+
     // Tipologie di pagamento esterne - crea
     $app->post('/configurazione/tipologie-esterne', function($request, $response) use ($twig) {
         $controller = new ConfigurazioneController($twig);

@@ -377,6 +377,151 @@ class ConfigurazioneController
         return $this->redirectToTab($response, 'tipologie_esterne');
     }
 
+    public function updateDominio(Request $request, Response $response): Response
+    {
+        if (!$this->isSuperadmin()) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Accesso negato'];
+            return $this->redirectToTab($response, 'dominio');
+        }
+
+        $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
+        $idDom = getenv('ID_DOMINIO') ?: '';
+        if ($backofficeUrl === '' || $idDom === '') {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Variabili GOVPAY_BACKOFFICE_URL o ID_DOMINIO non impostate'];
+            return $this->redirectToTab($response, 'dominio');
+        }
+
+        // Setup HTTP client (basic or mTLS) like other Backoffice calls
+        $username = getenv('GOVPAY_USER');
+        $password = getenv('GOVPAY_PASSWORD');
+        $guzzleOptions = ['headers' => ['Accept' => 'application/json']];
+        $authMethod = getenv('AUTHENTICATION_GOVPAY');
+        if ($authMethod !== false && strtolower((string)$authMethod) === 'sslheader') {
+            $cert = getenv('GOVPAY_TLS_CERT');
+            $key = getenv('GOVPAY_TLS_KEY');
+            $keyPass = getenv('GOVPAY_TLS_KEY_PASSWORD') ?: null;
+            if (!empty($cert) && !empty($key)) {
+                $guzzleOptions['cert'] = $cert;
+                $guzzleOptions['ssl_key'] = $keyPass ? [$key, $keyPass] : $key;
+            } else {
+                $_SESSION['flash'][] = ['type' => 'error', 'text' => 'mTLS abilitato ma certificati non impostati'];
+                return $this->redirectToTab($response, 'dominio');
+            }
+        }
+
+        if (!class_exists('GovPay\\Backoffice\\Api\\EntiCreditoriApi')) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Client Backoffice non disponibile'];
+            return $this->redirectToTab($response, 'dominio');
+        }
+
+        $config = new \GovPay\Backoffice\Configuration();
+        $config->setHost(rtrim($backofficeUrl, '/'));
+        if ($username !== false && $password !== false && $username !== '' && $password !== '') {
+            $config->setUsername($username);
+            $config->setPassword($password);
+        }
+
+        $httpClient = new \GuzzleHttp\Client($guzzleOptions);
+        $entiApi = new \GovPay\Backoffice\Api\EntiCreditoriApi($httpClient, $config);
+
+        $data = (array)($request->getParsedBody() ?? []);
+
+        try {
+            // Fetch current domain model and read via getters
+            $curr = $entiApi->getDominio($idDom);
+
+            // Start from current values, then override only provided fields
+            $payload = [
+                'ragione_sociale' => (string)($curr->getRagioneSociale() ?? ''),
+                'indirizzo' => (string)($curr->getIndirizzo() ?? ''),
+                'civico' => (string)($curr->getCivico() ?? ''),
+                'cap' => (string)($curr->getCap() ?? ''),
+                'localita' => (string)($curr->getLocalita() ?? ''),
+                'provincia' => (string)($curr->getProvincia() ?? ''),
+                'nazione' => (string)($curr->getNazione() ?? ''),
+                'email' => (string)($curr->getEmail() ?? ''),
+                'pec' => (string)($curr->getPec() ?? ''),
+                'tel' => (string)($curr->getTel() ?? ''),
+                'fax' => (string)($curr->getFax() ?? ''),
+                'web' => (string)($curr->getWeb() ?? ''),
+                'gln' => (string)($curr->getGln() ?? ''),
+                'cbill' => (string)($curr->getCbill() ?? ''),
+                'iuv_prefix' => (string)($curr->getIuvPrefix() ?? ''),
+                'stazione' => (string)($curr->getStazione() ?? ''),
+                'aux_digit' => (string)($curr->getAuxDigit() ?? ''),
+                'segregation_code' => (string)($curr->getSegregationCode() ?? ''),
+                'logo' => (string)($curr->getLogo() ?? ''),
+                'abilitato' => (bool)($curr->getAbilitato() ?? false),
+                'intermediato' => (bool)($curr->getIntermediato() ?? false),
+            ];
+
+            // Overlay user-provided values (trim strings)
+            $map = [
+                'ragione_sociale','indirizzo','civico','cap','localita','provincia','nazione','email','pec','tel','fax','web','gln','cbill','iuv_prefix','stazione','aux_digit','segregation_code','logo'
+            ];
+            foreach ($map as $k) {
+                if (array_key_exists($k, $data)) {
+                    $payload[$k] = trim((string)$data[$k]);
+                }
+            }
+            // Checkboxes
+            if (array_key_exists('abilitato', $data)) {
+                $payload['abilitato'] = ((string)$data['abilitato'] === '1');
+            }
+            if (array_key_exists('intermediato', $data)) {
+                $payload['intermediato'] = ((string)$data['intermediato'] === '1');
+            }
+
+            // Required by model: ragione_sociale, gln, stazione, abilitato
+            if ($payload['ragione_sociale'] === '' || $payload['gln'] === '' || $payload['stazione'] === '') {
+                $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Compila i campi obbligatori: Ragione sociale, GLN e Stazione'];
+                return $this->redirectToTab($response, 'dominio');
+            }
+
+            // Build request without forcing null on optional fields (omit empties)
+            $req = [];
+            $setIfNotEmpty = function(string $key) use (&$req, $payload) {
+                if (isset($payload[$key]) && $payload[$key] !== '') {
+                    $req[$key] = $payload[$key];
+                }
+            };
+            $req['ragione_sociale'] = $payload['ragione_sociale'];
+            $req['gln'] = $payload['gln'];
+            $req['stazione'] = $payload['stazione'];
+            $req['abilitato'] = (bool)$payload['abilitato'];
+            foreach (['indirizzo','civico','cap','localita','provincia','nazione','email','pec','tel','fax','web','cbill','iuv_prefix','aux_digit','segregation_code','logo'] as $opt) {
+                $setIfNotEmpty($opt);
+            }
+            // intermediato is boolean optional in model, include if present in form or differs from current
+            if (array_key_exists('intermediato', $data)) {
+                $req['intermediato'] = (bool)$payload['intermediato'];
+            }
+
+            $dominioPost = new \GovPay\Backoffice\Model\DominioPost($req);
+
+            $entiApi->addDominio($idDom, $dominioPost);
+
+            $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Dati dominio aggiornati con successo'];
+            Logger::getInstance()->info('Dominio aggiornato', ['id_dominio' => $idDom, 'user_id' => $_SESSION['user']['id'] ?? null]);
+        } catch (\GovPay\Backoffice\ApiException $e) {
+            $code = $e->getCode();
+            $body = method_exists($e, 'getResponseBody') ? $e->getResponseBody() : null;
+            $msg = 'Errore Backoffice (' . $code . ') aggiornamento dominio';
+            if ($body) {
+                $msg .= ': ' . (is_string($body) ? $body : json_encode($body));
+            } else {
+                $msg .= ': ' . $e->getMessage();
+            }
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => $msg];
+            Logger::getInstance()->error('Errore Backoffice aggiornamento dominio', ['id_dominio' => $idDom, 'code' => $code, 'error' => $e->getMessage()]);
+        } catch (\Throwable $e) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Errore aggiornamento dominio: ' . $e->getMessage()];
+            Logger::getInstance()->error('Errore aggiornamento dominio', ['id_dominio' => $idDom, 'error' => $e->getMessage()]);
+        }
+
+        return $this->redirectToTab($response, 'dominio');
+    }
+
     public function overrideTipologia(Request $request, Response $response, array $args): Response
     {
         if (!$this->isSuperadmin()) {
