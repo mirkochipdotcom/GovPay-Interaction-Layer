@@ -643,9 +643,14 @@ class ConfigurazioneController
         }
         try {
             $repo = new EntrateRepository();
-            $repo->clearDescrizioneLocale($idDominio, $idEntrata);
-            $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Descrizione ripristinata da GovPay'];
-            Logger::getInstance()->info('Tipologia descrizione ripristinata', ['id_dominio' => $idDominio, 'id_entrata' => $idEntrata, 'user_id' => $_SESSION['user']['id'] ?? null]);
+            $affected = $repo->clearDescrizioneLocale($idDominio, $idEntrata);
+            if ($affected > 0) {
+                $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Descrizione ripristinata da GovPay'];
+                Logger::getInstance()->info('Tipologia descrizione ripristinata', ['id_dominio' => $idDominio, 'id_entrata' => $idEntrata, 'user_id' => $_SESSION['user']['id'] ?? null]);
+            } else {
+                $_SESSION['flash'][] = ['type' => 'info', 'text' => 'Nessuna descrizione locale trovata da cancellare'];
+                Logger::getInstance()->warning('Restore descrizione nessuna riga aggiornata', ['id_dominio' => $idDominio, 'id_entrata' => $idEntrata, 'user_id' => $_SESSION['user']['id'] ?? null]);
+            }
         } catch (\Throwable $e) {
             $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Errore ripristino descrizione: ' . $e->getMessage()];
             Logger::getInstance()->error('Errore ripristino descrizione tipologia', ['id_dominio' => $idDominio, 'id_entrata' => $idEntrata, 'user_id' => $_SESSION['user']['id'] ?? null, 'error' => $e->getMessage()]);

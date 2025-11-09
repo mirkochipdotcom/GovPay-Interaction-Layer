@@ -156,7 +156,11 @@ class EntrateRepository
     }
 
     /** Rimuove la descrizione locale (ripristina il valore GovPay) */
-    public function clearDescrizioneLocale(string $idDominio, string $idEntrata): void
+    /**
+     * Rimuove la descrizione locale (ripristina il valore GovPay)
+     * @return int number of affected rows
+     */
+    public function clearDescrizioneLocale(string $idDominio, string $idEntrata): int
     {
         $sql = 'UPDATE entrate_tipologie SET descrizione_locale = NULL, updated_at = :now WHERE id_dominio = :dom AND id_entrata = :ent';
         $stmt = $this->pdo->prepare($sql);
@@ -165,6 +169,7 @@ class EntrateRepository
             ':dom' => $idDominio,
             ':ent' => $idEntrata,
         ]);
+        return $stmt->rowCount();
     }
 
 }
