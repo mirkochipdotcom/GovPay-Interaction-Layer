@@ -2,9 +2,9 @@
 
 - [ ] Migliorie inserimento pendenza
   - Impostare dei check su validità di codice fiscale in accoppiata con nome e cognome, e validità partita iva.
+  - Salvare da qualche parte un identificativo per sapere quale operatore ha creato e modificato la pendenza, magari con uno storico
 
 - [ ] Gestione pendenza
-  - Gestire l'annullamento di una pendenza
   - Gestire il crud sulle pendenze
 
 - [ ] Select tipologia pendenza ricercabile
@@ -23,6 +23,9 @@
   - Completare le viste
   - Miglioramento e ampliamento del log
   - Gestire le modifiche alla configurazione
+
+- [ ] Statistiche
+  - Creare una vista per l'api statistica
 
 # LONG RUN
 

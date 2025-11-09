@@ -3,7 +3,6 @@
 {% block title %}Pendenze - Modifica{% endblock %}
 
 {% block content %}
-
   {% if errors is defined and errors %}
     <div class="alert alert-danger" role="alert">
       <ul class="mb-0">
@@ -25,54 +24,57 @@
     {% if id_dominio is defined and id_dominio %}
       <input type="hidden" name="idDominio" value="{{ id_dominio }}">
     {% endif %}
-
-    {# ID A2A: deve essere preso esclusivamente dalla variabile d'ambiente (mostrato nel body per mantenere header in cima alla card) #}
     <div class="card-header bg-light border-bottom py-3">
       <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-lg-between gap-1">
         <h2 class="h5 mb-0">Modifica pendenza <span class="text-muted">{{ idPendenza }}</span></h2>
-        <p class="mb-0 text-muted small">Modifica i campi della pendenza</p>
+        <p class="mb-0 text-muted small">Aggiorna i campi della pendenza</p>
       </div>
     </div>
     <div class="card-body">
       <div class="mb-3">
         {% if not id_a2a %}
-          <div class="alert alert-warning small mb-0">Variabile di ambiente <code>ID_A2A</code> non impostata: imposta <code>ID_A2A</code> in <code>.env</code> prima di creare pendenze.</div>
+          <div class="alert alert-warning small mb-0">Variabile di ambiente <code>ID_A2A</code> non impostata.</div>
         {% endif %}
       </div>
       <div class="row">
         <div class="form-group col-md-6">
-          <label for="idTipoPendenza" class="active">Tipologia pendenza</label>
-          <select id="idTipoPendenza" name="idTipoPendenza" class="form-select" required aria-label="Tipologia pendenza">
-            <option value="">-- seleziona --</option>
-            {% for t in tipologie_pendenze|default([]) %}
-              <option value="{{ t.id_entrata }}" {% if old.idTipoPendenza is defined and old.idTipoPendenza == t.id_entrata %}selected{% endif %}>{{ t.nome|default(t.descrizione)|e }}</option>
-            {% endfor %}
-          </select>
+          <div class="select-wrapper">
+            <label for="idTipoPendenza" class="active">Tipologia pendenza</label>
+            <select id="idTipoPendenza" name="idTipoPendenza" required aria-label="Tipologia pendenza">
+              <option value="">-- seleziona --</option>
+              {% for t in tipologie_pendenze|default([]) %}
+                <option value="{{ t.id_entrata }}" {% if old.idTipoPendenza is defined and old.idTipoPendenza == t.id_entrata %}selected{% endif %}>{{ t.nome|default(t.descrizione)|e }}</option>
+              {% endfor %}
+            </select>
+          </div>
         </div>
         <div class="form-group col-md-3">
-          <label for="annoRiferimento" class="active">Anno di riferimento</label>
-          {% set current = default_anno|default(date('Y')) %}
-          <select id="annoRiferimento" name="annoRiferimento" class="form-select" required aria-label="Anno di riferimento">
-            {% for y in range(current + 1, current - 10) %}
-              <option value="{{ y }}" {% if (old.annoRiferimento is defined and old.annoRiferimento == y) or (old.annoRiferimento is not defined and y == current) %}selected{% endif %}>{{ y }}</option>
-            {% endfor %}
-          </select>
+          <div class="select-wrapper">
+            <label for="annoRiferimento" class="active">Anno di riferimento</label>
+            {% set current = default_anno|default(date('Y')) %}
+            <select id="annoRiferimento" name="annoRiferimento" required aria-label="Anno di riferimento">
+              {% for y in range(current + 1, current - 10) %}
+                <option value="{{ y }}" {% if (old.annoRiferimento is defined and old.annoRiferimento == y) or (old.annoRiferimento is not defined and y == current) %}selected{% endif %}>{{ y }}</option>
+              {% endfor %}
+            </select>
+          </div>
         </div>
         <div class="form-group col-md-3">
-          <label for="importo" class="active">Importo</label>
-          <input id="importo" name="importo" type="number" step="0.01" min="0" class="form-control" required placeholder="0.00" value="{{ old.importo is defined ? old.importo : '' }}">
+          <label for="importo" class="input-symbol-label active">Importo</label>
+          <div class="input-group input-number">
+            <span class="input-group-text fw-semibold">€</span>
+            <input id="importo" name="importo" type="number" step="0.01" min="0.01" class="form-control" required placeholder="0.00" value="{{ old.importo is defined ? old.importo : '' }}">
+          </div>
           <div class="form-text">Inserisci l'importo in euro (es. 100.50).</div>
         </div>
       </div>
-
       <div class="row g-3 mt-1">
         <div class="form-group col-12">
           <label for="causale" class="active">Causale / Descrizione</label>
-          <input type="text" id="causale" name="causale" class="form-control" rows="2" placeholder="Inserisci la causale della pendenza">{{ old.causale|default('') }}</textarea>
+          <input type="text" id="causale" name="causale" class="form-control" placeholder="Inserisci la causale della pendenza" value="{{ old.causale|default('') }}">
           <div class="form-text small">La causale verrà usata automaticamente per la prima voce se non ne viene specificata una diversa.</div>
         </div>
       </div>
-
       <div class="row g-3 mt-1">
         <div class="form-group col-md-4">
           <label for="dataValidita" class="active">Data validità (opzionale)</label>
@@ -83,16 +85,10 @@
           <input id="dataScadenza" name="dataScadenza" type="date" class="form-control" value="{{ old.dataScadenza|default('') }}">
         </div>
       </div>
-
-      <div class="row g-3 mt-1">
-        {# ID pendenza rimosso: il sistema genera l'id quando non fornito #}
-      </div>
-
       <hr>
-
       <h3 class="h6">Soggetto pagatore</h3>
       <div class="row g-3 align-items-end">
-        <div class="col-12">
+        <div class="form-group col-12">
           <div class="form-check form-check-inline">
             <input class="form-check-input" type="radio" name="soggettoPagatore[tipo]" id="soggettoPF" value="F" {% if old.soggettoPagatore is defined and old.soggettoPagatore.tipo is defined and old.soggettoPagatore.tipo == 'G' %}{% else %}checked{% endif %}>
             <label class="form-check-label" for="soggettoPF">Persona fisica</label>
@@ -102,71 +98,104 @@
             <label class="form-check-label" for="soggettoPJ">Persona giuridica</label>
           </div>
         </div>
-
-        <div class="col-md-4">
-          <div class="form-group">
-            <label for="identificativo" class="active">Codice fiscale / Partita IVA</label>
-            <input id="identificativo" name="soggettoPagatore[identificativo]" type="text" class="form-control" placeholder="CF o P.IVA" required autocomplete="off" value="{{ old.soggettoPagatore.identificativo|default('') }}">
-          </div>
+      </div>
+      <div class="row">
+        {% set tipoSoggetto = old.soggettoPagatore.tipo|default('F') %}
+        <div class="form-group col-md-4">
+          <label id="identificativoLabel" for="identificativo" class="active">{{ tipoSoggetto == 'G' ? 'Partita IVA' : 'Codice fiscale' }}</label>
+          <input id="identificativo" name="soggettoPagatore[identificativo]" type="text" class="form-control" placeholder="{{ tipoSoggetto == 'G' ? 'P.IVA' : 'CF' }}" required autocomplete="off" value="{{ old.soggettoPagatore.identificativo|default('') }}">
         </div>
-        <div class="col-md-4">
-          <div class="form-group">
-            <label id="lblAnagrafica" for="anagrafica" class="active">Cognome</label>
-            <input id="anagrafica" name="soggettoPagatore[anagrafica]" type="text" class="form-control" placeholder="Cognome o Ragione sociale" required value="{{ old.soggettoPagatore.anagrafica|default('') }}">
-          </div>
+        <div class="form-group col-md-4">
+          <label id="lblAnagrafica" for="anagrafica" class="active">{{ tipoSoggetto == 'G' ? 'Ragione sociale' : 'Cognome' }}</label>
+          <input id="anagrafica" name="soggettoPagatore[anagrafica]" type="text" class="form-control" placeholder="{{ tipoSoggetto == 'G' ? 'Ragione sociale' : 'Cognome' }}" required value="{{ old.soggettoPagatore.anagrafica|default('') }}">
         </div>
-        <div class="col-md-4" id="colNome">
-          <div class="form-group">
-            <label for="nome" class="active">Nome (se persona fisica)</label>
-            <input id="nome" name="soggettoPagatore[nome]" type="text" class="form-control" placeholder="Nome" autocomplete="off" value="{{ old.soggettoPagatore.nome|default('') }}">
-          </div>
-        </div>
-        <div class="col-md-6">
-          <div class="form-group">
-            <label for="email" class="active">Email (opzionale)</label>
-            <input id="email" name="soggettoPagatore[email]" type="email" class="form-control" placeholder="esempio@dominio.it" value="{{ old.soggettoPagatore.email|default('') }}">
-          </div>
+        <div class="form-group col-md-4" id="colNome" style="{{ tipoSoggetto == 'G' ? 'display:none;' : '' }}">
+          <label for="nome" class="active">Nome (se persona fisica)</label>
+          <input id="nome" name="soggettoPagatore[nome]" type="text" class="form-control" placeholder="Nome" autocomplete="off" value="{{ old.soggettoPagatore.nome|default('') }}">
         </div>
       </div>
-
+      <script>
+      (function(){
+        const pf = document.getElementById('soggettoPF');
+        const pj = document.getElementById('soggettoPJ');
+        const idLabel = document.getElementById('identificativoLabel');
+        const ident = document.getElementById('identificativo');
+        const lblAnag = document.getElementById('lblAnagrafica');
+        const colNome = document.getElementById('colNome');
+        function update(t){
+          if(!idLabel || !ident || !lblAnag) return;
+          if(t === 'G'){
+            idLabel.textContent = 'Partita IVA';
+            ident.placeholder = 'P.IVA';
+            lblAnag.textContent = 'Ragione sociale';
+            if(colNome) colNome.style.display = 'none';
+          } else {
+            idLabel.textContent = 'Codice fiscale';
+            ident.placeholder = 'CF';
+            lblAnag.textContent = 'Cognome';
+            if(colNome) colNome.style.display = '';
+          }
+        }
+        [pf,pj].forEach(function(r){ if(r) r.addEventListener('change', function(){ if(this.checked) update(this.value); }); });
+      })();
+      </script>
+      <div class="row">
+        <div class="form-group col-md-6">
+          <label for="email" class="active">Email (opzionale)</label>
+          <input id="email" name="soggettoPagatore[email]" type="email" class="form-control" placeholder="esempio@dominio.it" value="{{ old.soggettoPagatore.email|default('') }}">
+        </div>
+      </div>
       <hr>
-
       <h3 class="h6">Voci di pendenza</h3>
-      <p class="text-muted small">Il sistema crea almeno una voce di pendenza; puoi aggiungerne altre se necessario.</p>
+      <div class="d-flex align-items-center justify-content-between mb-5">
+        <p class="text-muted small mb-0">Il sistema crea almeno una voce di pendenza; puoi aggiungerne altre se necessario.</p>
+      </div>
       <div id="vociList">
         {% set existingVoci = old.voci|default([]) %}
         {% if existingVoci is iterable and existingVoci|length > 0 %}
           {% for idx, voce in existingVoci %}
             <div class="row g-3 align-items-end voce-item" data-index="{{ idx }}">
-              <div class="col-md-3">
+              <div class="form-group col-md-3">
                 <label class="active">ID voce</label>
                 <div class="form-control-plaintext">{{ voce.idVocePendenza|default('') }}</div>
                 <input type="hidden" name="voci[{{ idx }}][idVocePendenza]" value="{{ voce.idVocePendenza|default('') }}">
               </div>
-              <div class="col-md-6">
+              <div class="form-group col-md-5">
                 <label for="voce_desc_{{ idx }}" class="active">Descrizione voce</label>
                 <input id="voce_desc_{{ idx }}" name="voci[{{ idx }}][descrizione]" type="text" class="form-control" placeholder="Descrizione voce" value="{{ voce.descrizione|default('') }}" required>
               </div>
-              <div class="col-md-3">
-                <label for="voce_imp_{{ idx }}" class="active">Importo voce</label>
-                <input id="voce_imp_{{ idx }}" name="voci[{{ idx }}][importo]" type="number" step="0.01" min="0" class="form-control" placeholder="0.00" value="{{ voce.importo|default('') }}" required>
+              <div class="form-group col-md-3">
+                <label for="voce_imp_{{ idx }}" class="input-symbol-label active">Importo voce</label>
+                <div class="input-group input-number">
+                    <span class="input-group-text fw-semibold">€</span>
+                    <input id="voce_imp_{{ idx }}" name="voci[{{ idx }}][importo]" type="number" step="0.01" min="0.01" class="form-control" placeholder="0.00" value="{{ voce.importo|default('') }}" required>
+                </div>
+              </div>
+              <div class="col-md-1 d-flex align-items-center">
+                {# Spazio per pulsante rimuovi - lasciato vuoto per voci esistenti #}
               </div>
             </div>
           {% endfor %}
         {% else %}
           <div class="row g-3 align-items-end voce-item" data-index="0">
-            <div class="col-md-3">
-              <label class="active">ID voce</label>
-              <div class="form-control-plaintext">{{ old.voci[0].idVocePendenza|default('1') }}</div>
-              <input type="hidden" name="voci[0][idVocePendenza]" value="{{ old.voci[0].idVocePendenza|default('1') }}">
-            </div>
-            <div class="col-md-6">
+            <div class="form-group col-md-3">
+                <label class="active">ID voce</label>
+                <div class="form-control-plaintext">1</div>
+                <input type="hidden" name="voci[0][idVocePendenza]" value="1">
+              </div>
+            <div class="form-group col-md-5">
               <label for="voce_desc_0" class="active">Descrizione voce</label>
-              <input id="voce_desc_0" name="voci[0][descrizione]" type="text" class="form-control" placeholder="Descrizione voce" value="{{ old.voci[0].descrizione|default(old.causale|default('')) }}" required>
+              <input id="voce_desc_0" name="voci[0][descrizione]" type="text" class="form-control" placeholder="Descrizione voce" value="{{ old.causale|default('') }}" required>
             </div>
-            <div class="col-md-3">
-              <label for="voce_imp_0" class="active">Importo voce</label>
-              <input id="voce_imp_0" name="voci[0][importo]" type="number" step="0.01" min="0" class="form-control" placeholder="0.00" value="{{ old.voci[0].importo|default(old.importo|default('')) }}" required>
+            <div class="form-group col-md-3">
+              <label for="voce_imp_0" class="input-symbol-label active">Importo voce</label>
+              <div class="input-group input-number">
+                <span class="input-group-text fw-semibold">€</span>
+                <input id="voce_imp_0" name="voci[0][importo]" type="number" step="0.01" min="0.01" class="form-control" placeholder="0.00" value="{{ old.importo|default('') }}" required>
+              </div>
+            </div>
+            <div class="col-md-1 d-flex align-items-center">
+              {# Spazio per pulsante rimuovi - lasciato vuoto per prima voce #}
             </div>
           </div>
         {% endif %}
@@ -174,7 +203,7 @@
       <div class="mt-2 mb-4">
         <button type="button" id="addVoceBtn" class="btn btn-outline-secondary btn-sm">Aggiungi voce</button>
       </div>
-
+      <div id="vociSumError" class="alert alert-danger d-none" role="alert"></div>
       <div class="collapse" id="apiExtra">
         <div class="card card-body">
           <h4 class="h6">Campi avanzati (API)</h4>
@@ -223,80 +252,72 @@
             </div>
         </div>
       </div>
-
       <div class="d-flex gap-2 mt-4">
-        <a href="{{ return_url }}" class="btn btn-outline-secondary">Annulla</a>
         <button type="submit" class="btn btn-primary">Aggiorna pendenza</button>
-        <a class="btn btn-outline-secondary" href="/pendenze/ricerca">Annulla</a>
+        <a class="btn btn-outline-secondary" href="{{ return_url }}">Annulla</a>
         <button type="button" class="btn btn-link ms-auto" data-bs-toggle="collapse" data-bs-target="#apiExtra" aria-expanded="false">Mostra campi avanzati</button>
       </div>
     </div>
   </form>
-
-      <script>
+  <script>
     (function(){
-      // Toggle PF/PJ
       const pf = document.getElementById('soggettoPF');
       const pj = document.getElementById('soggettoPJ');
-      const colNome = document.getElementById('colNome');
-      const lblAnagrafica = document.getElementById('lblAnagrafica');
-      const anag = document.getElementById('anagrafica');
-      const descVoce0 = document.getElementById('voce_desc_0');
       const importoMain = document.getElementById('importo');
-      const voceImp0 = document.getElementById('voce_imp_0');
       const causale = document.getElementById('causale');
-
-      function refreshPersona(){
-        const isPF = pf.checked;
-        colNome.style.display = isPF ? '' : 'none';
-        lblAnagrafica.textContent = isPF ? 'Cognome' : 'Ragione sociale';
-        anag.placeholder = isPF ? 'Cognome' : 'Ragione sociale';
-      }
-      pf.addEventListener('change', refreshPersona);
-      pj.addEventListener('change', refreshPersona);
-      refreshPersona();
-
-      // Sincronizza la prima voce con causale/importo (se presente)
+      // Sincronizzazione condizionale prima voce solo se singola voce e vuota
       const firstVoceDesc = document.querySelector('#vociList .voce-item input[name$="[descrizione]"]');
       const firstVoceImp = document.querySelector('#vociList .voce-item input[name$="[importo]"]');
-      const syncVoce0 = function(){
-        if (firstVoceDesc) firstVoceDesc.value = causale.value || '';
-        if (firstVoceImp) firstVoceImp.value = importoMain.value || '';
-      };
-      causale.addEventListener('input', syncVoce0);
-      importoMain.addEventListener('input', syncVoce0);
+      let userModifiedFirstVoce = firstVoceDesc && firstVoceDesc.value.trim() !== '';
+      try {
+        const initialVoceCount = document.querySelectorAll('#vociList .voce-item').length;
+        if (initialVoceCount > 1) userModifiedFirstVoce = true;
+      } catch(e) {}
+      function syncVoce0(){
+        if (userModifiedFirstVoce) return;
+        if (firstVoceDesc && causale) firstVoceDesc.value = causale.value || '';
+        if (firstVoceImp && importoMain) firstVoceImp.value = importoMain.value || '';
+      }
+      if (firstVoceDesc) firstVoceDesc.addEventListener('input', function(){ userModifiedFirstVoce = true; });
+      if (firstVoceImp) firstVoceImp.addEventListener('input', function(){ userModifiedFirstVoce = true; });
+      if (causale) causale.addEventListener('input', syncVoce0);
+      if (importoMain) importoMain.addEventListener('input', syncVoce0);
       syncVoce0();
-
-  // Aggiungi nuove voci
-  let voceIndex = Math.max(0, document.querySelectorAll('#vociList .voce-item').length);
-      document.getElementById('addVoceBtn').addEventListener('click', function(){
+      // Add new voce
+      let voceIndex = Math.max(0, document.querySelectorAll('#vociList .voce-item').length);
+      const addBtn = document.getElementById('addVoceBtn');
+      if (addBtn) addBtn.addEventListener('click', function(){
+        userModifiedFirstVoce = true;
         const container = document.getElementById('vociList');
         const row = document.createElement('div');
         row.className = 'row g-3 align-items-end voce-item';
         row.setAttribute('data-index', voceIndex);
         row.innerHTML = `
-          <div class="col-md-3">
+          <div class="form-group col-md-3">
             <label class="active">ID voce</label>
             <div class="form-control-plaintext">${voceIndex + 1}</div>
             <input type="hidden" name="voci[${voceIndex}][idVocePendenza]" value="${voceIndex + 1}">
           </div>
-          <div class="col-md-6">
+          <div class="form-group col-md-5">
             <label for="voce_desc_${voceIndex}" class="active">Descrizione voce</label>
             <input id="voce_desc_${voceIndex}" name="voci[${voceIndex}][descrizione]" type="text" class="form-control" placeholder="Descrizione voce" required>
           </div>
-          <div class="col-md-2">
-            <label for="voce_imp_${voceIndex}" class="active">Importo voce</label>
-            <input id="voce_imp_${voceIndex}" name="voci[${voceIndex}][importo]" type="number" step="0.01" min="0" class="form-control" placeholder="0.00" required>
+          <div class="form-group col-md-2">
+            <label for="voce_imp_${voceIndex}" class="input-symbol-label active">Importo voce</label>
+            <div class="input-group input-number">
+              <span class="input-group-text fw-semibold">€</span>
+              <input id="voce_imp_${voceIndex}" name="voci[${voceIndex}][importo]" type="number" step="0.01" min="0.01" class="form-control" placeholder="0.00" required>
+            </div>
           </div>
-            <div class="col-md-1 d-flex align-items-center">
-            <button type="button" class="btn btn-outline-danger btn-sm ms-auto remove-voce">✖</button>
+          <div class="form-group col-md-1 d-flex align-items-center">
+            <button type="button" class="btn btn-outline-danger btn-sm remove-voce">✖</button>
           </div>
         `;
         container.appendChild(row);
         row.querySelector('.remove-voce').addEventListener('click', function(){ row.remove(); });
         voceIndex++;
       });
-      // Disable codiceContabilita input when IBAN is present
+      // IBAN vs codice contabilita
       const ibanInput = document.getElementById('ibanAccredito');
       const codiceContabilitaInput = document.getElementById('codiceContabilita');
       function refreshCodiceContabilitaState(){
@@ -313,18 +334,13 @@
         ibanInput.addEventListener('input', refreshCodiceContabilitaState);
         refreshCodiceContabilitaState();
       }
-      // Se l'utente compila uno qualsiasi dei campi Entrata, scegliamo quale
-      // rappresentazione inviare: Entrata completa (IBAN+Tipo+Codice) oppure
-      // RiferimentoEntrata (solo Codice) come fallback. Mostriamo un messaggio
-      // informativo e non forziamo la validazione lato client per tutti e tre.
+      // Entrata mode info
       const tipoContSelect = document.getElementById('tipoContabilita');
       const entrataModeInfo = document.createElement('div');
       entrataModeInfo.id = 'entrataModeInfo';
       entrataModeInfo.className = 'form-text small text-muted mb-2';
-      // Inseriamo il messaggio subito dopo i campi avanzati
       const apiExtraBody = document.querySelector('#apiExtra .card-body');
       if (apiExtraBody) apiExtraBody.appendChild(entrataModeInfo);
-
       function refreshEntrataState(){
         if (!codiceContabilitaInput || !tipoContSelect || !ibanInput || !entrataModeInfo) return;
         const hasIban = ibanInput.value && ibanInput.value.trim() !== '';
@@ -349,6 +365,38 @@
         tipoContSelect.addEventListener('change', refreshEntrataState);
         ibanInput.addEventListener('input', refreshEntrataState);
         refreshEntrataState();
+      }
+      // Validazione somma voci
+      const vociSumError = document.getElementById('vociSumError');
+      function clearVociErrors() {
+        vociSumError.classList.add('d-none');
+        Array.from(document.querySelectorAll('#vociList input[name$="[importo]"]')).forEach(function(i){
+          i.classList.remove('is-invalid');
+        });
+      }
+      function validateVociSum(e){
+        clearVociErrors();
+        const total = parseFloat((importoMain && importoMain.value) ? importoMain.value : '0') || 0;
+        let sum = 0;
+        const inputs = Array.from(document.querySelectorAll('#vociList input[name$="[importo]"]'));
+        inputs.forEach(function(inp){ sum += parseFloat(inp.value) || 0; });
+        const sumRounded = Math.round(sum * 100) / 100;
+        const totalRounded = Math.round(total * 100) / 100;
+        if (Math.abs(sumRounded - totalRounded) > 0.01) {
+          if (e) e.preventDefault();
+          vociSumError.textContent = 'La somma delle voci (' + sumRounded.toFixed(2) + ') non corrisponde all\'importo principale (' + totalRounded.toFixed(2) + ').';
+          vociSumError.classList.remove('d-none');
+          inputs.forEach(function(i){ i.classList.add('is-invalid'); });
+          vociSumError.scrollIntoView({behavior:'smooth',block:'center'});
+          return false;
+        }
+        return true;
+      }
+      const formEl = document.querySelector('form');
+      if (formEl) {
+        formEl.addEventListener('submit', function(ev){
+          if (!validateVociSum(ev)) return false;
+        });
       }
     })();
   </script>

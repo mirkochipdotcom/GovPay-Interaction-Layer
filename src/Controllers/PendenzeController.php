@@ -2430,125 +2430,15 @@ class PendenzeController
             ]);
         }
 
-        // Costruzione payload JSON Patch per l'aggiornamento
-        $patchOperations = [];
-        $patchOperations[] = ['op' => 'REPLACE', 'path' => '/causale', 'value' => $causale];
-        $patchOperations[] = ['op' => 'REPLACE', 'path' => '/importo', 'value' => $importo];
-
-        // Aggiungi altri campi se forniti
-        if (!empty($params['dataValidita'])) {
-            $patchOperations[] = ['op' => 'REPLACE', 'path' => '/dataValidita', 'value' => $params['dataValidita']];
-        }
-        if (!empty($params['dataScadenza'])) {
-            $patchOperations[] = ['op' => 'REPLACE', 'path' => '/dataScadenza', 'value' => $params['dataScadenza']];
-        }
-
-        // Soggetto pagatore
-        if (!empty($params['soggettoPagatore'])) {
-            $patchOperations[] = ['op' => 'REPLACE', 'path' => '/soggettoPagatore', 'value' => $params['soggettoPagatore']];
-        }
-
-        // Voci
-        if (!empty($params['voci'])) {
-            $patchOperations[] = ['op' => 'REPLACE', 'path' => '/voci', 'value' => $params['voci']];
-        }
-
-        // Invia l'aggiornamento
-        $patchUrl = getenv('GOVPAY_PENDENZE_PATCH_URL') ?: getenv('GOVPAY_BACKOFFICE_URL');
-        $idA2A = getenv('ID_A2A') ?: '';
-
-        if (empty($patchUrl) || $idA2A === '') {
-            $errors[] = 'Configurazione GovPay incompleta (URL PATCH o ID_A2A mancanti)';
+        // Aggiorna direttamente via PUT completo
+        \App\Logger::getInstance()->debug('Aggiorna pendenza via PUT diretto');
+        $putResult = $this->fallbackFullPutUpdate($idPendenza, $params);
+        if ($putResult['success']) {
+            $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Pendenza aggiornata con successo'];
+            $redirectUrl = $params['return_url'] ?? '/pendenze/dettaglio/' . rawurlencode($idPendenza);
+            return $response->withHeader('Location', $redirectUrl)->withStatus(302);
         } else {
-            try {
-                $http = $this->makeHttpClient();
-                $url = rtrim($patchUrl, '/') . '/pendenze/' . rawurlencode((string)$idA2A) . '/' . rawurlencode($idPendenza);
-
-                // Usa PATCH per aggiornamenti parziali: allineiamo headers/opts al client cURL funzionante
-                // Content-Type application/json e Accept */* (come nel client legacy)
-                $reqHeaders = [
-                    'Content-Type' => 'application/json',
-                    'Accept'       => '*/*'
-                ];
-                $reqBody = json_encode($patchOperations);
-
-                // Check for method override flag
-                $forceOverride = getenv('GOVPAY_FORCE_METHOD_OVERRIDE') === '1';
-                $method = $forceOverride ? 'POST' : 'PATCH';
-                if ($forceOverride) {
-                    $reqHeaders['X-Http-Method-Override'] = 'PATCH';
-                }
-
-                // Log request
-                \App\Logger::getInstance()->debug('PATCH request preparing', [
-                    'url' => $url,
-                    'method' => $method,
-                    'headers' => $reqHeaders,
-                    'body' => $reqBody,
-                    'force_override' => $forceOverride
-                ]);
-
-                try {
-                    // Enable verbose curl output to a debug log to inspect TLS handshake and headers
-                    $verboseLog = __DIR__ . '/../../storage/logs/guzzle_curl_verbose.log';
-                    $stderr = fopen($verboseLog, 'a');
-                    $curlOptions = [
-                        \CURLOPT_CUSTOMREQUEST => $method,
-                        \CURLOPT_VERBOSE => true,
-                        \CURLOPT_STDERR => $stderr,
-                        \CURLOPT_ENCODING => '',
-                        \CURLOPT_FOLLOWLOCATION => true,
-                        \CURLOPT_HTTP_VERSION => \CURL_HTTP_VERSION_1_1
-                    ];
-
-                    $resp = $http->request($method, $url, [
-                        'headers' => $reqHeaders,
-                        'body' => $reqBody,
-                        'curl' => $curlOptions
-                    ]);
-
-                    $respBody = (string)$resp->getBody();
-                    \App\Logger::getInstance()->debug('PATCH response received', [
-                        'status' => $resp->getStatusCode(),
-                        'body' => $respBody
-                    ]);
-                } catch (RequestException $e) {
-                    $resp = $e->getResponse();
-                    $respBody = $resp ? (string)$resp->getBody() : null;
-                    $respStatus = $resp ? $resp->getStatusCode() : null;
-                    $respHeaders = $resp ? $resp->getHeaders() : null;
-                    \App\Logger::getInstance()->error('PATCH request failed (RequestException)', [
-                        'message' => $e->getMessage(),
-                        'status' => $respStatus,
-                        'response_headers' => $respHeaders,
-                        'response_body' => $respBody,
-                        'url' => $url,
-                        'headers' => $reqHeaders,
-                        'body' => $reqBody
-                    ]);
-                    // Add a readable error for user and continue
-                    $errors[] = 'Errore chiamata GovPay: HTTP ' . ($respStatus ?? 'N/A') . ' - ' . \App\Logger::sanitizeErrorForDisplay((string)$respBody);
-                } catch (\Throwable $e) {
-                    \App\Logger::getInstance()->error('PATCH request failed (Throwable)', [
-                        'message' => $e->getMessage(),
-                        'trace' => $e->getTraceAsString(),
-                        'url' => $url,
-                        'headers' => $reqHeaders,
-                        'body' => $reqBody
-                    ]);
-                    $errors[] = 'Errore chiamata GovPay: ' . $e->getMessage();
-                }
-
-                if ($resp->getStatusCode() === 200) {
-                    $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Pendenza aggiornata con successo'];
-                    $redirectUrl = $params['return_url'] ?? '/pendenze/dettaglio/' . rawurlencode($idPendenza);
-                    return $response->withHeader('Location', $redirectUrl)->withStatus(302);
-                } else {
-                    $errors[] = 'Errore nell\'aggiornamento della pendenza';
-                }
-            } catch (\Throwable $e) {
-                $errors[] = 'Errore chiamata GovPay: ' . $e->getMessage();
-            }
+            $errors[] = 'Errore nell\'aggiornamento della pendenza (PUT): ' . \App\Logger::sanitizeErrorForDisplay(implode('; ', $putResult['errors'] ?? []));
         }
 
         // In caso di errore, ricarica il form
@@ -2570,6 +2460,90 @@ class PendenzeController
             'return_url' => $params['return_url'] ?? '/pendenze/ricerca',
             'default_anno' => (int)date('Y'),
         ]);
+    }
+
+    /**
+     * Fallback: recupera la pendenza corrente, fonde i campi modificati dal form e invia un PUT completo.
+     */
+    private function fallbackFullPutUpdate(string $idPendenza, array $params): array
+    {
+        $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
+        $idA2A = getenv('ID_A2A') ?: '';
+        $errors = [];
+        if ($backofficeUrl === '' || $idA2A === '') {
+            return ['success' => false, 'errors' => ['Configurazione GovPay incompleta']];
+        }
+
+        try {
+            // 1) GET pendenza corrente
+            $http = $this->makeHttpClient();
+            $getUrl = rtrim($backofficeUrl, '/') . '/pendenze/' . rawurlencode((string)$idA2A) . '/' . rawurlencode($idPendenza);
+            $resp = $http->request('GET', $getUrl, [ 'headers' => ['Accept' => 'application/json'] ]);
+            $cur = json_decode((string)$resp->getBody(), true);
+            if (!is_array($cur)) {
+                return ['success' => false, 'errors' => ['Risposta GET pendenza non valida']];
+            }
+
+            // 2) Filtra solo i campi accettati da PendenzaPut (per evitare UnrecognizedPropertyException)
+            $allowedKeys = [
+                'numeroAvviso','tassonomia','dataValidita','datiAllegati','tassonomiaAvviso','importo','dataScadenza',
+                'dataPromemoriaScadenza','idUnitaOperativa','idDominio','allegati','dataCaricamento','annoRiferimento',
+                'divisione','nome','causale','soggettoPagatore','dataNotificaAvviso','cartellaPagamento','documento',
+                'proprieta','direzione','idTipoPendenza','voci'
+            ];
+            $put = array_intersect_key($cur, array_flip($allowedKeys));
+
+            // 3) Merge: applica modifiche dal form
+            if (isset($params['causale'])) $put['causale'] = trim((string)$params['causale']);
+            if (isset($params['importo'])) $put['importo'] = (float)str_replace(',', '.', (string)$params['importo']);
+            if (!empty($params['dataValidita'])) { $put['dataValidita'] = $params['dataValidita']; } else { unset($put['dataValidita']); }
+            if (!empty($params['dataScadenza'])) { $put['dataScadenza'] = $params['dataScadenza']; } else { unset($put['dataScadenza']); }
+
+            // idTipoPendenza: usa quello del form se presente, altrimenti preserva quello attuale
+            $idTipoFromForm = trim((string)($params['idTipoPendenza'] ?? ''));
+            $idTipoFromCur = '';
+            if (isset($cur['idTipoPendenza'])) {
+                $idTipoFromCur = (string)$cur['idTipoPendenza'];
+            } elseif (isset($cur['tipo']['idTipoPendenza'])) {
+                $idTipoFromCur = (string)$cur['tipo']['idTipoPendenza'];
+            } elseif (isset($cur['tipoPendenza']['idTipoPendenza'])) {
+                $idTipoFromCur = (string)$cur['tipoPendenza']['idTipoPendenza'];
+            }
+            $idTipoEffective = $idTipoFromForm !== '' ? $idTipoFromForm : $idTipoFromCur;
+            if ($idTipoEffective !== '') {
+                $put['idTipoPendenza'] = $idTipoEffective;
+            }
+
+            if (!empty($params['soggettoPagatore']) && is_array($params['soggettoPagatore'])) {
+                $s = $params['soggettoPagatore'];
+                $tipo = strtoupper((string)($s['tipo'] ?? 'F'));
+                $anag = trim((string)($s['anagrafica'] ?? ''));
+                $nome = trim((string)($s['nome'] ?? ''));
+                $ident = trim((string)($s['identificativo'] ?? ''));
+                $email = trim((string)($s['email'] ?? ''));
+                $normalized = [ 'tipo' => $tipo, 'identificativo' => $ident ];
+                $normalized['anagrafica'] = $tipo === 'F' ? trim(($nome !== '' ? $nome . ' ' : '') . $anag) : $anag;
+                if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) $normalized['email'] = $email;
+                $put['soggettoPagatore'] = $normalized;
+            }
+
+            // 4) Non inviare idPendenza/idA2A nel body (sono nell'URL)
+            unset($put['idPendenza'], $put['idA2A']);
+            // Assicura idDominio popolato: obbligatorio per PendenzaPut
+            if (empty($put['idDominio'])) {
+                $envDom = getenv('ID_DOMINIO') ?: '';
+                if ($envDom !== '') {
+                    $put['idDominio'] = $envDom;
+                }
+            }
+
+            // 5) Invia PUT completo utilizzando l'helper esistente
+            $res = $this->sendPendenzaToBackoffice($put, $idPendenza);
+            return $res;
+        } catch (\Throwable $e) {
+            $errors[] = $e->getMessage();
+            return ['success' => false, 'errors' => $errors];
+        }
     }
 
     private function updatePendenzaStatus(string $idPendenza, string $newStatus): array
@@ -2655,16 +2629,39 @@ class PendenzeController
     private function preparePendenzaForForm(array $pendenza): array
     {
         // Converte i dati della pendenza nel formato atteso dal form
+        // idTipoPendenza può essere presente in strutture diverse: tipo.idTipoPendenza, tipoPendenza.idTipoPendenza, idTipoPendenza diretto, oppure nella prima voce come codiceEntrata
+        $idTipo = '';
+        if (isset($pendenza['tipo']['idTipoPendenza'])) {
+            $idTipo = (string)$pendenza['tipo']['idTipoPendenza'];
+        } elseif (isset($pendenza['tipoPendenza']['idTipoPendenza'])) {
+            $idTipo = (string)$pendenza['tipoPendenza']['idTipoPendenza'];
+        } elseif (isset($pendenza['idTipoPendenza'])) {
+            $idTipo = (string)$pendenza['idTipoPendenza'];
+        }
+
+        $voci = $pendenza['voci'] ?? [];
+        $causale = $pendenza['causale'] ?? '';
+        if ($causale === '' && is_array($voci) && isset($voci[0]['descrizione'])) {
+            // Fallback: usa la descrizione della prima voce come causale se la pendenza non ha causale diretta
+            $causale = (string)$voci[0]['descrizione'];
+        }
+
         $form = [
-            'idTipoPendenza' => $pendenza['tipo']['idTipoPendenza'] ?? '',
-            'causale' => $pendenza['causale'] ?? '',
+            'idTipoPendenza' => $idTipo,
+            'causale' => $causale,
             'importo' => $pendenza['importo'] ?? '',
             'annoRiferimento' => $pendenza['annoRiferimento'] ?? '',
             'soggettoPagatore' => $pendenza['soggettoPagatore'] ?? [],
-            'voci' => $pendenza['voci'] ?? [],
+            'voci' => $voci,
             'dataValidita' => $pendenza['dataValidita'] ?? '',
             'dataScadenza' => $pendenza['dataScadenza'] ?? '',
         ];
+
+        if (empty($form['idTipoPendenza'])) {
+            \App\Logger::getInstance()->debug('preparePendenzaForForm: idTipoPendenza non trovato nelle chiavi standard', [
+                'keys' => array_keys($pendenza),
+            ]);
+        }
 
         return $form;
     }
