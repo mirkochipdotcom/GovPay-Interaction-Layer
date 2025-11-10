@@ -2435,7 +2435,8 @@ class PendenzeController
         $putResult = $this->fallbackFullPutUpdate($idPendenza, $params);
         if ($putResult['success']) {
             $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Pendenza aggiornata con successo'];
-            $redirectUrl = $params['return_url'] ?? '/pendenze/dettaglio/' . rawurlencode($idPendenza);
+            // Sempre torna al dettaglio della pendenza aggiornata, indipendentemente dal return_url
+            $redirectUrl = '/pendenze/dettaglio/' . rawurlencode($idPendenza);
             return $response->withHeader('Location', $redirectUrl)->withStatus(302);
         } else {
             $errors[] = 'Errore nell\'aggiornamento della pendenza (PUT): ' . \App\Logger::sanitizeErrorForDisplay(implode('; ', $putResult['errors'] ?? []));
