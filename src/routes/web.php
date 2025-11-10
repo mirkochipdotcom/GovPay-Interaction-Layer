@@ -9,6 +9,7 @@ declare(strict_types=1);
 use App\Auth\UserRepository;
 use App\Controllers\ConfigurazioneController;
 use App\Controllers\HomeController;
+use App\Controllers\FlussiController;
 use App\Controllers\PendenzeController;
 use App\Controllers\UsersController;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -498,9 +499,12 @@ return function (App $app, Twig $twig): void {
     });
 
     $app->get('/pagamenti/ricerca-flussi', function($request, $response) use ($twig) {
-        if (isset($_SESSION['user'])) {
-            $twig->getEnvironment()->addGlobal('current_user', $_SESSION['user']);
-        }
-        return $twig->render($response, 'pagamenti/ricerca_flussi.html.twig');
+        $controller = new FlussiController($twig);
+        return $controller->search($request, $response);
+    });
+
+    $app->get('/pagamenti/ricerca-flussi/dettaglio/{idFlusso}', function($request, $response, $args) use ($twig) {
+        $controller = new FlussiController($twig);
+        return $controller->detail($request, $response, $args);
     });
 };
