@@ -36,9 +36,9 @@
               <dd class="col-8">{{ importo|number_format(2, ',', '.') }} €</dd>
             {% endif %}
 
-            {% if voci is defined and voci|length > 0 %}
-              <dt class="col-4">Numero voci</dt>
-              <dd class="col-8">{{ voci|length }}</dd>
+            {% if params.annoRiferimento is defined and params.annoRiferimento != '' %}
+              <dt class="col-4">Anno di riferimento</dt>
+              <dd class="col-8">{{ params.annoRiferimento }}</dd>
             {% endif %}
 
             {% if params.dataValidita is defined and params.dataValidita != '' %}
