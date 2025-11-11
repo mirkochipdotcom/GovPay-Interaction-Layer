@@ -1,0 +1,27 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Dettaglio caricamento massivo{% endblock %}
+
+{% block content %}
+  <h1 class="it-title">Dettaglio caricamento massivo</h1>
+  <p class="text-muted small">Batch: <code>{{ batch_id }}</code></p>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle">
+      <thead><tr><th>ID</th><th>Riga</th><th>Stato</th><th>Errore</th><th>Payload</th><th>Response</th><th>Created</th><th>Updated</th></tr></thead>
+      <tbody>
+      {% for r in rows %}
+        <tr>
+          <td>{{ r.id }}</td>
+          <td>{{ r.riga }}</td>
+          <td>{{ r.stato }}</td>
+          <td class="small text-danger">{{ r.errore }}</td>
+          <td><pre class="small mb-0">{{ r.payload_json }}</pre></td>
+          <td><pre class="small mb-0">{{ r.response_json }}</pre></td>
+          <td>{{ r.created_at }}</td>
+          <td>{{ r.updated_at }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}

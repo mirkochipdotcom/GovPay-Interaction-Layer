@@ -4,5 +4,108 @@
 
 {% block content %}
   <h1 class="it-title">Pendenze - Inserimento massivo</h1>
-  <p class="text-muted">Placeholder per la pagina di inserimento massivo pendenze (upload file CSV/Excel).</p>
+  <p class="text-muted small">Carica un file CSV per creare pendenze multiple. Scarica il template per avere le intestazioni corrette.</p>
+
+  <div class="card mb-4">
+    <div class="card-body">
+      <h2 class="h6">Passo 1: Scarica template e carica CSV</h2>
+      <form method="post" action="/pendenze/massivo/upload" enctype="multipart/form-data" class="mt-2" id="massiveUploadForm">
+        <div class="mb-2">
+          <a href="/pendenze/massivo/template-csv" class="btn btn-outline-secondary btn-sm">Scarica template CSV</a>
+        </div>
+        <div class="mb-3">
+          <label for="csvFile" class="form-label">File CSV</label>
+          <input type="file" class="form-control" id="csvFile" name="csv_file" accept=".csv" required>
+          <div class="form-text">Intestazioni richieste: <code>TIPO;CODICE_FISCALE_PIVA;COGNOME_ANAGRAFICA;NOME;CAUSALE;ANNO_RIFERIMENTO;IMPORTO;EMAIL;DATA_VALIDITA;DATA_SCADENZA;RATA;VOCE_1_IMPORTO;VOCE_1_CAUSALE;VOCE_2_IMPORTO;VOCE_2_CAUSALE</code></div>
+        </div>
+        <button type="submit" class="btn btn-primary">Carica & Anteprima</button>
+      </form>
+    </div>
+  </div>
+
+  {% if preview is defined %}
+    <div class="card mb-4">
+      <div class="card-body">
+        <h2 class="h6">Passo 2: Anteprima righe valide</h2>
+        <p class="small mb-2">Righe valide: <strong>{{ preview.valid_count }}</strong> / {{ preview.total_count }}. Mostrate le prime 2 valide.</p>
+        <div class="table-responsive mb-3">
+          <table class="table table-sm">
+            <thead>
+              <tr>
+                <th>#</th><th>Tipo</th><th>CF/P.IVA</th><th>Cognome/Anagrafica</th><th>Nome</th><th>Causale</th><th>Anno</th><th>Importo</th><th>Email</th><th>Validità</th><th>Scadenza</th><th>Rata</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in preview.first_valid %}
+                <tr>
+                  <td>{{ r._row }}</td>
+                  <td>{{ r.tipo }}</td>
+                  <td>{{ r.identificativo }}</td>
+                  <td>{{ r.anagrafica }}</td>
+                  <td>{{ r.nome }}</td>
+                  <td>{{ r.causale }}</td>
+                  <td>{{ r.annoRiferimento }}</td>
+                  <td>{{ r.importo }}</td>
+                  <td>{{ r.email }}</td>
+                  <td>{{ r.dataValidita }}</td>
+                  <td>{{ r.dataScadenza }}</td>
+                  <td>{{ r.rata }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% if preview.invalid_count > 0 %}
+          <a href="/pendenze/massivo/errori-csv?batch={{ preview.batch_id }}" class="btn btn-outline-danger btn-sm">Scarica CSV errori ({{ preview.invalid_count }})</a>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+
+  {% if preview is defined and preview.valid_count > 0 %}
+    <div class="card mb-4">
+      <div class="card-body">
+        <h2 class="h6">Passo 3: Seleziona tipologia pendenza</h2>
+        <form method="post" action="/pendenze/massivo/conferma">
+          <input type="hidden" name="batch_id" value="{{ preview.batch_id }}">
+          <div class="mb-3">
+            <label for="massivoTipo" class="form-label">Tipologia pendenza</label>
+            <select id="massivoTipo" name="idTipoPendenza" class="form-select" required>
+              <option value="">-- seleziona --</option>
+              {% for t in tipologie_pendenze|default([]) %}
+                <option value="{{ t.id_entrata }}">{{ t.nome|default(t.descrizione)|e }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary">Carica in staging</button>
+        </form>
+      </div>
+    </div>
+  {% endif %}
+
+  {% if batch_list is defined %}
+    <div class="card mb-4">
+      <div class="card-body">
+        <h2 class="h6">Passo 4: Stato caricamenti</h2>
+        <div class="table-responsive">
+          <table class="table table-sm">
+            <thead><tr><th>Batch</th><th>Righe totali</th><th>Pending</th><th>Processing</th><th>Success</th><th>Error</th><th>Azioni</th></tr></thead>
+            <tbody>
+              {% for b in batch_list %}
+                <tr>
+                  <td>{{ b.file_batch_id }}</td>
+                  <td>{{ b.totale }}</td>
+                  <td>{{ b.pending }}</td>
+                  <td>{{ b.processing }}</td>
+                  <td class="text-success">{{ b.success }}</td>
+                  <td class="text-danger">{{ b.error }}</td>
+                  <td><a href="/pendenze/massivo/dettaglio?batch={{ b.file_batch_id }}" class="btn btn-link btn-sm">Dettaglio</a></td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  {% endif %}
 {% endblock %}
