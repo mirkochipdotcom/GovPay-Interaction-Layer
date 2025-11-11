@@ -40,7 +40,11 @@
 <div class="row g-3 mt-1">
   <div class="form-group col-12">
     <label for="causale" class="active">Causale / Descrizione</label>
-    <input type="text" id="causale" name="causale" class="form-control" placeholder="Inserisci la causale della pendenza" value="{{ old.causale|default('') }}">
+    <input type="text" id="causale" name="causale" class="form-control" placeholder="Inserisci la causale della pendenza" value="{{ old.causale|default('') }}" maxlength="140" autocomplete="off">
+    <div class="d-flex justify-content-between small text-muted mt-1">
+      <span>Max 140 caratteri.</span>
+      <span id="causaleCounter">0/140</span>
+    </div>
     <div class="form-text small">La causale verrà usata automaticamente per la prima voce se non ne viene specificata una diversa.</div>
   </div>
 </div>
@@ -173,6 +177,7 @@
   <button type="button" id="addVoceBtn" class="btn btn-outline-secondary btn-sm">Aggiungi voce</button>
 </div>
 <div id="vociSumError" class="alert alert-danger d-none" role="alert"></div>
+<div id="formValidationErrors" class="alert alert-danger d-none" role="alert"></div>
 <div class="collapse" id="apiExtra">
   <div class="card card-body">
     <h4 class="h6">Campi avanzati (API)</h4>
@@ -346,7 +351,117 @@
     }
     return true;
   }
+  // --- Validazioni aggiuntive (causale, CF/P.IVA) ---
+  const errorsBox = document.getElementById('formValidationErrors');
+  function pushError(msg){
+    if(!errorsBox) return;
+    errorsBox.classList.remove('d-none');
+    errorsBox.innerHTML += '<div>' + msg.replace(/</g,'&lt;') + '</div>';
+  }
+  function clearFormErrors(){ if(errorsBox){ errorsBox.classList.add('d-none'); errorsBox.innerHTML=''; } }
+  function updateCausaleCounter(){
+    const c = document.getElementById('causale');
+    const cnt = document.getElementById('causaleCounter');
+    if(!c || !cnt) return;
+    const len = c.value.length; cnt.textContent = len + '/140';
+    if(len > 140) cnt.classList.add('text-danger'); else cnt.classList.remove('text-danger');
+  }
+  updateCausaleCounter();
+  if(causale) causale.addEventListener('input', updateCausaleCounter);
+  function validateCausale(){
+    if(!causale) return true;
+    const val = causale.value.trim();
+    if(val.length > 140){ pushError('La causale supera i 140 caratteri ('+ val.length +').'); return false; }
+    if(val.length === 0){ pushError('Causale obbligatoria.'); return false; }
+    return true;
+  }
+  // Codice fiscale: controllo pattern + prime 3 lettere cognome + prime 3 lettere nome (regole semplificate)
+  function codFiscaleBlockFromString(str, isName){
+    const s = (str||'').toUpperCase().replace(/[^A-Z]/g,'');
+    const consonants = s.replace(/[AEIOU]/g,'');
+    const vowels = s.replace(/[^AEIOU]/g,'');
+    let block = '';
+    if(isName){
+      // Regola semplificata nome: se >=4 consonanti prende 1a,3a,4a altrimenti prime 3 consonanti
+      if(consonants.length >=4){ block = consonants[0] + consonants[2] + consonants[3]; }
+      else block = consonants.slice(0,3);
+    } else {
+      block = consonants.slice(0,3);
+    }
+    if(block.length < 3) block += vowels.slice(0, 3 - block.length);
+    while(block.length < 3) block += 'X';
+    return block;
+  }
+  function validateCodiceFiscale(cf, nome, cognome){
+    const CF_PATTERN = /^[A-Z0-9]{16}$/;
+    if(!cf || !CF_PATTERN.test(cf)) return 'Formato codice fiscale non valido';
+    const blockCognome = codFiscaleBlockFromString(cognome,false);
+    const blockNome = codFiscaleBlockFromString(nome,true);
+    if(cf.substring(0,3) !== blockCognome || cf.substring(3,6) !== blockNome){
+      return 'Codice fiscale non coerente con nome/cognome';
+    }
+    // Controllo carattere di controllo (semplificato)
+    const evenMap = {0:0,1:1,2:2,3:3,4:4,5:5,6:6,7:7,8:8,9:9,'A':0,'B':1,'C':2,'D':3,'E':4,'F':5,'G':6,'H':7,'I':8,'J':9,'K':10,'L':11,'M':12,'N':13,'O':14,'P':15,'Q':16,'R':17,'S':18,'T':19,'U':20,'V':21,'W':22,'X':23,'Y':24,'Z':25};
+    const oddMap = {0:1,1:0,2:5,3:7,4:9,5:13,6:15,7:17,8:19,9:21,'A':1,'B':0,'C':5,'D':7,'E':9,'F':13,'G':15,'H':17,'I':19,'J':21,'K':2,'L':4,'M':18,'N':20,'O':11,'P':3,'Q':6,'R':8,'S':12,'T':14,'U':16,'V':10,'W':22,'X':25,'Y':24,'Z':23};
+    const controlChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    let sum = 0;
+    for(let i=0;i<15;i++){
+      const ch = cf[i];
+      if(i%2===0){ sum += oddMap[ch]; } else { sum += evenMap[ch]; }
+    }
+    const expected = controlChars[sum % 26];
+    if(cf[15] !== expected) return 'Carattere di controllo codice fiscale non valido';
+    return null; // ok
+  }
+  function validatePartitaIva(piva){
+    if(!piva) return 'Partita IVA obbligatoria';
+    const p = piva.replace(/[^0-9]/g,'');
+    if(p.length !== 11) return 'La partita IVA deve contenere 11 cifre';
+    let sum = 0;
+    for(let i=0;i<10;i++){
+      let n = parseInt(p[i],10);
+      if(i%2===0){ // posizione dispari (0-based) -> somma semplice
+        sum += n;
+      } else { // posizione pari -> *2 e somma cifre
+        n = n*2; if(n>9) n = n-9; sum += n;
+      }
+    }
+    const check = (10 - (sum % 10)) % 10;
+    if(check !== parseInt(p[10],10)) return 'Partita IVA non valida (check digit)';
+    return null;
+  }
+  function validateIdentity(){
+    const tipoPF = document.getElementById('soggettoPF');
+    const tipoPJ = document.getElementById('soggettoPJ');
+    const ident = document.getElementById('identificativo');
+    const cognome = document.getElementById('anagrafica');
+    const nome = document.getElementById('nome');
+    if(!ident) return true;
+    const raw = ident.value.trim();
+    if(tipoPF && tipoPF.checked){
+      const err = validateCodiceFiscale(raw.toUpperCase(), nome?nome.value.trim():'' , cognome?cognome.value.trim():'' );
+      if(err){ pushError(err); ident.classList.add('is-invalid'); return false; }
+      ident.classList.remove('is-invalid'); return true;
+    } else if(tipoPJ && tipoPJ.checked){
+      const err = validatePartitaIva(raw);
+      if(err){ pushError(err); ident.classList.add('is-invalid'); return false; }
+      ident.classList.remove('is-invalid'); return true;
+    }
+    return true;
+  }
+  function runAllValidations(ev){
+    clearFormErrors();
+    const okCausale = validateCausale();
+    const okIdent = validateIdentity();
+    const okVoci = validateVociSum(ev);
+    if(!(okCausale && okIdent && okVoci)){
+      if(ev) ev.preventDefault();
+      if(errorsBox) errorsBox.scrollIntoView({behavior:'smooth',block:'center'});
+      return false;
+    }
+    return true;
+  }
   const formEl = document.querySelector('form');
-  if (formEl) formEl.addEventListener('submit', function(ev){ if(!validateVociSum(ev)) return false; });
+  if (formEl) formEl.addEventListener('submit', function(ev){ if(!runAllValidations(ev)) return false; });
 })();
 </script>

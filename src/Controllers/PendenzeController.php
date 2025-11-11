@@ -23,6 +23,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
 use App\Services\TracciatoService;
+use App\Services\ValidationService;
 
 class PendenzeController
 {
@@ -143,6 +144,8 @@ class PendenzeController
         }
         if ($causale === '') {
             $errors[] = 'Causale obbligatoria';
+        } elseif (!ValidationService::validateCausaleLength($causale)) {
+            $errors[] = 'La causale supera i 140 caratteri consentiti';
         }
         if ($importoRaw === '' || !is_numeric(str_replace(',', '.', (string)$importoRaw))) {
             $errors[] = 'Importo non valido';
@@ -167,6 +170,22 @@ class PendenzeController
         $email = trim((string)($sog['email'] ?? ''));
         if ($identificativo === '') $errors[] = 'Codice fiscale / Partita IVA obbligatorio';
         if ($anagrafica === '') $errors[] = ($tipoSog === 'F') ? 'Cognome obbligatorio' : 'Ragione sociale obbligatoria';
+        // Validazioni specifiche CF/P.IVA secondo tipo soggetto
+        if ($identificativo !== '') {
+            if ($tipoSog === 'F') {
+                $res = ValidationService::validateCodiceFiscale($identificativo, $nome, $anagrafica);
+                if (!$res['format_ok'] || !$res['check_ok']) {
+                    $errors[] = $res['message'] ?? 'Codice fiscale non valido';
+                } elseif (!$res['name_match']) {
+                    $errors[] = $res['message'] ?? 'Codice fiscale non coerente con nome e cognome indicati';
+                }
+            } elseif ($tipoSog === 'G') {
+                $res = ValidationService::validatePartitaIva($identificativo);
+                if (!$res['valid']) {
+                    $errors[] = $res['message'] ?? 'Partita IVA non valida';
+                }
+            }
+        }
 
         // Voci
         $vociRaw = $params['voci'] ?? [];
