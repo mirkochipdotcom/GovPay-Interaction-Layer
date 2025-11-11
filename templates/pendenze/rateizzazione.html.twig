@@ -60,7 +60,7 @@
 
         <table class="table table-sm align-middle">
           <thead>
-            <tr><th>#</th><th class="w-50">Importo</th><th>Validità</th><th>Scadenza <button id="copyDatesBtnHeader" type="button" class="btn btn-link btn-sm p-0 ms-2" title="Copia validità → scadenza">Copia</button><button id="clearDatesBtnHeader" type="button" class="btn btn-link btn-sm p-0 ms-2 text-danger" title="Azzera scadenze">Azzera</button></th></tr>
+            <tr><th>#</th><th class="w-50">Importo</th><th>Validità</th><th>Scadenza <button id="copyDatesBtnHeader" type="button" class="btn btn-link btn-sm p-0 ms-2" title="Copia validità → scadenza">Copia</button><button id="recalcScadenzeBtnHeader" type="button" class="btn btn-link btn-sm p-0 ms-2" title="Ricalcola scadenze (ancorate a fine mese se necessario)">Ricalcola</button><button id="clearDatesBtnHeader" type="button" class="btn btn-link btn-sm p-0 ms-2 text-danger" title="Azzera scadenze">Azzera</button></th></tr>
           </thead>
           <tbody id="rateRows">
             {% for p in parts %}
@@ -145,7 +145,31 @@
       // update total after rebuild
       updatePartsSum();
     });
-    // Ricalcola le validità successive a partire dalla prima in base all'intervallo scelto
+    // Helpers per gestione fine-mese
+    function lastDayOfMonth(y, m){ return new Date(y, m+1, 0).getDate(); }
+    function detectAnchorMode(date){
+      const y = date.getFullYear(); const m = date.getMonth(); const d = date.getDate();
+      const last = lastDayOfMonth(y, m);
+      const isFeb = (m === 1);
+      if (d === 31) return 'EOM';
+      if (d === 30) return 'D30';
+      if (isFeb && (d === 28 || d === 29)) return 'EOM';
+      if (d === last) return 'EOM';
+      return 'NORMAL';
+    }
+    function addMonthsWithAnchor(baseDate, monthsToAdd){
+      const mode = detectAnchorMode(baseDate);
+      const bY = baseDate.getFullYear(); const bM = baseDate.getMonth(); const bD = baseDate.getDate();
+      const tmp = new Date(bY, bM + monthsToAdd, 1); // go to first of target month to avoid rollover
+      const y = tmp.getFullYear(); const m = tmp.getMonth();
+      const last = lastDayOfMonth(y, m);
+      let day;
+      if (mode === 'EOM') day = last;
+      else if (mode === 'D30') day = (m === 1 ? last : Math.min(30, last));
+      else day = Math.min(bD, last);
+      return new Date(y, m, day);
+    }
+    // Ricalcola le validità successive a partire dalla prima in base all'intervallo scelto, rispettando fine mese
     const recalcValiditaBtn = document.getElementById('recalcValiditaBtn');
     if (recalcValiditaBtn) {
       recalcValiditaBtn.addEventListener('click', function(){
@@ -159,13 +183,36 @@
         rows.forEach(function(tr, idx){
           if (idx === 0) return; // skip first
           const monthsToAdd = freq * idx;
-          const d = new Date(firstDate.getTime());
-          d.setMonth(d.getMonth() + monthsToAdd);
+          const d = addMonthsWithAnchor(firstDate, monthsToAdd);
           const y = d.getFullYear();
           const m = String(d.getMonth()+1).padStart(2,'0');
           const day = String(d.getDate()).padStart(2,'0');
           const input = tr.querySelector('input[name^="parts"][name$="[dataValidita]"]');
           if (input) input.value = y + '-' + m + '-' + day;
+        });
+      });
+    }
+    // Ricalcola scadenze a partire dalla prima scadenza (stesso intervallo della validità), ancorando a fine mese ove necessario
+    const recalcScadBtn = document.getElementById('recalcScadenzeBtnHeader');
+    if (recalcScadBtn) {
+      recalcScadBtn.addEventListener('click', function(){
+        const freq = parseInt(document.getElementById('validitaFrequency').value || '1', 10);
+        const tbody = document.getElementById('rateRows');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        if (rows.length === 0) return;
+        const firstScadInput = rows[0].querySelector('input[name^="parts"][name$="[dataScadenza]"]');
+        if (!firstScadInput || !firstScadInput.value) { alert('Imposta la scadenza della prima rata prima di ricalcolare le successive.'); return; }
+        const firstDate = new Date(firstScadInput.value + 'T00:00:00');
+        rows.forEach(function(tr, idx){
+          if (idx === 0) return; // skip first
+          const monthsToAdd = freq * idx;
+          const d = addMonthsWithAnchor(firstDate, monthsToAdd);
+          const y = d.getFullYear();
+          const m = String(d.getMonth()+1).padStart(2,'0');
+          const day = String(d.getDate()).padStart(2,'0');
+          let scadenza = tr.querySelector('input[name^="parts"][name$="[dataScadenza]"]');
+          if (!scadenza) { scadenza = document.createElement('input'); scadenza.type='hidden'; scadenza.name='parts['+idx+'][dataScadenza]'; tr.appendChild(scadenza); }
+          scadenza.value = y + '-' + m + '-' + day;
         });
       });
     }
