@@ -960,19 +960,21 @@ class PendenzeController
         }
         $parts = $params['parts'] ?? [];
         // Normalizza importi
-        $sum = 0.0;
+        $sumCents = 0;
         foreach ($parts as $p) {
-            $v = is_numeric(str_replace(',', '.', (string)($p['importo'] ?? ''))) ? (float)str_replace(',', '.', (string)$p['importo']) : 0.0;
-            $sum += $v;
+            $raw = (string)($p['importo'] ?? '');
+            $v = is_numeric(str_replace(',', '.', $raw)) ? (float)str_replace(',', '.', $raw) : 0.0;
+            $sumCents += (int)round($v * 100);
         }
-        $sum = round($sum, 2);
-        $originalTotal = is_numeric(str_replace(',', '.', (string)($orig['importo'] ?? ''))) ? round((float)str_replace(',', '.', (string)$orig['importo']), 2) : 0.0;
-        if (abs($sum - $originalTotal) > 0.01) {
+        $originalTotalRaw = (string)($orig['importo'] ?? '');
+        $originalTotal = is_numeric(str_replace(',', '.', $originalTotalRaw)) ? (float)str_replace(',', '.', $originalTotalRaw) : 0.0;
+        $totalCents = (int)round($originalTotal * 100);
+        if ($sumCents !== $totalCents) {
             // Ritorna al form di rateizzazione con messaggio d'errore e dati ricostruiti
-            $error = 'La somma delle rate (' . number_format($sum, 2, ',', '.') . ') non corrisponde all\'importo totale (' . number_format($originalTotal, 2, ',', '.') . ').';
+            $error = 'La somma delle rate (' . number_format($sumCents/100, 2, ',', '.') . ') non corrisponde esattamente all\'importo totale (' . number_format($totalCents/100, 2, ',', '.') . ').';
             return $this->twig->render($response, 'pendenze/rateizzazione.html.twig', [
                 'params' => $orig,
-                'importo' => $originalTotal,
+                'importo' => $totalCents/100,
                 'parts' => $parts,
                 'errors' => [$error],
             ]);
