@@ -26,6 +26,10 @@ class CurrentPathMiddleware implements MiddlewareInterface
         $path = $request->getUri()->getPath();
         // Espone il percorso corrente come variabile globale Twig
         // Enrich current_user per request (session is started by SessionMiddleware)
+        // Assicura che la sessione sia disponibile anche se l'ordine dei middleware cambia
+        if (session_status() === PHP_SESSION_NONE) {
+            @session_start();
+        }
         if (session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['user'])) {
             $sessionUser = $_SESSION['user'];
             try {

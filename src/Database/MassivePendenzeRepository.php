@@ -11,6 +11,7 @@ class MassivePendenzeRepository
     public function __construct(private ?PDO $pdo = null)
     {
         $this->pdo = $this->pdo ?: Connection::getPDO();
+        $this->ensureTable();
     }
 
     public function insertPending(string $fileBatchId, int $riga, array $payload, ?string $errore = null): int
@@ -76,5 +77,48 @@ class MassivePendenzeRepository
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
         return (int)$stmt->fetchColumn();
+    }
+
+    /**
+     * Fetch next pending records to process.
+     * @return array<int, array{id:int,file_batch_id:string,riga:int,stato:string,payload_json:?string}>
+     */
+    public function fetchPending(int $limit = 50): array
+    {
+        $limit = max(1, $limit);
+        $sql = 'SELECT id, file_batch_id, riga, stato, payload_json FROM pendenze_massive WHERE stato = "PENDING" ORDER BY id ASC LIMIT :limit';
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    /**
+     * Crea la tabella se assente (idempotente). Evita errori 42S02 se le migrazioni non sono ancora state eseguite.
+     */
+    private function ensureTable(): void
+    {
+        try {
+            $this->pdo->query('SELECT 1 FROM pendenze_massive LIMIT 1');
+        } catch (\Throwable $e) {
+            // Solo se table not found (42S02)
+            if (method_exists($e, 'getCode') && (string)$e->getCode() !== '42S02') {
+                return; // altro errore, non forziamo
+            }
+            $sql = "CREATE TABLE IF NOT EXISTS pendenze_massive (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  file_batch_id VARCHAR(64) NOT NULL,
+  riga INT UNSIGNED NOT NULL,
+  stato ENUM('PENDING','PROCESSING','SUCCESS','ERROR') NOT NULL DEFAULT 'PENDING',
+  errore TEXT NULL,
+  payload_json JSON NULL,
+  response_json JSON NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_batch (file_batch_id),
+  INDEX idx_stato (stato)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+            try { $this->pdo->exec($sql); } catch (\Throwable $_ignore) {}
+        }
     }
 }

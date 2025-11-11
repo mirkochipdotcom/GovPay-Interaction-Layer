@@ -56,9 +56,9 @@ class MassivePendenzeController
         ];
         $sample = ['F','RSSMRA80A01F205X','ROSSI','MARIO','TASSA ISCRIZIONE',date('Y'), '44.00','mario.rossi@example.com','', '', '', '44.00','Quota iscrizione','',''];
         $csv = fopen('php://temp', 'w+');
-        // separatore ;
-        fputcsv($csv, $headers, ';');
-        fputcsv($csv, $sample, ';');
+    // separatore ; con enclosure ed escape espliciti per evitare deprecazioni PHP (fputcsv richiede $escape)
+    fputcsv($csv, $headers, ';', '"', '\\');
+    fputcsv($csv, $sample, ';', '"', '\\');
         rewind($csv);
         $content = stream_get_contents($csv) ?: '';
         fclose($csv);
@@ -152,9 +152,9 @@ class MassivePendenzeController
         $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
         $csv = fopen('php://temp', 'w+');
         $headers = ['RIGA','MOTIVO','PAYLOAD'];
-        fputcsv($csv, $headers, ';');
+        fputcsv($csv, $headers, ';', '"', '\\');
         foreach ($rows as $r) {
-            fputcsv($csv, [$r['riga'], $r['errore'], $r['payload_json']], ';');
+            fputcsv($csv, [$r['riga'], $r['errore'], $r['payload_json']], ';', '"', '\\');
         }
         rewind($csv); $content = stream_get_contents($csv) ?: ''; fclose($csv);
         $response->getBody()->write($content);
@@ -210,7 +210,8 @@ class MassivePendenzeController
         $rows = [];
         $fh = fopen('php://temp', 'w+');
         fwrite($fh, $content); rewind($fh);
-        while (($r = fgetcsv($fh, 0, ';')) !== false) { $rows[] = $r; }
+        // Specifica esplicitamente enclosure ed escape per evitare warning di deprecazione
+        while (($r = fgetcsv($fh, 0, ';', '"', '\\')) !== false) { $rows[] = $r; }
         fclose($fh);
         return $rows;
     }
@@ -232,13 +233,19 @@ class MassivePendenzeController
         $anno = (int)($r['ANNO_RIFERIMENTO'] ?? 0);
         $imp = (float)str_replace(',', '.', (string)($r['IMPORTO'] ?? '0'));
         $email = trim((string)($r['EMAIL'] ?? ''));
-        $dv = trim((string)($r['DATA_VALIDITA'] ?? ''));
-        $ds = trim((string)($r['DATA_SCADENZA'] ?? ''));
+        $dvRaw = trim((string)($r['DATA_VALIDITA'] ?? ''));
+        $dsRaw = trim((string)($r['DATA_SCADENZA'] ?? ''));
+        $dv = self::normalizeDate($dvRaw);
+        $ds = self::normalizeDate($dsRaw);
         $rata = trim((string)($r['RATA'] ?? ''));
         $v1imp = (string)($r['VOCE_1_IMPORTO'] ?? '');
         $v1desc = (string)($r['VOCE_1_CAUSALE'] ?? '');
         $v2imp = (string)($r['VOCE_2_IMPORTO'] ?? '');
         $v2desc = (string)($r['VOCE_2_CAUSALE'] ?? '');
+        $v1impProvided = trim($v1imp) !== '';
+        $v1impParsed = $v1impProvided ? (float)str_replace(',', '.', $v1imp) : $imp;
+        $v2impProvided = trim($v2imp) !== '';
+        $v2impParsed = $v2impProvided ? (float)str_replace(',', '.', $v2imp) : 0.0;
         return [
             'tipo' => $tipo,
             'identificativo' => $ident,
@@ -251,11 +258,48 @@ class MassivePendenzeController
             'dataValidita' => $dv,
             'dataScadenza' => $ds,
             'rata' => $rata,
+            '_v1imp_provided' => $v1impProvided,
+            '_v1imp_raw' => $v1imp,
             'voci' => [
-                ['idVocePendenza' => '1', 'descrizione' => $v1desc ?: $caus, 'importo' => ($v1imp !== '' ? (float)str_replace(',', '.', $v1imp) : $imp)],
-                ['idVocePendenza' => '2', 'descrizione' => $v2desc, 'importo' => ($v2imp !== '' ? (float)str_replace(',', '.', $v2imp) : 0)],
+                ['idVocePendenza' => '1', 'descrizione' => $v1desc !== '' ? $v1desc : $caus, 'importo' => $v1impParsed],
+                ['idVocePendenza' => '2', 'descrizione' => $v2desc, 'importo' => $v2impParsed],
             ],
         ];
+    }
+
+    /**
+     * Normalizza una data da vari formati ammessi ("dd/mm/YYYY", "YYYY-MM-DD", Excel serial (>=30000,<70000),
+     * oppure numerico YYYYMMDD) restituendo stringa ISO YYYY-MM-DD oppure stringa vuota se non valida.
+     */
+    private static function normalizeDate(string $raw): string
+    {
+        if ($raw === '') return '';
+        $rawTrim = trim($raw);
+        // Già formato ISO
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $rawTrim)) return $rawTrim;
+        // Formato italiano dd/mm/YYYY
+        if (preg_match('/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/', $rawTrim, $m)) {
+            [$all,$d,$mth,$y] = $m;
+            if (checkdate((int)$mth,(int)$d,(int)$y)) return sprintf('%04d-%02d-%02d',(int)$y,(int)$mth,(int)$d);
+        }
+        // Formato compatto YYYYMMDD
+        if (preg_match('/^(\d{4})(\d{2})(\d{2})$/',$rawTrim,$m)) {
+            if (checkdate((int)$m[2],(int)$m[3],(int)$m[1])) return sprintf('%04d-%02d-%02d',(int)$m[1],(int)$m[2],(int)$m[3]);
+        }
+        // Excel serial date (assumiamo sistema 1900) - range plausibile per anni moderni
+        if (preg_match('/^\d{4,5}$/',$rawTrim)) {
+            $serial = (int)$rawTrim;
+            if ($serial >= 30000 && $serial < 70000) { // ~1982-2091
+                try {
+                    // Excel erroneamente considera il 1900 come anno bisestile: si usa epoch 1899-12-30
+                    $epoch = new \DateTimeImmutable('1899-12-30');
+                    $date = $epoch->modify("+{$serial} days");
+                    return $date->format('Y-m-d');
+                } catch (\Throwable $_) {}
+            }
+        }
+        // Fallback: lascia vuoto se non riconosciuto
+        return '';
     }
 
     private static function validateRow(array $norm): ?string
@@ -280,6 +324,12 @@ class MassivePendenzeController
         }
         // Importo
         if (!is_numeric((string)$norm['importo']) || $norm['importo'] <= 0) return 'Importo non valido';
+        // Se VOCE_1_IMPORTO è stato fornito dall'utente, validalo come numerico (virgola ammessa)
+        if (!empty($norm['_v1imp_provided'])) {
+            $raw = (string)($norm['_v1imp_raw'] ?? '');
+            $numOk = $raw !== '' && is_numeric(str_replace(',', '.', $raw));
+            if (!$numOk) return 'VOCE_1_IMPORTO non valido';
+        }
         // Voci sum
         $sum = 0.0; foreach ($norm['voci'] as $v) { $sum += (float)($v['importo'] ?? 0); }
         if ((int)round($sum * 100) !== (int)round(((float)$norm['importo']) * 100)) return 'Somma voci diversa da importo';
