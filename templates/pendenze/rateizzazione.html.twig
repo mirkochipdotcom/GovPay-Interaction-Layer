@@ -116,15 +116,19 @@
     const form = document.querySelector('form');
     form.addEventListener('submit', function(e){
       const total = {{ importo }};
-      let sum = 0;
+      const totalCents = Math.round((parseFloat(total) || 0) * 100);
+      let sumCents = 0;
       document.querySelectorAll('#rateRows input[name$="[importo]"]').forEach(function(inp){
-        const v = parseFloat(inp.value) || 0;
-        sum += v;
+        const v = parseFloat(inp.value.replace(',', '.'));
+        if (!isNaN(v)) {
+          sumCents += Math.round(v * 100);
+        }
       });
-      sum = Math.round(sum * 100)/100;
-      if (Math.abs(sum - total) > 0.01) {
+      if (sumCents !== totalCents) {
         e.preventDefault();
-        alert('La somma delle rate (' + sum.toFixed(2) + ') non corrisponde all\'importo totale (' + total.toFixed(2) + ').');
+        const diff = (sumCents - totalCents) / 100;
+        const sum = (sumCents/100).toFixed(2);
+        alert('La somma delle rate (' + sum + ') non corrisponde esattamente all\'importo totale (' + (totalCents/100).toFixed(2) + '). Differenza: ' + diff.toFixed(2) + ' €. Correggi gli importi prima di procedere.');
       }
     });
 
@@ -255,23 +259,22 @@
       // helper: update live sum of parts importo
       function updatePartsSum(){
         const inputs = Array.from(document.querySelectorAll('#rateRows input[name$="[importo]"]'));
-        let sum = 0;
-        inputs.forEach(function(i){ sum += parseFloat(i.value) || 0; });
-        const rounded = Math.round(sum * 100) / 100;
+        let sumCents = 0;
+        inputs.forEach(function(i){
+          const v = parseFloat((i.value||'').replace(',', '.'));
+          if(!isNaN(v)) sumCents += Math.round(v*100);
+        });
         const el = document.getElementById('partsSumValue');
-        if (el) el.textContent = rounded.toFixed(2);
-        // highlight in red if differs from main importo
+        if (el) el.textContent = (sumCents/100).toFixed(2);
         try {
-          const total = Math.round(({{ importo }} || 0) * 100) / 100;
+          const totalCents = Math.round(({{ importo }} || 0) * 100);
           const container = document.getElementById('partsSum');
-          if (Math.abs(rounded - total) > 0.01) {
+          if (sumCents !== totalCents) {
             if (container) container.classList.add('text-danger');
           } else {
             if (container) container.classList.remove('text-danger');
           }
-        } catch(e) {
-          // ignore if importo not available
-        }
+        } catch(e) { /* ignore */ }
       }
 
       // live update on input changes via delegation
