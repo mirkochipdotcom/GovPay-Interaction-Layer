@@ -164,9 +164,9 @@ class PendenzeController
         if (!in_array($tipoSog, ['F', 'G'], true)) {
             $errors[] = 'Tipo soggetto non valido';
         }
-        $identificativo = trim((string)($sog['identificativo'] ?? ''));
-        $anagrafica = trim((string)($sog['anagrafica'] ?? ''));
-        $nome = trim((string)($sog['nome'] ?? ''));
+    $identificativo = strtoupper(trim((string)($sog['identificativo'] ?? '')));
+    $anagrafica = strtoupper(trim((string)($sog['anagrafica'] ?? '')));
+    $nome = strtoupper(trim((string)($sog['nome'] ?? '')));
         $email = trim((string)($sog['email'] ?? ''));
         if ($identificativo === '') $errors[] = 'Codice fiscale / Partita IVA obbligatorio';
         if ($anagrafica === '') $errors[] = ($tipoSog === 'F') ? 'Cognome obbligatorio' : 'Ragione sociale obbligatoria';
@@ -277,6 +277,10 @@ class PendenzeController
         }
         if (!empty($email)) {
             $payload['soggettoPagatore']['email'] = $email;
+        }
+        // Aggiorna l'identificativo normalizzato
+        if ($identificativo !== '') {
+            $payload['soggettoPagatore']['identificativo'] = $identificativo;
         }
         if (!empty($params['dataValidita'])) $payload['dataValidita'] = $params['dataValidita'];
         if (!empty($params['dataScadenza'])) $payload['dataScadenza'] = $params['dataScadenza'];

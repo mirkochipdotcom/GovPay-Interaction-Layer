@@ -100,6 +100,8 @@
   const idLabel = document.getElementById('identificativoLabel');
   const ident = document.getElementById('identificativo');
   const lblAnag = document.getElementById('lblAnagrafica');
+  const anagraficaInput = document.getElementById('anagrafica');
+  const nomeInput = document.getElementById('nome');
   const colNome = document.getElementById('colNome');
   function update(t){
     if(!idLabel || !ident || !lblAnag) return;
@@ -116,6 +118,21 @@
     }
   }
   [pf,pj].forEach(function(r){ if(r) r.addEventListener('change', function(){ if(this.checked) update(this.value); }); });
+
+  // Forza maiuscolo su CF/P.IVA, cognome/ragione sociale e nome
+  function attachUppercase(el){
+    if(!el) return;
+    el.addEventListener('input', function(){
+      const s = el.selectionStart; const e = el.selectionEnd;
+      el.value = (el.value || '').toUpperCase();
+      if(typeof s === 'number' && typeof e === 'number'){ try { el.setSelectionRange(s,e); } catch(_) {} }
+    });
+    // Normalizza anche su blur
+    el.addEventListener('blur', function(){ el.value = (el.value || '').toUpperCase(); });
+  }
+  attachUppercase(ident);
+  attachUppercase(anagraficaInput);
+  attachUppercase(nomeInput);
 })();
 </script>
 <hr>
