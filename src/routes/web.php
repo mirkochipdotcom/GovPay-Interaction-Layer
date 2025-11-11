@@ -71,8 +71,32 @@ return function (App $app, Twig $twig): void {
     });
 
     $app->get('/pendenze/inserimento-massivo', function(Request $request, Response $response) use ($twig): Response {
-        $controller = new PendenzeController($twig);
-        return $controller->showBulkInsert($request, $response);
+        $controller = new \App\Controllers\MassivePendenzeController($twig);
+        return $controller->index($request, $response);
+    });
+
+    // Massive pendenze extra routes
+    $app->get('/pendenze/massivo/template-csv', function(Request $request, Response $response) use ($twig): Response {
+        $controller = new \App\Controllers\MassivePendenzeController($twig);
+        return $controller->templateCsv($request, $response);
+    });
+    $app->post('/pendenze/massivo/upload', function(Request $request, Response $response) use ($twig): Response {
+        if (session_status() !== PHP_SESSION_ACTIVE) @session_start();
+        $controller = new \App\Controllers\MassivePendenzeController($twig);
+        return $controller->upload($request, $response);
+    });
+    $app->get('/pendenze/massivo/errori-csv', function(Request $request, Response $response) use ($twig): Response {
+        $controller = new \App\Controllers\MassivePendenzeController($twig);
+        return $controller->downloadErroriCsv($request, $response);
+    });
+    $app->post('/pendenze/massivo/conferma', function(Request $request, Response $response) use ($twig): Response {
+        if (session_status() !== PHP_SESSION_ACTIVE) @session_start();
+        $controller = new \App\Controllers\MassivePendenzeController($twig);
+        return $controller->conferma($request, $response);
+    });
+    $app->get('/pendenze/massivo/dettaglio', function(Request $request, Response $response) use ($twig): Response {
+        $controller = new \App\Controllers\MassivePendenzeController($twig);
+        return $controller->dettaglio($request, $response);
     });
 
     $app->get('/pendenze/dettaglio/{idPendenza}', function(Request $request, Response $response, array $args) use ($twig): Response {
