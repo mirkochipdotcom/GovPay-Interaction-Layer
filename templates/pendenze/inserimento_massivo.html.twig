@@ -14,12 +14,69 @@
           <a href="/pendenze/massivo/template-csv" class="btn btn-outline-secondary btn-sm">Scarica template CSV</a>
         </div>
         <div class="mb-3">
-          <label for="csvFile" class="form-label">File CSV</label>
-          <input type="file" class="form-control" id="csvFile" name="csv_file" accept=".csv" required>
-          <div class="form-text">Intestazioni richieste: <code>TIPO;CODICE_FISCALE_PIVA;COGNOME_ANAGRAFICA;NOME;CAUSALE;ANNO_RIFERIMENTO;IMPORTO;EMAIL;DATA_VALIDITA;DATA_SCADENZA;RATA;VOCE_1_IMPORTO;VOCE_1_CAUSALE;VOCE_2_IMPORTO;VOCE_2_CAUSALE</code></div>
+          <label class="form-label" for="csvFile">File CSV</label>
+          <div class="upload-dragdrop border rounded p-3" id="csvDropArea">
+            <div class="upload-dragdrop-image">
+              <img src="/assets/bootstrap-italia/svg/upload-drag-drop-icon.svg" alt="" aria-hidden="true">
+              <div class="upload-dragdrop-loading" aria-hidden="true">
+                <div class="progress-donut" data-bs-progress-donut></div>
+              </div>
+              <div class="upload-dragdrop-success" aria-hidden="true">
+                <svg class="icon" aria-hidden="true"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-check"></use></svg>
+              </div>
+            </div>
+            <div class="upload-dragdrop-text">
+              <p class="upload-dragdrop-weight mb-1" id="csvFileInfo">
+                <svg class="icon icon-xs" aria-hidden="true"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-file"></use></svg>
+                CSV
+              </p>
+              <h5 class="mb-1">Trascina il file per caricarlo</h5>
+              <p class="mb-0">oppure
+                <input type="file" name="csv_file" id="csvFile" class="upload-dragdrop-input" accept=".csv" required>
+                <label for="csvFile" class="ms-1">selezionalo dal dispositivo</label>
+              </p>
+            </div>
+          </div>
+          <div class="form-text mt-2">Intestazioni richieste: <code>TIPO;CODICE_FISCALE_PIVA;COGNOME_ANAGRAFICA;NOME;CAUSALE;ANNO_RIFERIMENTO;IMPORTO;EMAIL;DATA_VALIDITA;DATA_SCADENZA;RATA;VOCE_1_IMPORTO;VOCE_1_CAUSALE;VOCE_2_IMPORTO;VOCE_2_CAUSALE</code></div>
         </div>
         <button type="submit" class="btn btn-primary">Carica & Anteprima</button>
       </form>
+      <script>
+        (function(){
+          const dropArea = document.getElementById('csvDropArea');
+          const input = document.getElementById('csvFile');
+          const info = document.getElementById('csvFileInfo');
+          if (!dropArea || !input) return;
+          const preventDefaults = (e) => { e.preventDefault(); e.stopPropagation(); };
+          ['dragenter','dragover','dragleave','drop'].forEach(ev => {
+            dropArea.addEventListener(ev, preventDefaults, false);
+          });
+          ['dragenter','dragover'].forEach(ev => {
+            dropArea.addEventListener(ev, () => dropArea.classList.add('is-dragover'));
+          });
+          ['dragleave','drop'].forEach(ev => {
+            dropArea.addEventListener(ev, () => dropArea.classList.remove('is-dragover'));
+          });
+          dropArea.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer; if (!dt || !dt.files || !dt.files.length) return;
+            const f = dt.files[0];
+            if (f && (!f.name || !f.name.toLowerCase().endsWith('.csv'))) {
+              alert('Seleziona un file .csv');
+              return;
+            }
+            input.files = dt.files;
+            info && (info.innerText = `${f.name} (${(f.size/1024/1024).toFixed(2)}MB)`);
+            dropArea.classList.add('upload-success');
+          });
+          input.addEventListener('change', () => {
+            const f = input.files && input.files[0];
+            if (f) {
+              info && (info.innerText = `${f.name} (${(f.size/1024/1024).toFixed(2)}MB)`);
+              dropArea.classList.add('upload-success');
+            }
+          });
+        })();
+      </script>
     </div>
   </div>
 
