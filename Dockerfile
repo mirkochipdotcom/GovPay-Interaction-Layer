@@ -1,7 +1,7 @@
 ######################################################################
 # STAGE 1: Asset Builder (Bootstrap Italia + Font Awesome)
 ######################################################################
-FROM node:20-trixie-slim AS asset_builder
+FROM node:lts-trixie-slim AS asset_builder
 
 # Installa dipendenze necessarie per la fase di build (Git, Wget, Unzip)
 RUN apt-get update && \
