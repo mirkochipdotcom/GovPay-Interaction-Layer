@@ -106,7 +106,7 @@
           <button type="submit" class="btn btn-primary">
             <i class="fas fa-search me-1"></i> Cerca
           </button>
-          <a class="btn btn-outline-secondary" href="/pendenze/ricerca">
+          <a class="btn btn-outline-secondary" href="/pendenze/ricerca?reset=1">
             <i class="fas fa-eraser me-1"></i> Azzera
           </a>
           <button class="btn btn-link px-0" type="button" data-bs-toggle="collapse" data-bs-target="#advancedFilters" aria-expanded="false" aria-controls="advancedFilters">
@@ -238,9 +238,8 @@
                 <td class="text-center">
                   {% if r.idPendenza is defined and r.idPendenza %}
                     {% set back = return_url|default('/pendenze/ricerca') %}
-                    {% set anchor = '#row-' ~ r.idPendenza %}
-                    {% set back_hl = back ~ ('?' in back ? '&' : '?') ~ 'highlight=' ~ (r.idPendenza|url_encode) ~ (anchor) %}
-                    <a class="btn btn-outline-primary btn-sm px-2" href="/pendenze/dettaglio/{{ r.idPendenza|url_encode }}?return={{ back_hl|url_encode }}" title="Dettaglio" aria-label="Apri dettaglio della pendenza">
+                    {% set back_with_anchor = back ~ '#row-' ~ r.idPendenza %}
+                    <a class="btn btn-outline-primary btn-sm px-2" href="/pendenze/dettaglio/{{ r.idPendenza|url_encode }}?return={{ back_with_anchor|url_encode }}&highlight={{ r.idPendenza|url_encode }}" title="Dettaglio" aria-label="Apri dettaglio della pendenza">
                       <i class="fas fa-eye"></i>
                     </a>
                   {% else %}
