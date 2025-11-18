@@ -13,12 +13,14 @@ use App\Logger;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\ClientException;
 use GuzzleHttp\Exception\RequestException;
+use GuzzleHttp\Middleware;
 use GovPay\Backoffice\Api\PendenzeApi as BackofficePendenzeApi;
 use GovPay\Backoffice\Configuration as BackofficeConfiguration;
 use GovPay\Backoffice\Model\RaggruppamentoStatistica;
 use GovPay\Backoffice\Model\StatoPendenza;
 use GovPay\Backoffice\ObjectSerializer as BackofficeSerializer;
 use GovPay\Pendenze\Api\PendenzeApi;
+use Psr\Http\Message\RequestInterface as HttpRequest;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
@@ -300,112 +302,37 @@ class PendenzeController
             $payload['allegati'] = $params['allegati'];
         }
 
-        // Recupera dal DB i parametri associati alla tipologia (es. IBAN, codice contabile, tipo bollo)
-        $idDominioUsed = $payload['idDominio'] ?? '';
-        if ($idDominioUsed !== '' && $idTipo !== '') {
-            try {
-                $repo = new EntrateRepository();
-                $details = $repo->findDetails($idDominioUsed, $idTipo);
-            } catch (\Throwable $_) {
-                $details = null;
+        // Costruisce le voci applicando la stessa logica usata anche in fase di modifica
+        $accountingParams = $params;
+        if (!isset($accountingParams['idDominio'])) {
+            $accountingParams['idDominio'] = $payload['idDominio'] ?? ($params['idDominio'] ?? (getenv('ID_DOMINIO') ?: ''));
+        }
+        if (!isset($accountingParams['idTipoPendenza'])) {
+            $accountingParams['idTipoPendenza'] = $payload['idTipoPendenza'] ?? $idTipo;
+        }
+        $payload['voci'] = $this->buildVociWithAccounting($voci, $accountingParams, null, $errors, $warnings);
+
+        if ($errors) {
+            $idDominio = getenv('ID_DOMINIO') ?: '';
+            $tipologie = [];
+            if ($idDominio) {
+                try {
+                    $repo = new EntrateRepository();
+                    $tipologie = $repo->listAbilitateByDominio($idDominio);
+                } catch (\Throwable $e) {}
             }
-        } else {
-            $details = null;
+            return $this->twig->render($response, 'pendenze/inserimento.html.twig', [
+                'errors' => $errors,
+                'warnings' => $warnings,
+                'old' => $params,
+                'tipologie_pendenze' => $tipologie,
+                'id_dominio' => $idDominio,
+                'id_a2a' => $idA2A,
+                'default_anno' => (int)date('Y'),
+            ]);
         }
 
-    // Determina i valori finali dei campi di contabilita' (DB-first, poi form)
-    $finalIban = '';
-    $finalCodEntrata = '';
-    $finalTipoBollo = '';
-    $finalTipoContabilita = '';
-        if ($details) {
-            if (!empty($details['iban_accredito'])) $finalIban = $details['iban_accredito'];
-            if (!empty($details['codice_contabilita'])) $finalCodEntrata = $details['codice_contabilita'];
-            if (!empty($details['tipo_bollo'])) $finalTipoBollo = $details['tipo_bollo'];
-            if (!empty($details['tipo_contabilita'])) $finalTipoContabilita = $details['tipo_contabilita'];
-        }
-        // Se non presenti nel DB, usa l'eventuale override dal form
-        if ($finalIban === '' && !empty($params['ibanAccredito'])) $finalIban = $params['ibanAccredito'];
-    // accetta sia il nome storico 'codEntrata' che il nome API 'codiceContabilita' dal form
-    if ($finalCodEntrata === '' && (!empty($params['codiceContabilita']) || !empty($params['codEntrata']))) $finalCodEntrata = $params['codiceContabilita'] ?? $params['codEntrata'];
-
-    // Per semplicità e coerenza con il sistema, il codice di contabilita' sarà
-    // l'identificativo della tipologia scelta (idTipo). Questo sovrascrive
-    // eventuali valori dal DB o dal form.
-    if ($idTipo !== '') {
-        $finalCodEntrata = (string)$idTipo;
-    }
-    if ($finalTipoBollo === '' && !empty($params['tipoBollo'])) $finalTipoBollo = $params['tipoBollo'];
-    if ($finalTipoContabilita === '' && !empty($params['tipoContabilita'])) $finalTipoContabilita = $params['tipoContabilita'];
-
-        // Validazione / sanitizzazione del campo codEntrata per rispettare il pattern API
-        // Pattern consentito: lettere, numeri, '-', '_' e '.' fino a 35 caratteri
-        $codPattern = '/^[A-Za-z0-9\-_.]{1,35}$/';
-        if ($finalCodEntrata !== '') {
-            if (!preg_match($codPattern, $finalCodEntrata)) {
-                $orig = $finalCodEntrata;
-                $sanitized = preg_replace('/[^A-Za-z0-9\-_.]/', '', $orig);
-                $sanitized = substr($sanitized, 0, 35);
-                if ($sanitized !== '') {
-                    // Log e notifica utente (avviso)
-                    Logger::getInstance()->warning("codiceContabilita sanitizzato per invio: '{$orig}' -> '{$sanitized}'", ['idTipo' => $idTipo, 'idDominio' => $idDominioUsed]);
-                    $warnings[] = "Il valore codiceContabilita '{$orig}' non è valido per l'API e verrà inviato come '{$sanitized}' (caratteri non validi rimossi).";
-                    $finalCodEntrata = $sanitized;
-                } else {
-                    $errors[] = 'Il valore [' . $orig . '] del campo codiceContabilita non rispetta il pattern richiesto: (^[a-zA-Z0-9\\-_\\.]{1,35}$)';
-                }
-            }
-        }
-        // Se sia IBAN che codice entrata sono presenti, li inviamo entrambi come
-        // Entrata completa (l'API v2 richiede ibanAccredito + tipoContabilita + codiceContabilita).
-            // Decide quale rappresentazione inviare per le voci:
-            // - Bollo: se è valorizzato tipoBollo
-            // - Entrata (completa): se sono presenti IBAN, tipoContabilita e codiceContabilita
-            // - RiferimentoEntrata (fallback): se manca la Entrata completa ma è presente il codice entrata
-            // Altrimenti generiamo un errore.
-            $voiceMode = null; // 'bollo'|'entrata'|'riferimento'
-            if ($finalTipoBollo !== '') {
-                $voiceMode = 'bollo';
-            } else {
-                $hasEntrata = ($finalIban !== '' && $finalTipoContabilita !== '' && $finalCodEntrata !== '');
-                if ($hasEntrata) {
-                    $voiceMode = 'entrata';
-                    Logger::getInstance()->info('Entrata completa trovata: invio Entrata', ['idTipo' => $idTipo, 'idDominio' => $idDominioUsed, 'iban' => $finalIban, 'tipoContabilita' => $finalTipoContabilita, 'codiceContabilita' => $finalCodEntrata]);
-                    $warnings[] = 'La tipologia contiene dati completi di contabilita: verrà inviata una Entrata completa.';
-                } elseif ($finalCodEntrata !== '') {
-                    $voiceMode = 'riferimento';
-                    Logger::getInstance()->info('Fallback a RiferimentoEntrata: invio codEntrata', ['idTipo' => $idTipo, 'idDominio' => $idDominioUsed, 'codEntrata' => $finalCodEntrata]);
-                    $warnings[] = 'La tipologia non contiene dati completi di Entrata: verrà inviato un riferimento alla entrata (RiferimentoEntrata).';
-                } else {
-                    $voiceMode = null;
-                }
-            }
-
-            // Costruisce le voci secondo la rappresentazione scelta
-            $builtVoci = [];
-            foreach ($voci as $vv) {
-                $nv = $vv; // base
-                // rimuoviamo eventuali chiavi residue
-                unset($nv['codiceContabilita'], $nv['codEntrata'], $nv['ibanAccredito'], $nv['tipoContabilita'], $nv['tipoBollo'], $nv['contabilita']);
-                if ($voiceMode === 'bollo') {
-                    if ($finalTipoBollo !== '') $nv['tipoBollo'] = $finalTipoBollo;
-                } elseif ($voiceMode === 'entrata') {
-                    $nv['ibanAccredito'] = $finalIban;
-                    $nv['tipoContabilita'] = $finalTipoContabilita;
-                    $nv['codiceContabilita'] = $finalCodEntrata;
-                } elseif ($voiceMode === 'riferimento') {
-                    $nv['codEntrata'] = $finalCodEntrata;
-                }
-                $builtVoci[] = $nv;
-            }
-            $payload['voci'] = $builtVoci;
-
-            // Se non abbiamo determinato alcuna rappresentazione valida -> errore
-            if ($voiceMode === null) {
-                $errors[] = 'Per la voce è necessario inviare o i dati completi di Entrata (IBAN, tipoContabilita, codiceContabilita), o il riferimento alla entrata (codEntrata), o i dati di Bollo. Configura la tipologia o inserisci i valori nei campi avanzati.';
-            }
-
-        // (La costruzione delle voci è stata gestita sopra in base a $voiceMode)
+        // (La costruzione delle voci è stata gestita dall'helper buildVociWithAccounting)
 
         // Invio al Backoffice
         $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
@@ -1387,6 +1314,8 @@ class PendenzeController
         $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
         $idA2A = getenv('ID_A2A') ?: '';
         $errors = [];
+        $warnings = [];
+        $warnings = [];
         if (empty($backofficeUrl)) {
             $errors[] = 'GOVPAY_BACKOFFICE_URL non impostata';
             return ['success' => false, 'errors' => $errors];
@@ -1510,6 +1439,309 @@ class PendenzeController
     }
 
     /**
+     * Applica la logica di arricchimento delle voci partendo da voci base (id/descrizione/importo)
+     * e dai parametri avanzati forniti dal form o dalla pendenza corrente.
+     */
+    private function buildVociWithAccounting(array $baseVoci, array $params, ?array $currentPendenza, array &$errors, ?array &$warnings = null): array
+    {
+        if ($warnings === null) {
+            $warnings = [];
+        }
+        $idDominioUsed = (string)($params['idDominio'] ?? '');
+        if ($idDominioUsed === '' && is_array($currentPendenza) && isset($currentPendenza['idDominio'])) {
+            $idDominioUsed = (string)$currentPendenza['idDominio'];
+        }
+        if ($idDominioUsed === '') {
+            $idDominioUsed = (string)(getenv('ID_DOMINIO') ?: '');
+        }
+
+        $idTipo = trim((string)($params['idTipoPendenza'] ?? ''));
+        if ($idTipo === '' && is_array($currentPendenza)) {
+            $idTipo = $this->extractIdTipoFromPendenza($currentPendenza);
+        }
+
+        $details = null;
+        if ($idDominioUsed !== '' && $idTipo !== '') {
+            try {
+                $repo = new EntrateRepository();
+                $details = $repo->findDetails($idDominioUsed, $idTipo);
+            } catch (\Throwable $_) {
+                $details = null;
+            }
+        }
+
+        $existingAccounting = $this->extractAccountingDefaultsFromPendenza($currentPendenza);
+        $finalIban = (string)($existingAccounting['ibanAccredito'] ?? '');
+        $finalCodEntrata = (string)($existingAccounting['codiceContabilita'] ?? ($existingAccounting['codEntrata'] ?? ''));
+        $finalTipoBollo = (string)($existingAccounting['tipoBollo'] ?? '');
+        $finalTipoContabilita = (string)($existingAccounting['tipoContabilita'] ?? '');
+
+        if ($details) {
+            if ($finalIban === '' && !empty($details['iban_accredito'])) $finalIban = $details['iban_accredito'];
+            if ($finalCodEntrata === '' && !empty($details['codice_contabilita'])) $finalCodEntrata = $details['codice_contabilita'];
+            if ($finalTipoBollo === '' && !empty($details['tipo_bollo'])) $finalTipoBollo = $details['tipo_bollo'];
+            if ($finalTipoContabilita === '' && !empty($details['tipo_contabilita'])) $finalTipoContabilita = $details['tipo_contabilita'];
+        }
+
+        if (array_key_exists('ibanAccredito', $params)) {
+            $finalIban = trim((string)$params['ibanAccredito']);
+        }
+        if (array_key_exists('codiceContabilita', $params)) {
+            $finalCodEntrata = trim((string)$params['codiceContabilita']);
+        } elseif (array_key_exists('codEntrata', $params)) {
+            $finalCodEntrata = trim((string)$params['codEntrata']);
+        }
+        if (array_key_exists('tipoBollo', $params)) {
+            $finalTipoBollo = trim((string)$params['tipoBollo']);
+        }
+        if (array_key_exists('tipoContabilita', $params)) {
+            $finalTipoContabilita = trim((string)$params['tipoContabilita']);
+        }
+
+        if ($idTipo !== '') {
+            $finalCodEntrata = (string)$idTipo;
+        }
+
+        $codPattern = '/^[A-Za-z0-9\-_.]{1,35}$/';
+        if ($finalCodEntrata !== '' && !preg_match($codPattern, $finalCodEntrata)) {
+            $orig = $finalCodEntrata;
+            $sanitized = preg_replace('/[^A-Za-z0-9\-_.]/', '', $orig);
+            $sanitized = substr($sanitized, 0, 35);
+            if ($sanitized !== '') {
+                Logger::getInstance()->warning("codiceContabilita sanitizzato per invio: '{$orig}' -> '{$sanitized}'", ['idTipo' => $idTipo, 'idDominio' => $idDominioUsed]);
+                $warnings[] = "Il valore codiceContabilita '{$orig}' non è valido per l'API e verrà inviato come '{$sanitized}' (caratteri non validi rimossi).";
+                $finalCodEntrata = $sanitized;
+            } else {
+                $errors[] = 'Il valore [' . $orig . '] del campo codiceContabilita non rispetta il pattern richiesto: (^[a-zA-Z0-9\-_\.]{1,35}$)';
+            }
+        }
+
+        $voiceMode = null; // 'bollo'|'entrata'|'riferimento'
+        if ($finalTipoBollo !== '') {
+            $voiceMode = 'bollo';
+        } else {
+            $hasEntrata = ($finalIban !== '' && $finalTipoContabilita !== '' && $finalCodEntrata !== '');
+            if ($hasEntrata) {
+                $voiceMode = 'entrata';
+                Logger::getInstance()->info('Entrata completa trovata: invio Entrata', ['idTipo' => $idTipo, 'idDominio' => $idDominioUsed, 'iban' => $finalIban, 'tipoContabilita' => $finalTipoContabilita, 'codiceContabilita' => $finalCodEntrata]);
+                $warnings[] = 'La tipologia contiene dati completi di contabilita: verrà inviata una Entrata completa.';
+            } elseif ($finalCodEntrata !== '') {
+                $voiceMode = 'riferimento';
+                Logger::getInstance()->info('Fallback a RiferimentoEntrata: invio codEntrata', ['idTipo' => $idTipo, 'idDominio' => $idDominioUsed, 'codEntrata' => $finalCodEntrata]);
+                $warnings[] = 'La tipologia non contiene dati completi di Entrata: verrà inviato un riferimento alla entrata (RiferimentoEntrata).';
+            }
+        }
+
+        if ($voiceMode === null) {
+            $errors[] = 'Per la voce è necessario inviare o i dati completi di Entrata (IBAN, tipoContabilita, codiceContabilita), o il riferimento alla entrata (codEntrata), o i dati di Bollo. Configura la tipologia o inserisci i valori nei campi avanzati.';
+            return [];
+        }
+
+        $builtVoci = [];
+        foreach (array_values($baseVoci) as $idx => $voceBase) {
+            if (!is_array($voceBase)) {
+                continue;
+            }
+            $idVoce = trim((string)($voceBase['idVocePendenza'] ?? ''));
+            if ($idVoce === '') {
+                $idVoce = (string)($idx + 1);
+            }
+            $descrizione = trim((string)($voceBase['descrizione'] ?? ''));
+            $importo = $this->normalizeImporto($voceBase['importo'] ?? 0.0);
+            $nv = [
+                'idVocePendenza' => $idVoce,
+                'descrizione' => $descrizione,
+                'importo' => $importo,
+            ];
+            if ($voiceMode === 'bollo') {
+                if ($finalTipoBollo !== '') {
+                    $nv['tipoBollo'] = $finalTipoBollo;
+                }
+            } elseif ($voiceMode === 'entrata') {
+                $nv['ibanAccredito'] = $finalIban;
+                $nv['tipoContabilita'] = $finalTipoContabilita;
+                $nv['codiceContabilita'] = $finalCodEntrata;
+            } elseif ($voiceMode === 'riferimento') {
+                $nv['codEntrata'] = $finalCodEntrata;
+            }
+            $builtVoci[] = $nv;
+        }
+
+        return $builtVoci;
+    }
+
+    /**
+     * Normalizza l'input delle voci provenienti dal form o dalla pendenza corrente.
+     */
+    private function normalizeVociInput(array $rawVoci, string $defaultDescrizione, float $defaultImporto): array
+    {
+        $normalized = [];
+        $counter = 0;
+        foreach ($rawVoci as $idx => $voceRaw) {
+            if (!is_array($voceRaw)) {
+                continue;
+            }
+            $idVoce = trim((string)($voceRaw['idVocePendenza'] ?? $voceRaw['id_voce_pendenza'] ?? ''));
+            if ($idVoce === '') {
+                $idVoce = (string)($counter + 1);
+            }
+            $descrizione = trim((string)($voceRaw['descrizione'] ?? $voceRaw['desc'] ?? ''));
+            if ($descrizione === '') {
+                $descrizione = $defaultDescrizione;
+            }
+            $importo = $this->normalizeImporto($voceRaw['importo'] ?? ($voceRaw['importoVoce'] ?? $defaultImporto));
+            if ($importo <= 0 && $defaultImporto > 0) {
+                $importo = $defaultImporto;
+            }
+            $normalized[] = [
+                'idVocePendenza' => $idVoce,
+                'descrizione' => $descrizione,
+                'importo' => $importo,
+            ];
+            $counter++;
+        }
+        return $normalized;
+    }
+
+    private function normalizeImporto($value): float
+    {
+        if (is_numeric($value)) {
+            return (float)$value;
+        }
+        $stringValue = (string)$value;
+        $normalized = str_replace(',', '.', $stringValue);
+        return is_numeric($normalized) ? (float)$normalized : 0.0;
+    }
+
+    private function extractAccountingDefaultsFromPendenza(?array $pendenza): array
+    {
+        if (!is_array($pendenza)) {
+            return [];
+        }
+        $voci = $pendenza['voci'] ?? null;
+        if (!is_array($voci)) {
+            return [];
+        }
+        foreach ($voci as $voce) {
+            if (!is_array($voce)) {
+                continue;
+            }
+            $candidate = [
+                'ibanAccredito' => $voce['ibanAccredito'] ?? ($voce['contabilita']['ibanAccredito'] ?? ''),
+                'codiceContabilita' => $voce['codiceContabilita'] ?? ($voce['contabilita']['codiceContabilita'] ?? ''),
+                'codEntrata' => $voce['codEntrata'] ?? ($voce['contabilita']['codEntrata'] ?? ''),
+                'tipoContabilita' => $voce['tipoContabilita'] ?? ($voce['contabilita']['tipoContabilita'] ?? ''),
+                'tipoBollo' => $voce['tipoBollo'] ?? '',
+            ];
+            $hasValue = false;
+            foreach ($candidate as $val) {
+                if ($val !== '' && $val !== null) {
+                    $hasValue = true;
+                    break;
+                }
+            }
+            if ($hasValue) {
+                return $candidate;
+            }
+        }
+        return [];
+    }
+
+    private function extractIdTipoFromPendenza(array $pendenza): string
+    {
+        if (isset($pendenza['idTipoPendenza'])) {
+            return (string)$pendenza['idTipoPendenza'];
+        }
+        if (isset($pendenza['tipo']['idTipoPendenza'])) {
+            return (string)$pendenza['tipo']['idTipoPendenza'];
+        }
+        if (isset($pendenza['tipoPendenza']['idTipoPendenza'])) {
+            return (string)$pendenza['tipoPendenza']['idTipoPendenza'];
+        }
+        return '';
+    }
+
+    private function splitPersonaFisicaAnagrafica(string $fullName, ?string $codiceFiscale = null): array
+    {
+        $normalized = trim(preg_replace('/\s+/', ' ', $fullName));
+        if ($normalized === '') {
+            return ['', ''];
+        }
+        $parts = preg_split('/\s+/', $normalized);
+        if (!$parts || count($parts) === 0) {
+            return ['', $normalized];
+        }
+        if (count($parts) === 1) {
+            return ['', $parts[0]];
+        }
+        $tokens = $parts;
+        $tokenCount = count($tokens);
+        $defaultCognome = $tokens[$tokenCount - 1];
+        $defaultNomeTokens = array_slice($tokens, 0, $tokenCount - 1);
+        $defaultNome = implode(' ', $defaultNomeTokens);
+
+        $cfSurnameBlock = null;
+        $cf = strtoupper(trim((string)$codiceFiscale));
+        if ($cf !== '' && preg_match('/^[A-Z0-9]{16}$/', $cf)) {
+            $cfSurnameBlock = substr($cf, 0, 3);
+        }
+
+        if ($cfSurnameBlock !== null) {
+            for ($len = 1; $len <= $tokenCount; $len++) {
+                $candidateTokens = array_slice($tokens, $tokenCount - $len, $len);
+                $candidate = implode(' ', $candidateTokens);
+                $block = $this->computeCfBlock($candidate, false);
+                if ($block === $cfSurnameBlock) {
+                    $nomeTokens = array_slice($tokens, 0, $tokenCount - $len);
+                    return [trim(implode(' ', $nomeTokens)), trim($candidate)];
+                }
+            }
+        }
+
+        return [trim($defaultNome), trim($defaultCognome)];
+    }
+
+    private function computeCfBlock(string $value, bool $isName): string
+    {
+        $ascii = $this->normalizeAsciiUpper($value);
+        $filtered = preg_replace('/[^A-Z]/', '', $ascii ?? '') ?? '';
+        $consonants = preg_replace('/[AEIOU]/', '', $filtered);
+        $vowels = preg_replace('/[^AEIOU]/', '', $filtered);
+        $block = '';
+        if ($isName) {
+            if (strlen((string)$consonants) >= 4) {
+                $block = $consonants[0] . $consonants[2] . $consonants[3];
+            } else {
+                $block = substr((string)$consonants, 0, 3);
+            }
+        } else {
+            $block = substr((string)$consonants, 0, 3);
+        }
+        if (strlen($block) < 3) {
+            $block .= substr((string)$vowels, 0, 3 - strlen($block));
+        }
+        while (strlen($block) < 3) {
+            $block .= 'X';
+        }
+        return $block;
+    }
+
+    private function normalizeAsciiUpper(string $value): string
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return '';
+        }
+        if (function_exists('iconv')) {
+            $tmp = @iconv('UTF-8', 'ASCII//TRANSLIT', $trimmed);
+            if ($tmp !== false) {
+                $trimmed = $tmp;
+            }
+        }
+        return strtoupper($trimmed);
+    }
+
+    /**
      * Costruisce le voci per l'inserimento applicando la logica DB-first.
      * Restituisce le voci normalizzate e popola $errors se ci sono problemi.
      */
@@ -1607,9 +1839,62 @@ class PendenzeController
             }
         }
 
-        // Crea un handler stack completamente pulito senza alcun middleware
+        $defaultCurlOptions = [];
+        if (defined('CURL_SSLVERSION_TLSv1_2')) {
+            $defaultCurlOptions[CURLOPT_SSLVERSION] = CURL_SSLVERSION_TLSv1_2;
+        }
+        if (defined('CURL_HTTP_VERSION_1_1')) {
+            $defaultCurlOptions[CURLOPT_HTTP_VERSION] = CURL_HTTP_VERSION_1_1;
+        }
+        if (defined('CURLOPT_SSL_SESSIONID_CACHE')) {
+            $defaultCurlOptions[CURLOPT_SSL_SESSIONID_CACHE] = false;
+        }
+        if (defined('CURLOPT_FORBID_REUSE')) {
+            $defaultCurlOptions[CURLOPT_FORBID_REUSE] = true;
+        }
+        if (!empty($defaultCurlOptions)) {
+            $guzzleOptions['curl'] = ($guzzleOptions['curl'] ?? []) + $defaultCurlOptions;
+        }
+
+        // Crea un handler stack con retry automatico sui problemi TLS intermittenti (cURL 35)
         $handlerStack = new \GuzzleHttp\HandlerStack();
         $handlerStack->setHandler(new \GuzzleHttp\Handler\CurlHandler());
+
+        $handlerStack->push(Middleware::mapRequest(
+            static function (HttpRequest $request): HttpRequest {
+                return $request->withHeader('Connection', 'close');
+            }
+        ));
+
+        $maxTlsRetries = 5;
+        $handlerStack->push(Middleware::retry(
+            function (int $retries, $request, $response = null, $exception = null) use ($maxTlsRetries): bool {
+                if (!$exception instanceof RequestException) {
+                    return false;
+                }
+                $context = $exception->getHandlerContext();
+                $errno = (int)($context['errno'] ?? 0);
+                $message = strtolower($exception->getMessage());
+                $isTlsError = $errno === 35 || str_contains($message, 'curl error 35');
+                if (!$isTlsError) {
+                    return false;
+                }
+                if ($retries >= $maxTlsRetries) {
+                    Logger::error(sprintf('GovPay TLS error after %d retries (errno %s): %s', $maxTlsRetries, $errno ?: 'n/a', $exception->getMessage()));
+                    return false;
+                }
+                Logger::warning(sprintf('Retry GovPay call after TLS error (attempt %d/%d, errno %s)', $retries + 1, $maxTlsRetries, $errno ?: 'n/a'));
+                return true;
+            },
+            static function (int $retries): int {
+                if ($retries <= 0) {
+                    return 0;
+                }
+                $baseDelay = 200 * (1 << ($retries - 1));
+                $jitter = random_int(0, 100);
+                return (int)min(2000, $baseDelay + $jitter);
+            }
+        ));
 
         $guzzleOptions['handler'] = $handlerStack;
 
@@ -1896,10 +2181,7 @@ class PendenzeController
             // IMPORTANT: do not attempt to infer the current rate from related
             // pendenze. This was a heuristic that produced non-deterministic
             // highlights and hid the real issue (missing scalar value in the
-            // primary pendenza). Log (when in debug) so we can diagnose.
-            if ($currentRate === null && ((getenv('APP_DEBUG') !== false) && getenv('APP_DEBUG'))) {
-                Logger::getInstance()->info('No scalar documento.rata found on pendenza; automatic highlighting disabled', ['idPendenza' => $idPendenza, 'rate_info_source' => $rateInfoSource]);
-            }
+            // primary pendenza). 
         }
 
         // Fetch tipologie for the template
@@ -2570,6 +2852,11 @@ class PendenzeController
         \App\Logger::getInstance()->debug('Aggiorna pendenza via PUT diretto');
         $putResult = $this->fallbackFullPutUpdate($idPendenza, $params);
         if ($putResult['success']) {
+            if (!empty($putResult['warnings']) && is_array($putResult['warnings'])) {
+                foreach ($putResult['warnings'] as $warn) {
+                    $_SESSION['flash'][] = ['type' => 'warning', 'text' => (string)$warn];
+                }
+            }
             $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Pendenza aggiornata con successo'];
             // Sempre torna al dettaglio della pendenza aggiornata, indipendentemente dal return_url
             $redirectUrl = '/pendenze/dettaglio/' . rawurlencode($idPendenza);
@@ -2631,21 +2918,26 @@ class PendenzeController
             $put = array_intersect_key($cur, array_flip($allowedKeys));
 
             // 3) Merge: applica modifiche dal form
-            if (isset($params['causale'])) $put['causale'] = trim((string)$params['causale']);
-            if (isset($params['importo'])) $put['importo'] = (float)str_replace(',', '.', (string)$params['importo']);
-            if (!empty($params['dataValidita'])) { $put['dataValidita'] = $params['dataValidita']; } else { unset($put['dataValidita']); }
-            if (!empty($params['dataScadenza'])) { $put['dataScadenza'] = $params['dataScadenza']; } else { unset($put['dataScadenza']); }
+            if (isset($params['causale'])) {
+                $put['causale'] = trim((string)$params['causale']);
+            }
+            if (isset($params['importo'])) {
+                $put['importo'] = (float)str_replace(',', '.', (string)$params['importo']);
+            }
+            if (!empty($params['dataValidita'])) {
+                $put['dataValidita'] = $params['dataValidita'];
+            } else {
+                unset($put['dataValidita']);
+            }
+            if (!empty($params['dataScadenza'])) {
+                $put['dataScadenza'] = $params['dataScadenza'];
+            } else {
+                unset($put['dataScadenza']);
+            }
 
             // idTipoPendenza: usa quello del form se presente, altrimenti preserva quello attuale
             $idTipoFromForm = trim((string)($params['idTipoPendenza'] ?? ''));
-            $idTipoFromCur = '';
-            if (isset($cur['idTipoPendenza'])) {
-                $idTipoFromCur = (string)$cur['idTipoPendenza'];
-            } elseif (isset($cur['tipo']['idTipoPendenza'])) {
-                $idTipoFromCur = (string)$cur['tipo']['idTipoPendenza'];
-            } elseif (isset($cur['tipoPendenza']['idTipoPendenza'])) {
-                $idTipoFromCur = (string)$cur['tipoPendenza']['idTipoPendenza'];
-            }
+            $idTipoFromCur = $this->extractIdTipoFromPendenza($cur);
             $idTipoEffective = $idTipoFromForm !== '' ? $idTipoFromForm : $idTipoFromCur;
             if ($idTipoEffective !== '') {
                 $put['idTipoPendenza'] = $idTipoEffective;
@@ -2664,6 +2956,38 @@ class PendenzeController
                 $put['soggettoPagatore'] = $normalized;
             }
 
+            // 3b) Ricostruisce le voci utilizzando la stessa logica di creazione
+            $baseVoci = [];
+            if (!empty($params['voci']) && is_array($params['voci'])) {
+                $baseVoci = $this->normalizeVociInput($params['voci'], (string)($put['causale'] ?? ''), (float)($put['importo'] ?? 0.0));
+            }
+
+            if (empty($baseVoci) && !empty($cur['voci']) && is_array($cur['voci'])) {
+                $baseVoci = $this->normalizeVociInput($cur['voci'], (string)($put['causale'] ?? ''), (float)($put['importo'] ?? 0.0));
+            }
+
+            if (empty($baseVoci)) {
+                $baseVoci[] = [
+                    'idVocePendenza' => '1',
+                    'descrizione' => (string)($put['causale'] ?? ''),
+                    'importo' => (float)($put['importo'] ?? 0.0),
+                ];
+            }
+
+            $accountingParams = $params;
+            if (!isset($accountingParams['idDominio'])) {
+                $accountingParams['idDominio'] = $put['idDominio'] ?? ($cur['idDominio'] ?? (getenv('ID_DOMINIO') ?: ''));
+            }
+            if (!isset($accountingParams['idTipoPendenza']) && $idTipoEffective !== '') {
+                $accountingParams['idTipoPendenza'] = $idTipoEffective;
+            }
+
+            $put['voci'] = $this->buildVociWithAccounting($baseVoci, $accountingParams, $cur, $errors, $warnings);
+
+            if ($errors) {
+                return ['success' => false, 'errors' => $errors];
+            }
+
             // 4) Non inviare idPendenza/idA2A nel body (sono nell'URL)
             unset($put['idPendenza'], $put['idA2A']);
             // Assicura idDominio popolato: obbligatorio per PendenzaPut
@@ -2676,6 +3000,9 @@ class PendenzeController
 
             // 5) Invia PUT completo utilizzando l'helper esistente
             $res = $this->sendPendenzaToBackoffice($put, $idPendenza);
+            if (!empty($warnings)) {
+                $res['warnings'] = array_merge($res['warnings'] ?? [], $warnings);
+            }
             return $res;
         } catch (\Throwable $e) {
             $errors[] = $e->getMessage();
@@ -2783,16 +3110,48 @@ class PendenzeController
             $causale = (string)$voci[0]['descrizione'];
         }
 
+        $soggettoPagatore = $pendenza['soggettoPagatore'] ?? [];
+        if (is_array($soggettoPagatore)) {
+            $tipoSoggetto = strtoupper((string)($soggettoPagatore['tipo'] ?? 'F'));
+            if ($tipoSoggetto === 'F') {
+                $fullAnagrafica = trim((string)($soggettoPagatore['anagrafica'] ?? ''));
+                $hasNome = isset($soggettoPagatore['nome']) && trim((string)$soggettoPagatore['nome']) !== '';
+                if ($fullAnagrafica !== '') {
+                    $codiceFiscale = isset($soggettoPagatore['identificativo']) ? (string)$soggettoPagatore['identificativo'] : null;
+                    [$nomeStimato, $cognomeStimato] = $this->splitPersonaFisicaAnagrafica($fullAnagrafica, $codiceFiscale);
+                    if (!$hasNome && $nomeStimato !== '') {
+                        $soggettoPagatore['nome'] = $nomeStimato;
+                    }
+                    if ($cognomeStimato !== '') {
+                        $soggettoPagatore['anagrafica'] = $cognomeStimato;
+                    }
+                }
+            }
+        } else {
+            $soggettoPagatore = [];
+        }
+
         $form = [
             'idTipoPendenza' => $idTipo,
             'causale' => $causale,
             'importo' => $pendenza['importo'] ?? '',
             'annoRiferimento' => $pendenza['annoRiferimento'] ?? '',
-            'soggettoPagatore' => $pendenza['soggettoPagatore'] ?? [],
+            'soggettoPagatore' => $soggettoPagatore,
             'voci' => $voci,
             'dataValidita' => $pendenza['dataValidita'] ?? '',
             'dataScadenza' => $pendenza['dataScadenza'] ?? '',
+            'direzione' => $pendenza['direzione'] ?? '',
+            'divisione' => $pendenza['divisione'] ?? '',
+            'cartellaPagamento' => $pendenza['cartellaPagamento'] ?? '',
         ];
+
+        $accountingDefaults = $this->extractAccountingDefaultsFromPendenza($pendenza);
+        if ($accountingDefaults) {
+            $form['ibanAccredito'] = $accountingDefaults['ibanAccredito'] ?? '';
+            $form['codiceContabilita'] = $accountingDefaults['codiceContabilita'] ?? ($accountingDefaults['codEntrata'] ?? '');
+            $form['tipoBollo'] = $accountingDefaults['tipoBollo'] ?? '';
+            $form['tipoContabilita'] = $accountingDefaults['tipoContabilita'] ?? '';
+        }
 
         if (empty($form['idTipoPendenza'])) {
             \App\Logger::getInstance()->debug('preparePendenzaForForm: idTipoPendenza non trovato nelle chiavi standard', [
