@@ -510,32 +510,60 @@ class PendenzeController
 
     public function search(Request $request, Response $response): Response
     {
-        
-        $params = (array)($request->getQueryParams() ?? []);
-        $errors = [];
+        if (session_status() !== PHP_SESSION_ACTIVE) @session_start();
 
-        // Recupero tipologie pendenze abilitate
-        $idDominio = $filters['idDominio'] ?? (getenv('ID_DOMINIO') ?: '');
-        $tipologie = [];
-        if ($idDominio) {
-            $repo = new EntrateRepository();
-            $tipologie = $repo->listAbilitateByDominio($idDominio);
+        $sessionKey = 'pendenze_last_search';
+        $sessionContext = $_SESSION[$sessionKey] ?? null;
+
+        $params = (array)($request->getQueryParams() ?? []);
+        $resetRequested = array_key_exists('reset', $params);
+        if ($resetRequested) {
+            unset($_SESSION[$sessionKey], $_SESSION['pendenze_last_highlight']);
+            unset($params['reset']);
+            $sessionContext = null;
         }
 
-        $allowedStates = class_exists(StatoPendenza::class)
-            ? StatoPendenza::getAllowableEnumValues()
-            : [];
+        $paramsWithoutHighlight = $params;
+        unset($paramsWithoutHighlight['highlight']);
+        $hasExplicitSearch = isset($params['q']) && trim((string)$params['q']) !== '';
 
-        $ordinamento = $request->getQueryParams()['ordinamento'] ?? '-dataCaricamento';
+        if (!$hasExplicitSearch) {
+            $hasAnyFilter = false;
+            foreach ($paramsWithoutHighlight as $value) {
+                if ($value !== null && $value !== '') {
+                    $hasAnyFilter = true;
+                    break;
+                }
+            }
 
+            if (!$hasAnyFilter && $sessionContext && isset($sessionContext['query_params'])) {
+                $params = $sessionContext['query_params'];
+                $hasExplicitSearch = true;
+            } elseif ($hasAnyFilter) {
+                $params['q'] = '1';
+                $hasExplicitSearch = true;
+            }
+        }
+
+        $errors = [];
+        $queryMade = false;
+        $results = null;
+        $numPagine = null;
+        $numRisultati = null;
+        $prevUrl = null;
+        $nextUrl = null;
+
+        $envIdDominio = (string)(getenv('ID_DOMINIO') ?: '');
+        $envIdA2A = (string)(getenv('ID_A2A') ?: '');
+        $ordinamentoParam = isset($params['ordinamento']) ? (string)$params['ordinamento'] : '-dataCaricamento';
 
         $filters = [
-            'q' => isset($params['q']) ? (string)$params['q'] : null,
+            'q' => $hasExplicitSearch ? '1' : null,
             'pagina' => max(1, (int)($params['pagina'] ?? 1)),
             'risultatiPerPagina' => min(200, max(1, (int)($params['risultatiPerPagina'] ?? 25))),
-            'ordinamento' => $ordinamento,
-            'idDominio' => (string)($params['idDominio'] ?? (getenv('ID_DOMINIO') ?: '')),
-            'idA2A' => (string)($params['idA2A'] ?? (getenv('ID_A2A') ?: '')),
+            'ordinamento' => $ordinamentoParam,
+            'idDominio' => (string)($params['idDominio'] ?? $envIdDominio),
+            'idA2A' => (string)($params['idA2A'] ?? $envIdA2A),
             'idPendenza' => (string)($params['idPendenza'] ?? ''),
             'idDebitore' => (string)($params['idDebitore'] ?? ''),
             'stato' => (string)($params['stato'] ?? ''),
@@ -548,8 +576,20 @@ class PendenzeController
             'tipologiaPendenza' => (string)($params['tipologiaPendenza'] ?? ''),
         ];
 
-        // Ricavo idEntrata dal filtro tipologiaPendenza
-        $idEntrata = $filters['tipologiaPendenza'] ?? null;
+        $idDominio = $filters['idDominio'];
+        $tipologie = [];
+        if ($idDominio !== '') {
+            try {
+                $repo = new EntrateRepository();
+                $tipologie = $repo->listAbilitateByDominio($idDominio);
+            } catch (\Throwable $e) {
+                $tipologie = [];
+            }
+        }
+
+        $allowedStates = class_exists(StatoPendenza::class)
+            ? StatoPendenza::getAllowableEnumValues()
+            : [];
 
         $validFields = ['dataCaricamento', 'dataValidita', 'dataScadenza', 'stato'];
 
@@ -573,26 +613,19 @@ class PendenzeController
             return $direction . $field;
         };
 
-        $filters['ordinamento'] = $normalizeOrder((string)($filters['ordinamento'] ?? ''), $validFields);
+        $filters['ordinamento'] = $normalizeOrder((string)$filters['ordinamento'], $validFields);
 
         if ($filters['stato'] !== '' && !in_array($filters['stato'], $allowedStates, true)) {
             $errors[] = 'Valore "stato" non valido';
             $filters['stato'] = '';
         }
 
-        $results = null;
-        $numPagine = null;
-        $numRisultati = null;
-        $queryMade = false;
-        $prevUrl = null;
-        $nextUrl = null;
-
-        if (($filters['q'] ?? null) !== null) {
+        if ($filters['q'] !== null) {
             $queryMade = true;
             $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
             if (!class_exists(BackofficePendenzeApi::class)) {
                 $errors[] = 'Client Backoffice non disponibile (namespace GovPay\\Backoffice)';
-            } elseif (empty($backofficeUrl)) {
+            } elseif ($backofficeUrl === '') {
                 $errors[] = 'Variabile GOVPAY_BACKOFFICE_URL non impostata';
             } else {
                 try {
@@ -620,14 +653,11 @@ class PendenzeController
                         }
                     }
 
-                    $httpClient = new Client($guzzleOptions);
-                    $api = new BackofficePendenzeApi($httpClient, $config);
-
                     $pagina = $filters['pagina'];
                     $rpp = $filters['risultatiPerPagina'];
                     $ordinamento = $filters['ordinamento'];
-                    $idDominio = $filters['idDominio'] !== '' ? $filters['idDominio'] : null;
-                    $idA2A = $filters['idA2A'] !== '' ? $filters['idA2A'] : null;
+                    $idDominioFilter = $filters['idDominio'] !== '' ? $filters['idDominio'] : null;
+                    $idA2AFilter = $filters['idA2A'] !== '' ? $filters['idA2A'] : null;
                     $idDebitore = $filters['idDebitore'] !== '' ? $filters['idDebitore'] : null;
                     $stato = $filters['stato'] !== '' ? $filters['stato'] : null;
                     $idPagamento = $filters['idPagamento'] !== '' ? $filters['idPagamento'] : null;
@@ -639,13 +669,11 @@ class PendenzeController
                     $iuv = $filters['iuv'] !== '' ? $filters['iuv'] : null;
                     $idEntrata = $filters['tipologiaPendenza'] !== '' ? $filters['tipologiaPendenza'] : null;
 
-    // ...existing code...
-
                     $mostraSpontanei = 'false';
                     $metadatiPaginazione = 'true';
                     $maxRisultati = 'true';
 
-                    if ($idA2A === null || $idA2A === '') {
+                    if ($idA2AFilter === null || $idA2AFilter === '') {
                         $errors[] = 'Parametro idA2A obbligatorio per la ricerca pendenze';
                     } else {
                         $url = rtrim($backofficeUrl, '/') . '/pendenze';
@@ -654,8 +682,8 @@ class PendenzeController
                             'risultatiPerPagina' => $rpp,
                             'ordinamento' => $ordinamento,
                             'campi' => null,
-                            'idDominio' => $idDominio,
-                            'idA2A' => $idA2A,
+                            'idDominio' => $idDominioFilter,
+                            'idA2A' => $idA2AFilter,
                             'idDebitore' => $idDebitore,
                             'stato' => $stato,
                             'idPagamento' => $idPagamento,
@@ -670,15 +698,13 @@ class PendenzeController
                             'maxRisultati' => $maxRisultati,
                             'idTipoPendenza' => $idEntrata,
                         ];
-                    
+
                         $query = array_filter($query, static fn($v) => $v !== null && $v !== '');
 
                         if (getenv('APP_DEBUG') && $filters['q']) {
                             error_log('[PendenzeController] GET ' . $url . '?' . http_build_query($query));
                         }
 
-                        // Delegate the actual Backoffice call to a helper to keep logic
-                        // consistent across the controller and make it easier to reuse
                         $dataArr = $this->callBackofficeFindPendenze($query);
 
                         $extractInt = static function (array $source, array $paths): ?int {
@@ -725,9 +751,8 @@ class PendenzeController
                         $basePath = $request->getUri()->getPath();
                         $qsBase = $params;
                         $qsBase['q'] = '1';
-                        unset($qsBase['ordRecentiPrima']);
+                        unset($qsBase['ordRecentiPrima'], $qsBase['highlight']);
                         $qsBase['ordinamento'] = $filters['ordinamento'];
-                        unset($qsBase['highlight']);
                         $qsBase['pagina'] = $filters['pagina'];
                         $qsBase['risultatiPerPagina'] = $filters['risultatiPerPagina'];
 
@@ -798,10 +823,43 @@ class PendenzeController
             }
         }
 
+        $returnParams = null;
+        $returnUrl = '/pendenze/ricerca';
+        if ($filters['q'] !== null) {
+            $returnParams = [
+                'q' => '1',
+                'pagina' => $filters['pagina'],
+                'risultatiPerPagina' => $filters['risultatiPerPagina'],
+                'ordinamento' => $filters['ordinamento'],
+            ];
+            foreach (['idDominio','idA2A','idPendenza','idDebitore','stato','idPagamento','dataDa','dataA','direzione','divisione','iuv','tipologiaPendenza'] as $key) {
+                $val = $filters[$key] ?? null;
+                if ($val !== null && $val !== '') {
+                    $returnParams[$key] = $val;
+                }
+            }
+            $returnQuery = http_build_query($returnParams, '', '&', PHP_QUERY_RFC3986);
+            $returnUrl = '/pendenze/ricerca' . ($returnQuery !== '' ? ('?' . $returnQuery) : '');
+
+            $_SESSION[$sessionKey] = [
+                'return_url' => $returnUrl,
+                'filters' => $filters,
+                'query_params' => $returnParams,
+                'updated_at' => time(),
+            ];
+        } elseif ($sessionContext && isset($sessionContext['return_url'])) {
+            $returnUrl = (string)$sessionContext['return_url'];
+        }
+
+        if (!is_string($returnUrl) || $returnUrl === '' || strpos($returnUrl, '/pendenze/ricerca') !== 0) {
+            $returnUrl = '/pendenze/ricerca';
+        }
+
         $highlightId = $params['highlight'] ?? null;
-        $qsCurrent = $request->getUri()->getQuery();
-    $returnUrl = '/pendenze/ricerca' . ($qsCurrent ? ('?' . $qsCurrent) : '');
-    $cameFromInsert = isset($q['from']) && $q['from'] === 'insert';
+        if ($highlightId === null && isset($_SESSION['pendenze_last_highlight'])) {
+            $highlightId = $_SESSION['pendenze_last_highlight'];
+            unset($_SESSION['pendenze_last_highlight']);
+        }
 
         $this->exposeCurrentUser();
 
@@ -1599,13 +1657,54 @@ class PendenzeController
     {
         $this->exposeCurrentUser();
 
+        if (session_status() !== PHP_SESSION_ACTIVE) @session_start();
+        $sessionSearch = $_SESSION['pendenze_last_search'] ?? null;
+
         $idPendenza = $args['idPendenza'] ?? '';
-    $q = $request->getQueryParams();
-    $ret = $q['return'] ?? '/pendenze/ricerca';
-    $cameFromInsert = isset($q['from']) && $q['from'] === 'insert';
-        if (strpos((string)$ret, '/pendenze/ricerca') !== 0) {
-            $ret = '/pendenze/ricerca';
+        $queryParams = (array)$request->getQueryParams();
+        $returnCandidate = $queryParams['return'] ?? null;
+
+        $returnUrl = null;
+        if (is_string($returnCandidate) && $returnCandidate !== '') {
+            $returnUrl = $returnCandidate;
+        } elseif (is_array($sessionSearch) && isset($sessionSearch['return_url'])) {
+            $returnUrl = (string)$sessionSearch['return_url'];
         }
+        if (!is_string($returnUrl) || $returnUrl === '') {
+            $returnUrl = '/pendenze/ricerca';
+        }
+        if (strpos($returnUrl, '/pendenze/ricerca') !== 0) {
+            $returnUrl = '/pendenze/ricerca';
+        }
+
+        $highlightParam = isset($queryParams['highlight']) ? (string)$queryParams['highlight'] : '';
+        if ($highlightParam === '' && isset($_SESSION['pendenze_last_highlight'])) {
+            $highlightParam = (string)$_SESSION['pendenze_last_highlight'];
+        }
+        if ($highlightParam !== '') {
+            $_SESSION['pendenze_last_highlight'] = $highlightParam;
+            $mergeQueryParam = static function (string $url, string $key, string $value): string {
+                $fragment = '';
+                if (($hashPos = strpos($url, '#')) !== false) {
+                    $fragment = substr($url, $hashPos);
+                    $url = substr($url, 0, $hashPos);
+                }
+                $parts = parse_url($url);
+                $path = $parts['path'] ?? $url;
+                $queryData = [];
+                if (isset($parts['query'])) {
+                    parse_str($parts['query'], $queryData);
+                } elseif (($qMarkPos = strpos($url, '?')) !== false) {
+                    parse_str(substr($url, $qMarkPos + 1), $queryData);
+                }
+                $queryData[$key] = $value;
+                $queryString = http_build_query($queryData, '', '&', PHP_QUERY_RFC3986);
+                return $path . ($queryString !== '' ? ('?' . $queryString) : '') . $fragment;
+            };
+            $returnUrl = $mergeQueryParam($returnUrl, 'highlight', $highlightParam);
+        }
+
+        $cameFromInsert = isset($queryParams['from']) && $queryParams['from'] === 'insert';
 
         $error = null;
         $pendenza = null;
@@ -1827,7 +1926,7 @@ class PendenzeController
 
         return $this->twig->render($response, 'pendenze/dettaglio.html.twig', [
             'idPendenza' => $idPendenza,
-            'return_url' => $ret,
+            'return_url' => $returnUrl,
             'pendenza' => $pendenza,
             'error' => $error,
             'id_dominio' => $idDominio,
@@ -2252,9 +2351,21 @@ class PendenzeController
     {
         $this->exposeCurrentUser();
 
+        if (session_status() !== PHP_SESSION_ACTIVE) @session_start();
+        $sessionSearch = $_SESSION['pendenze_last_search'] ?? null;
+
         $idPendenza = $args['idPendenza'] ?? '';
-        $q = $request->getQueryParams();
-        $returnUrl = $q['return'] ?? '/pendenze/ricerca';
+        $queryParams = (array)$request->getQueryParams();
+        $returnCandidate = $queryParams['return'] ?? null;
+        $returnUrl = null;
+        if (is_string($returnCandidate) && $returnCandidate !== '') {
+            $returnUrl = $returnCandidate;
+        } elseif (is_array($sessionSearch) && isset($sessionSearch['return_url'])) {
+            $returnUrl = (string)$sessionSearch['return_url'];
+        }
+        if (!is_string($returnUrl) || $returnUrl === '' || strpos($returnUrl, '/pendenze/ricerca') !== 0) {
+            $returnUrl = '/pendenze/ricerca';
+        }
 
         $error = null;
         $pendenza = null;
