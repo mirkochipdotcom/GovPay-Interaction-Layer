@@ -195,52 +195,67 @@
 </div>
 <div id="vociSumError" class="alert alert-danger d-none" role="alert"></div>
 <div id="formValidationErrors" class="alert alert-danger d-none" role="alert"></div>
-<div class="collapse" id="apiExtra">
-  <div class="card card-body">
-    <h4 class="h6">Campi avanzati (API)</h4>
-      <div class="row g-3">
-        <div class="col-md-4">
-          <label for="ibanAccredito" class="active">IBAN accredito (opzionale)</label>
-          <input id="ibanAccredito" name="ibanAccredito" type="text" maxlength="34" class="form-control" placeholder="IT.." value="{{ old.ibanAccredito|default('') }}">
-          <div class="form-text small">Se presente, l'IBAN sarà inviato e il codice entrata non verrà inviato.</div>
-        </div>
-        <div class="col-md-4">
-          <label for="codiceContabilita" class="active">Codice contabilita' (opzionale)</label>
-          <input id="codiceContabilita" name="codiceContabilita" type="text" maxlength="35" pattern="[A-Za-z0-9\-_.]{1,35}" class="form-control" placeholder="Es. 0114111AP" value="{{ old.codiceContabilita|default(old.codEntrata|default('')) }}">
-          <div class="form-text small">Se non è presente l'IBAN, questo valore verrà inviato come <code>codiceContabilita</code>. Non usare caratteri speciali.</div>
-        </div>
-        <div class="col-md-4">
-          <label for="tipoBollo" class="active">Tipo bollo (opzionale)</label>
-          <input id="tipoBollo" name="tipoBollo" type="text" maxlength="16" class="form-control" placeholder="Es. 01" value="{{ old.tipoBollo|default('') }}">
-        </div>
-        <div class="col-md-4">
-          <div class="select-wrapper">
-            <label for="tipoContabilita" class="active">Tipo contabilità (opzionale)</label>
-            <select id="tipoContabilita" name="tipoContabilita" class="form-select">
-              <option value="">-- seleziona --</option>
-              <option value="CAPITOLO" {% if old.tipoContabilita is defined and old.tipoContabilita == 'CAPITOLO' %}selected{% endif %}>CAPITOLO</option>
-              <option value="SPECIALE" {% if old.tipoContabilita is defined and old.tipoContabilita == 'SPECIALE' %}selected{% endif %}>SPECIALE</option>
-              <option value="SIOPE" {% if old.tipoContabilita is defined and old.tipoContabilita == 'SIOPE' %}selected{% endif %}>SIOPE</option>
-              <option value="ALTRO" {% if old.tipoContabilita is defined and old.tipoContabilita == 'ALTRO' %}selected{% endif %}>ALTRO</option>
-            </select>
-            <div class="form-text small">Obbligatorio se si invia un codice entrata o altri dati di contabilita'.</div>
+{% set is_edit_mode = is_edit|default(false) %}
+{% set advanced_has_values = (old.ibanAccredito|default('') != '')
+  or (old.codiceContabilita|default(old.codEntrata|default('')) != '')
+  or (old.tipoBollo|default('') != '')
+  or (old.tipoContabilita|default('') != '')
+  or (old.direzione|default('') != '')
+  or (old.divisione|default('') != '')
+  or (old.cartellaPagamento|default('') != '') %}
+{% set advanced_open = (not is_edit_mode) and advanced_has_values %}
+<div class="collapse {{ advanced_open ? 'show' : '' }}" id="apiExtra">
+  <div class="row">
+    <div class="col-12">
+      <article class="it-card it-card-height-full rounded shadow-sm border">
+        <h5 class="it-card-title">Campi avanzati (API)</h5>
+        <div class="it-card-body">
+          <div class="row g-3 mt-4">
+            <div class="form-group col-md-4 mt-1">
+              <label for="ibanAccredito" class="active">IBAN accredito (opzionale)</label>
+              <input id="ibanAccredito" name="ibanAccredito" type="text" maxlength="34" class="form-control" placeholder="IT.." value="{{ old.ibanAccredito|default('') }}">
+              <div class="form-text small">Se presente, l'IBAN sarà inviato e il codice entrata non verrà inviato.</div>
+            </div>
+            <div class="form-group col-md-4">
+              <label for="codiceContabilita" class="active">Codice contabilita' (opzionale)</label>
+              <input id="codiceContabilita" name="codiceContabilita" type="text" maxlength="35" pattern="[A-Za-z0-9\-_.]{1,35}" class="form-control" placeholder="Es. 0114111AP" value="{{ old.codiceContabilita|default(old.codEntrata|default('')) }}">
+              <div class="form-text small">Se non è presente l'IBAN, questo valore verrà inviato come <code>codiceContabilita</code>. Non usare caratteri speciali.</div>
+            </div>
+            <div class="form-group col-md-4">
+              <label for="tipoBollo" class="active">Tipo bollo (opzionale)</label>
+              <input id="tipoBollo" name="tipoBollo" type="text" maxlength="16" class="form-control" placeholder="Es. 01" value="{{ old.tipoBollo|default('') }}">
+            </div>
+            <div class="form-group col-md-4">
+              <div class="select-wrapper">
+                <label for="tipoContabilita" class="active">Tipo contabilità (opzionale)</label>
+                <select id="tipoContabilita" name="tipoContabilita" aria-label="Tipo contabilità">
+                  <option value="">-- seleziona --</option>
+                  <option value="CAPITOLO" {% if old.tipoContabilita is defined and old.tipoContabilita == 'CAPITOLO' %}selected{% endif %}>CAPITOLO</option>
+                  <option value="SPECIALE" {% if old.tipoContabilita is defined and old.tipoContabilita == 'SPECIALE' %}selected{% endif %}>SPECIALE</option>
+                  <option value="SIOPE" {% if old.tipoContabilita is defined and old.tipoContabilita == 'SIOPE' %}selected{% endif %}>SIOPE</option>
+                  <option value="ALTRO" {% if old.tipoContabilita is defined and old.tipoContabilita == 'ALTRO' %}selected{% endif %}>ALTRO</option>
+                </select>
+                <div class="form-text small">Obbligatorio se si invia un codice entrata o altri dati di contabilita'.</div>
+              </div>
+            </div>
+          </div>
+          <div class="row g-3 mt-2">
+            <div class="form-group col-md-4">
+              <label for="direzione" class="active">Direzione (opzionale)</label>
+              <input id="direzione" name="direzione" type="text" class="form-control" value="{{ old.direzione|default('') }}">
+            </div>
+            <div class="form-group col-md-4">
+              <label for="divisione" class="active">Divisione (opzionale)</label>
+              <input id="divisione" name="divisione" type="text" class="form-control" value="{{ old.divisione|default('') }}">
+            </div>
+            <div class="form-group col-md-4">
+              <label for="cartellaPagamento" class="active">Cartella pagamento (opzionale)</label>
+              <input id="cartellaPagamento" name="cartellaPagamento" type="text" class="form-control" value="{{ old.cartellaPagamento|default('') }}">
+            </div>
           </div>
         </div>
       </div>
-      <div class="row g-3 mt-2">
-        <div class="col-md-4">
-          <label for="direzione" class="active">Direzione (opzionale)</label>
-          <input id="direzione" name="direzione" type="text" class="form-control" value="{{ old.direzione|default('') }}">
-        </div>
-        <div class="col-md-4">
-          <label for="divisione" class="active">Divisione (opzionale)</label>
-          <input id="divisione" name="divisione" type="text" class="form-control" value="{{ old.divisione|default('') }}">
-        </div>
-        <div class="col-md-4">
-          <label for="cartellaPagamento" class="active">Cartella pagamento (opzionale)</label>
-          <input id="cartellaPagamento" name="cartellaPagamento" type="text" class="form-control" value="{{ old.cartellaPagamento|default('') }}">
-        </div>
-      </div>
+    </article>
   </div>
 </div>
 {# Script condiviso per aggiunta/rimozione voci + validazione somma + stato entrata #}
@@ -480,5 +495,15 @@
   }
   const formEl = document.querySelector('form');
   if (formEl) formEl.addEventListener('submit', function(ev){ if(!runAllValidations(ev)) return false; });
+})();
+// Mantiene sincronizzato lo stato del bottone "Mostra campi avanzati" con l'apertura automatica
+(function(){
+  const advanced = document.getElementById('apiExtra');
+  if (!advanced) return;
+  const opened = advanced.classList.contains('show');
+  if (!opened) return;
+  document.querySelectorAll('[data-bs-target="#apiExtra"]').forEach(function(btn){
+    btn.setAttribute('aria-expanded', 'true');
+  });
 })();
 </script>
