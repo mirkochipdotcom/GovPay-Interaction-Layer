@@ -5,25 +5,41 @@
    default_anno: anno di riferimento default
    is_edit: boolean (true se modifica)
  #}
+{% set is_edit_mode = is_edit|default(false) %}
+{% set can_remove_voci = not is_edit_mode %}
 <div class="row">
   <div class="form-group col-md-6">
     <div class="select-wrapper">
       <label for="idTipoPendenza" class="active">Tipologia pendenza</label>
-      <select id="idTipoPendenza" name="idTipoPendenza" required aria-label="Tipologia pendenza">
+      <select id="idTipoPendenza" name="idTipoPendenza" required aria-label="Tipologia pendenza" {{ is_edit_mode ? 'disabled' : '' }}>
         <option value="">-- seleziona --</option>
         {% for t in tipologie_pendenze|default([]) %}
           <option value="{{ t.id_entrata }}" {% if old.idTipoPendenza is defined and old.idTipoPendenza == t.id_entrata %}selected{% endif %}>{{ t.nome|default(t.descrizione)|e }}</option>
         {% endfor %}
       </select>
+      {% if is_edit_mode %}
+        <input type="hidden" name="idTipoPendenza" value="{{ old.idTipoPendenza|default('') }}">
+        <p class="form-text small text-muted mt-1">La tipologia non è modificabile su pendenze esistenti.</p>
+      {% endif %}
     </div>
   </div>
   <div class="form-group col-md-3">
     <div class="select-wrapper">
       <label for="annoRiferimento" class="active">Anno di riferimento</label>
-      {% set current = default_anno|default(date('Y')) %}
+      {% set selected_anno = old.annoRiferimento is defined ? old.annoRiferimento : default_anno|default('now'|date('Y')) %}
+      {% if selected_anno is same as('') or selected_anno is same as(null) %}
+        {% set selected_anno = 'now'|date('Y') %}
+      {% endif %}
+      {% set selected_anno = selected_anno + 0 %}
+      {% set current_year = 'now'|date('Y') + 0 %}
+      {% set start_year = current_year + 1 %}
+      {% set end_year = current_year - 10 %}
       <select id="annoRiferimento" name="annoRiferimento" required aria-label="Anno di riferimento">
-        {% for y in range(current + 1, current - 10) %}
-          <option value="{{ y }}" {% if (old.annoRiferimento is defined and old.annoRiferimento == y) or (old.annoRiferimento is not defined and y == current) %}selected{% endif %}>{{ y }}</option>
+        {% if selected_anno is not null and selected_anno is not same as(false) and (selected_anno > start_year or selected_anno < end_year) %}
+          <option value="{{ selected_anno }}" selected>{{ selected_anno }}</option>
+        {% endif %}
+        {% for y in range(start_year, end_year) %}
+          <option value="{{ y }}" {% if selected_anno == y %}selected{% endif %}>{{ y }}</option>
         {% endfor %}
       </select>
     </div>
@@ -138,7 +154,13 @@
 <hr>
 <h3 class="h6">Voci di pendenza</h3>
 <div class="d-flex align-items-center justify-content-between mb-5">
-  <p class="text-muted small mb-0">Il sistema crea almeno una voce di pendenza; puoi aggiungerne altre se necessario.</p>
+  <p class="text-muted small mb-0">
+    {% if can_remove_voci %}
+      Il sistema crea sempre una voce principale (ID 1) che resta obbligatoria; puoi aggiungere o eliminare tutte le altre.
+    {% else %}
+      Il sistema crea sempre una voce principale (ID 1) che resta obbligatoria; in modifica puoi aggiungere nuove voci ma non eliminarne di esistenti.
+    {% endif %}
+  </p>
 </div>
 <div id="vociList">
   {% set existingVoci = old.voci|default([]) %}
@@ -162,7 +184,12 @@
           </div>
         </div>
         <div class="col-md-1 d-flex align-items-center">
-          {# Nessun pulsante rimuovi per voci già esistenti #}
+          {% if can_remove_voci and idx|default(0) > 0 %}
+            <button type="button" class="btn btn-outline-danger btn-sm remove-voce" title="Rimuovi voce">
+              <span aria-hidden="true">✖</span>
+              <span class="visually-hidden">Rimuovi voce</span>
+            </button>
+          {% endif %}
         </div>
       </div>
     {% endfor %}
@@ -185,7 +212,7 @@
         </div>
       </div>
       <div class="col-md-1 d-flex align-items-center">
-        {# Nessun pulsante rimuovi per prima voce #}
+        {# voce iniziale non rimovibile #}
       </div>
     </div>
   {% endif %}
@@ -195,7 +222,6 @@
 </div>
 <div id="vociSumError" class="alert alert-danger d-none" role="alert"></div>
 <div id="formValidationErrors" class="alert alert-danger d-none" role="alert"></div>
-{% set is_edit_mode = is_edit|default(false) %}
 {% set advanced_has_values = (old.ibanAccredito|default('') != '')
   or (old.codiceContabilita|default(old.codEntrata|default('')) != '')
   or (old.tipoBollo|default('') != '')
@@ -261,8 +287,10 @@
 {# Script condiviso per aggiunta/rimozione voci + validazione somma + stato entrata #}
 <script>
 (function(){
+  const allowVoceDeletion = {{ can_remove_voci ? 'true' : 'false' }};
   const importoMain = document.getElementById('importo');
   const causale = document.getElementById('causale');
+  const vociContainer = document.getElementById('vociList');
   const firstVoceDesc = document.querySelector('#vociList .voce-item input[name$="[descrizione]"]');
   const firstVoceImp = document.querySelector('#vociList .voce-item input[name$="[importo]"]');
   let userModifiedFirstVoce = firstVoceDesc && firstVoceDesc.value.trim() !== '';
@@ -282,7 +310,7 @@
   const addBtn = document.getElementById('addVoceBtn');
   if (addBtn) addBtn.addEventListener('click', function(){
     userModifiedFirstVoce = true;
-    const container = document.getElementById('vociList');
+    const container = vociContainer || document.getElementById('vociList');
     const row = document.createElement('div');
     row.className = 'row g-3 align-items-end voce-item';
     row.setAttribute('data-index', voceIndex);
@@ -304,10 +332,12 @@
         </div>
       </div>
       <div class="form-group col-md-1 d-flex align-items-center">
+        {% if can_remove_voci %}
         <button type="button" class="btn btn-outline-danger btn-sm remove-voce">✖</button>
+        {% endif %}
       </div>`;
     container.appendChild(row);
-    row.querySelector('.remove-voce').addEventListener('click', function(){ row.remove(); });
+    clearVociErrors();
     voceIndex++;
   });
   // IBAN vs codice contabilita toggle
@@ -364,6 +394,37 @@
   function clearVociErrors(){
     vociSumError.classList.add('d-none');
     Array.from(document.querySelectorAll('#vociList input[name$="[importo]"]')).forEach(function(i){ i.classList.remove('is-invalid'); });
+  }
+  const minVoceMessage = 'Deve essere presente almeno una voce di pendenza.';
+  const primaryVoceMessage = 'La voce principale (ID 1) non può essere eliminata.';
+  function showVoceError(msg){
+    if (!allowVoceDeletion || !vociSumError) return;
+    vociSumError.textContent = msg;
+    vociSumError.classList.remove('d-none');
+  }
+  if (allowVoceDeletion && vociContainer) {
+    vociContainer.addEventListener('click', function(event){
+      const removeBtn = event.target.closest('.remove-voce');
+      if (!removeBtn) return;
+      event.preventDefault();
+      const row = removeBtn.closest('.voce-item');
+      if (!row) return;
+      const hiddenId = row.querySelector('input[name$="[idVocePendenza]"]');
+      const voceId = hiddenId ? (hiddenId.value || '').trim() : '';
+      const isPrimary = voceId === '1' || (row.getAttribute('data-index') || '') === '0';
+      if (isPrimary) {
+        showVoceError(primaryVoceMessage);
+        return;
+      }
+      const rows = vociContainer.querySelectorAll('.voce-item');
+      if (rows.length <= 1) {
+        showVoceError(minVoceMessage);
+        return;
+      }
+      clearVociErrors();
+      row.remove();
+      validateVociSum();
+    });
   }
   function validateVociSum(e){
     clearVociErrors();

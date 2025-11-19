@@ -1,11 +1,8 @@
 # TODO
 
 - [ ] Migliorie inserimento pendenza
-  - Impostare dei check su validità di codice fiscale in accoppiata con nome e cognome, e validità partita iva.
   - Salvare da qualche parte un identificativo per sapere quale operatore ha creato e modificato la pendenza, magari con uno storico
-
-- [ ] Gestione pendenza
-  - Gestire il crud sulle pendenze
+  - Creare dei template predefiniti
 
 - [ ] Select tipologia pendenza ricercabile
   - Rendere la select della tipologia pendenza nelle mascherhe di ricerca pendenze ricercabile (autocomplete o select2/bootstrap-select), per facilitare la selezione in presenza di molte tipologie.

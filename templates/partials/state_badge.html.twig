@@ -5,19 +5,62 @@
     - pill: boolean (optional) -> render pill style when true
     - small: boolean (optional) -> render smaller badge
 #}
-{% set s = state|default('') %}
-{% set conf = (s and pendenza_states is defined) ? (pendenza_states[s]|default(null)) : null %}
-{% if conf %}
-  {% if pill %}
-    <span class="badge rounded-pill text-bg-{{ conf.color }}{% if small %} small{% endif %}">{{ conf.label }}</span>
-  {% else %}
-    <span class="badge text-bg-{{ conf.color }}{% if small %} small{% endif %}">{{ conf.label }}</span>
+{% set raw_state = state|default('') %}
+{% set normalized_state = raw_state ? raw_state|trim|replace({' ':'_','-':'_'})|upper : '' %}
+
+{# Mappa di default per gli stati di pendenze e voci #}
+{% set default_states = {
+  'NON_ESEGUITA': {'label': 'Da pagare', 'color': 'secondary'},
+  'NON_ESEGUITO': {'label': 'Da pagare', 'color': 'secondary'},
+  'TENTATIVO_DI_PAGAMENTO': {'label': 'Tentativo di pagamento in corso', 'color': 'warning'},
+  'ESEGUITA': {'label': 'Pagato', 'color': 'success'},
+  'ESEGUITO': {'label': 'Pagato', 'color': 'success'},
+  'ESEGUITA_PARZIALE': {'label': 'Pagamento parziale', 'color': 'warning'},
+  'ESEGUITO_PARZIALE': {'label': 'Pagamento parziale', 'color': 'warning'},
+  'ANNULLATA': {'label': 'Annullato', 'color': 'light'},
+  'ANNULLATO': {'label': 'Annullato', 'color': 'light'},
+  'SCADUTA': {'label': 'Scaduto', 'color': 'danger'},
+  'SCADUTO': {'label': 'Scaduto', 'color': 'danger'},
+  'ANOMALA': {'label': 'Anomalia', 'color': 'danger'},
+  'ANOMALO': {'label': 'Anomalia', 'color': 'danger'},
+  'ERRORE': {'label': 'Errore', 'color': 'danger'},
+  'RENDICONTATA': {'label': 'Rendicontato', 'color': 'primary'},
+  'RENDICONTATO': {'label': 'Rendicontato', 'color': 'primary'},
+  'INCASSATA': {'label': 'Incassato', 'color': 'primary'},
+  'INCASSATO': {'label': 'Incassato', 'color': 'primary'},
+  'DECORRENZA': {'label': 'Decorrenza termini', 'color': 'warning'},
+  'DECORRENZA_PARZIALE': {'label': 'Decorrenza parziale', 'color': 'warning'},
+  'RISCOSSA': {'label': 'Riscossione completata', 'color': 'success'}
+} %}
+
+{% set merged_states = {} %}
+{% for key, cfg in default_states %}
+  {% set merged_states = merged_states|merge({ (key|upper): cfg }) %}
+{% endfor %}
+{% if pendenza_states is defined %}
+  {% for key, cfg in pendenza_states %}
+    {% set merged_states = merged_states|merge({ (key|upper): cfg }) %}
+  {% endfor %}
+{% endif %}
+
+{% set conf = normalized_state ? merged_states[normalized_state]|default(null) : null %}
+{% if not conf and normalized_state %}
+  {% if normalized_state|length > 1 and normalized_state|slice(-1) == 'O' %}
+    {% set alt = normalized_state|slice(0, normalized_state|length - 1) ~ 'A' %}
+    {% set conf = merged_states[alt]|default(null) %}
+  {% elseif normalized_state|length > 1 and normalized_state|slice(-1) == 'A' %}
+    {% set alt = normalized_state|slice(0, normalized_state|length - 1) ~ 'O' %}
+    {% set conf = merged_states[alt]|default(null) %}
   {% endif %}
-{% elseif s %}
+{% endif %}
+
+{% if raw_state %}
+  {% set label = conf and conf.label is defined ? conf.label : raw_state %}
+  {% set color = conf and conf.color is defined ? conf.color : 'secondary' %}
   {% if pill %}
-    <span class="badge rounded-pill text-bg-secondary{% if small %} small{% endif %}">{{ s }}</span>
+    <span class="badge rounded-pill text-bg-{{ color }}{% if small %} small{% endif %}">{{ label }}</span>
   {% else %}
-    <span class="badge text-bg-secondary{% if small %} small{% endif %}">{{ s }}</span>
+    <span class="badge text-bg-{{ color }}{% if small %} small{% endif %}">{{ label }}</span>
   {% endif %}
 {% else %}
   —
