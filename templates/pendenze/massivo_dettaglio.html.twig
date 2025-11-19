@@ -13,7 +13,9 @@
         <tr>
           <td>{{ r.id }}</td>
           <td>{{ r.riga }}</td>
-          <td>{{ r.stato }}</td>
+          <td>
+            {% include 'partials/state_badge.html.twig' with { state: r.stato|default(''), pill: true, small: true } %}
+          </td>
           <td class="small text-danger">{{ r.errore }}</td>
           <td><pre class="small mb-0">{{ r.payload_json }}</pre></td>
           <td><pre class="small mb-0">{{ r.response_json }}</pre></td>

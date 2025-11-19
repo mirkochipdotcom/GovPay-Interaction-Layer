@@ -38,7 +38,12 @@
     if(!input || !panel || !start || !end || !hiddenDa || !hiddenA) return;
 
     // Helpers
-    const fmt = (d)=> d.toISOString().slice(0,10);
+    const fmt = (d)=>{
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${dd}`;
+    };
     const toIt = (iso)=>{
       if(!iso) return '';
       const parts = iso.split('-');
@@ -101,12 +106,23 @@
         if(type === 'week'){
           const e = new Date();
           const s = new Date();
+          s.setHours(0,0,0,0);
+          e.setHours(0,0,0,0);
           s.setDate(s.getDate() - 7);
           start.value = fmt(s);
           end.value = fmt(e);
           syncFromInputs();
         }else if(type === 'month'){
           presetMonth();
+        }else if(type === 'year'){
+          const e = new Date();
+          const s = new Date();
+          s.setHours(0,0,0,0);
+          e.setHours(0,0,0,0);
+          s.setFullYear(s.getFullYear() - 1);
+          start.value = fmt(s);
+          end.value = fmt(e);
+          syncFromInputs();
         }else if(type === 'all'){
           start.value = '';
           end.value = '';

@@ -644,7 +644,13 @@
                     <tr>
                       <td>{{ displayId ?: '—' }}</td>
                       <td class="text-nowrap">{% if combinedTs %}{{ combinedTs|date('d/m/Y H:i:s') }}{% else %}—{% endif %}</td>
-                      <td>{{ stato ?: '—' }}</td>
+                      <td>
+                        {% if stato %}
+                          {% include 'partials/state_badge.html.twig' with { state: stato, pill: true, small: true } %}
+                        {% else %}
+                          —
+                        {% endif %}
+                      </td>
                       <td class="text-end">{% if importo is not null %}{{ importo|number_format(2, ',', '.') }} €{% else %}—{% endif %}</td>
                       <td>{{ abi ?: '—' }}</td>
                       <td>{{ istituto ?: '—' }}</td>

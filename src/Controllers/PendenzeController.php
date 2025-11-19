@@ -1315,7 +1315,6 @@ class PendenzeController
         $idA2A = getenv('ID_A2A') ?: '';
         $errors = [];
         $warnings = [];
-        $warnings = [];
         if (empty($backofficeUrl)) {
             $errors[] = 'GOVPAY_BACKOFFICE_URL non impostata';
             return ['success' => false, 'errors' => $errors];
@@ -1471,16 +1470,32 @@ class PendenzeController
         }
 
         $existingAccounting = $this->extractAccountingDefaultsFromPendenza($currentPendenza);
-        $finalIban = (string)($existingAccounting['ibanAccredito'] ?? '');
-        $finalCodEntrata = (string)($existingAccounting['codiceContabilita'] ?? ($existingAccounting['codEntrata'] ?? ''));
-        $finalTipoBollo = (string)($existingAccounting['tipoBollo'] ?? '');
-        $finalTipoContabilita = (string)($existingAccounting['tipoContabilita'] ?? '');
+        $finalIban = '';
+        $finalCodEntrata = '';
+        $finalTipoBollo = '';
+        $finalTipoContabilita = '';
 
         if ($details) {
-            if ($finalIban === '' && !empty($details['iban_accredito'])) $finalIban = $details['iban_accredito'];
-            if ($finalCodEntrata === '' && !empty($details['codice_contabilita'])) $finalCodEntrata = $details['codice_contabilita'];
-            if ($finalTipoBollo === '' && !empty($details['tipo_bollo'])) $finalTipoBollo = $details['tipo_bollo'];
-            if ($finalTipoContabilita === '' && !empty($details['tipo_contabilita'])) $finalTipoContabilita = $details['tipo_contabilita'];
+            if (!empty($details['iban_accredito'])) $finalIban = $details['iban_accredito'];
+            if (!empty($details['codice_contabilita'])) $finalCodEntrata = $details['codice_contabilita'];
+            if (!empty($details['tipo_bollo'])) $finalTipoBollo = $details['tipo_bollo'];
+            if (!empty($details['tipo_contabilita'])) $finalTipoContabilita = $details['tipo_contabilita'];
+        }
+
+        if ($finalIban === '' && isset($existingAccounting['ibanAccredito'])) {
+            $finalIban = (string)$existingAccounting['ibanAccredito'];
+        }
+        if ($finalCodEntrata === '' && isset($existingAccounting['codiceContabilita'])) {
+            $finalCodEntrata = (string)$existingAccounting['codiceContabilita'];
+        }
+        if ($finalCodEntrata === '' && isset($existingAccounting['codEntrata'])) {
+            $finalCodEntrata = (string)$existingAccounting['codEntrata'];
+        }
+        if ($finalTipoBollo === '' && isset($existingAccounting['tipoBollo'])) {
+            $finalTipoBollo = (string)$existingAccounting['tipoBollo'];
+        }
+        if ($finalTipoContabilita === '' && isset($existingAccounting['tipoContabilita'])) {
+            $finalTipoContabilita = (string)$existingAccounting['tipoContabilita'];
         }
 
         if (array_key_exists('ibanAccredito', $params)) {
@@ -1498,7 +1513,10 @@ class PendenzeController
             $finalTipoContabilita = trim((string)$params['tipoContabilita']);
         }
 
-        if ($idTipo !== '') {
+        $hasUserOverrideCodEntrata = array_key_exists('codiceContabilita', $params) || array_key_exists('codEntrata', $params);
+        if (!$hasUserOverrideCodEntrata && $idTipo !== '') {
+            $finalCodEntrata = (string)$idTipo;
+        } elseif ($finalCodEntrata === '' && $idTipo !== '') {
             $finalCodEntrata = (string)$idTipo;
         }
 
@@ -2196,16 +2214,6 @@ class PendenzeController
             }
         }
 
-        // Define pendenza states for badges
-        $pendenza_states = [
-            'NON_ESEGUITA' => ['label' => 'Non eseguita', 'color' => 'secondary'],
-            'ESEGUITA' => ['label' => 'Eseguita', 'color' => 'success'],
-            'ESEGUITA_PARZIALE' => ['label' => 'Eseguita parziale', 'color' => 'warning'],
-            'ANNULLATA' => ['label' => 'Annullata', 'color' => 'danger'],
-            'SCADUTA' => ['label' => 'Scaduta', 'color' => 'dark'],
-            'INCASSATA' => ['label' => 'Incassata', 'color' => 'info'],
-        ];
-
         return $this->twig->render($response, 'pendenze/dettaglio.html.twig', [
             'idPendenza' => $idPendenza,
             'return_url' => $returnUrl,
@@ -2218,7 +2226,6 @@ class PendenzeController
             'current_rate' => $currentRate,
             'rate_info_source' => $rateInfoSource,
             'tipologie' => $tipologie,
-            'pendenza_states' => $pendenza_states,
         ]);
     }
 
@@ -2722,6 +2729,10 @@ class PendenzeController
 
         // Prepara i dati per il form di modifica
         $old = $this->preparePendenzaForForm($pendenza);
+        $defaultAnno = (int)date('Y');
+        if (isset($old['annoRiferimento']) && is_numeric((string)$old['annoRiferimento'])) {
+            $defaultAnno = (int)$old['annoRiferimento'];
+        }
 
         return $this->twig->render($response, 'pendenze/modifica.html.twig', [
             'tipologie_pendenze' => $tipologie,
@@ -2730,7 +2741,7 @@ class PendenzeController
             'old' => $old,
             'idPendenza' => $idPendenza,
             'return_url' => $returnUrl,
-            'default_anno' => (int)date('Y'),
+            'default_anno' => $defaultAnno,
         ]);
     }
 
@@ -2836,6 +2847,11 @@ class PendenzeController
                     $tipologie = $repo->listAbilitateByDominio($idDominio);
                 } catch (\Throwable $e) {}
             }
+            $defaultAnno = (int)date('Y');
+            if (isset($params['annoRiferimento']) && is_numeric((string)$params['annoRiferimento'])) {
+                $defaultAnno = (int)$params['annoRiferimento'];
+            }
+
             return $this->twig->render($response, 'pendenze/modifica.html.twig', [
                 'errors' => $errors,
                 'old' => $params,
@@ -2844,7 +2860,7 @@ class PendenzeController
                 'id_a2a' => getenv('ID_A2A') ?: '',
                 'idPendenza' => $idPendenza,
                 'return_url' => $params['return_url'] ?? '/pendenze/ricerca',
-                'default_anno' => (int)date('Y'),
+                'default_anno' => $defaultAnno,
             ]);
         }
 
@@ -2874,6 +2890,11 @@ class PendenzeController
                 $tipologie = $repo->listAbilitateByDominio($idDominio);
             } catch (\Throwable $e) {}
         }
+        $defaultAnno = (int)date('Y');
+        if (isset($params['annoRiferimento']) && is_numeric((string)$params['annoRiferimento'])) {
+            $defaultAnno = (int)$params['annoRiferimento'];
+        }
+
         return $this->twig->render($response, 'pendenze/modifica.html.twig', [
             'errors' => $errors,
             'old' => $params,
@@ -2882,7 +2903,7 @@ class PendenzeController
             'id_a2a' => getenv('ID_A2A') ?: '',
             'idPendenza' => $idPendenza,
             'return_url' => $params['return_url'] ?? '/pendenze/ricerca',
-            'default_anno' => (int)date('Y'),
+            'default_anno' => $defaultAnno,
         ]);
     }
 
@@ -2934,6 +2955,12 @@ class PendenzeController
             } else {
                 unset($put['dataScadenza']);
             }
+            if (array_key_exists('annoRiferimento', $params)) {
+                $yearRaw = trim((string)$params['annoRiferimento']);
+                if ($yearRaw !== '' && is_numeric($yearRaw)) {
+                    $put['annoRiferimento'] = (int)$yearRaw;
+                }
+            }
 
             // idTipoPendenza: usa quello del form se presente, altrimenti preserva quello attuale
             $idTipoFromForm = trim((string)($params['idTipoPendenza'] ?? ''));
@@ -2958,12 +2985,38 @@ class PendenzeController
 
             // 3b) Ricostruisce le voci utilizzando la stessa logica di creazione
             $baseVoci = [];
+            $existingNormalizedVoci = [];
+            if (!empty($cur['voci']) && is_array($cur['voci'])) {
+                $existingNormalizedVoci = $this->normalizeVociInput($cur['voci'], (string)($put['causale'] ?? ''), (float)($put['importo'] ?? 0.0));
+            }
+
             if (!empty($params['voci']) && is_array($params['voci'])) {
                 $baseVoci = $this->normalizeVociInput($params['voci'], (string)($put['causale'] ?? ''), (float)($put['importo'] ?? 0.0));
             }
 
-            if (empty($baseVoci) && !empty($cur['voci']) && is_array($cur['voci'])) {
-                $baseVoci = $this->normalizeVociInput($cur['voci'], (string)($put['causale'] ?? ''), (float)($put['importo'] ?? 0.0));
+            if (!empty($baseVoci) && !empty($existingNormalizedVoci)) {
+                $submittedIds = array_values(array_filter(
+                    array_map(static fn(array $voce) => (string)($voce['idVocePendenza'] ?? ''), $baseVoci),
+                    static fn(string $id) => $id !== ''
+                ));
+
+                $preservedIds = [];
+                foreach ($existingNormalizedVoci as $existingVoce) {
+                    $existingId = (string)($existingVoce['idVocePendenza'] ?? '');
+                    if ($existingId !== '' && in_array($existingId, $submittedIds, true)) {
+                        continue;
+                    }
+                    if ($existingId !== '') {
+                        $preservedIds[] = $existingId;
+                    }
+                    $baseVoci[] = $existingVoce;
+                }
+
+                if (!empty($preservedIds)) {
+                    $warnings[] = 'Le voci esistenti non modificate sono state mantenute automaticamente (' . implode(', ', $preservedIds) . ').';
+                }
+            } elseif (empty($baseVoci) && !empty($existingNormalizedVoci)) {
+                $baseVoci = $existingNormalizedVoci;
             }
 
             if (empty($baseVoci)) {
