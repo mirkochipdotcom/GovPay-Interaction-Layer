@@ -32,7 +32,7 @@ class FlussiController
             'q' => isset($params['q']) ? (string)$params['q'] : null,
             'pagina' => max(1, (int)($params['pagina'] ?? 1)),
             'risultatiPerPagina' => min(200, max(1, (int)($params['risultatiPerPagina'] ?? 25))),
-            'ordinamento' => (string)($params['ordinamento'] ?? '+data'),
+            'ordinamento' => (string)($params['ordinamento'] ?? '-data'),
             'idDominio' => (string)($params['idDominio'] ?? (getenv('ID_DOMINIO') ?: '')),
             'idA2A' => (string)($params['idA2A'] ?? (getenv('ID_A2A') ?: '')),
             'idFlusso' => (string)($params['idFlusso'] ?? ''),
@@ -43,31 +43,13 @@ class FlussiController
             'incassato' => (string)($params['incassato'] ?? ''),
             'escludiObsoleti' => (string)($params['escludiObsoleti'] ?? ''),
         ];
-
-        $orderAliases = [
-            'data' => 'data',
-            'dataflusso' => 'data',
-            'data_flusso' => 'data',
-            'dataregolamento' => 'data',
-            'data_regolamento' => 'data',
-        ];
-        $normalizeOrder = static function (string $value, array $aliases, string $defaultField): string {
-            $value = trim($value);
-            $direction = '+';
-            if ($value !== '') {
-                $prefix = $value[0];
-                if ($prefix === '+' || $prefix === '-') {
-                    $direction = $prefix;
-                    $value = substr($value, 1);
-                }
-            }
-            $fieldKey = strtolower(ltrim($value, '+-'));
-            $field = $aliases[$fieldKey] ?? $defaultField;
-            return $direction . $field;
-        };
-        $filters['ordinamento'] = $normalizeOrder((string)$filters['ordinamento'], $orderAliases, 'data');
-    $orderField = ltrim($filters['ordinamento'], '+-');
-    $orderDirection = $filters['ordinamento'][0] === '-' ? 'desc' : 'asc';
+        $orderValue = $filters['ordinamento'];
+        if (!in_array($orderValue, ['+data', '-data'], true)) {
+            $orderValue = '-data';
+        }
+        $filters['ordinamento'] = $orderValue;
+        $orderField = 'data';
+        $orderDirection = $orderValue[0] === '-' ? 'desc' : 'asc';
 
         $results = null;
         $numPagine = null;
@@ -86,10 +68,11 @@ class FlussiController
                     $http = $this->makeHttpClient();
                     $pagina = $filters['pagina'];
                     $rpp = $filters['risultatiPerPagina'];
+                    $orderParam = $filters['ordinamento'] === '-data' ? null : $filters['ordinamento'];
                     $query = [
                         'pagina' => $pagina,
                         'risultatiPerPagina' => $rpp,
-                        'ordinamento' => $filters['ordinamento'],
+                        'ordinamento' => $orderParam,
                         'idDominio' => $filters['idDominio'] ?: null,
                         'idA2A' => $filters['idA2A'] ?: null,
                         'idFlusso' => $filters['idFlusso'] ?: null,
@@ -151,10 +134,10 @@ class FlussiController
 
                     $results = $dataArr;
 
-                    if ($orderField === 'data' && isset($results['risultati']) && is_array($results['risultati'])) {
+                    if (isset($results['risultati']) && is_array($results['risultati'])) {
                         $directionMul = $orderDirection === 'desc' ? -1 : 1;
                         $extractDate = static function (array $item): ?int {
-                            foreach (['data', 'dataFlusso', 'data_flusso'] as $key) {
+                            foreach (['data', 'dataFlusso', 'data_flusso', 'dataRegolamento', 'data_regolamento'] as $key) {
                                 if (isset($item[$key]) && $item[$key] !== '') {
                                     $ts = strtotime((string)$item[$key]);
                                     if ($ts !== false) {

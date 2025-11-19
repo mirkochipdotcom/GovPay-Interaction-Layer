@@ -12,7 +12,7 @@
   {% endif %}
 
   {% set f = filters ?? {} %}
-  {% set ord = f.ordinamento|default('+data') %}
+  {% set ord = f.ordinamento|default('-data') %}
   {% set highlight = highlight_id|default('') %}
   <form method="get" action="/pagamenti/ricerca-flussi" class="card shadow-sm mb-4">
     <input type="hidden" name="q" value="1" />
@@ -85,10 +85,8 @@
           <div class="select-wrapper">
             <label for="ordinamento" class="active">Ordina per</label>
             <select class="form-select" id="ordinamento" name="ordinamento">
-              <option value="+data" {% if ord == '+data' %}selected{% endif %}>Data flusso (crescente)</option>
               <option value="-data" {% if ord == '-data' %}selected{% endif %}>Data flusso (decrescente)</option>
-              <option value="+idFlusso" {% if ord == '+idFlusso' %}selected{% endif %}>ID flusso (A → Z)</option>
-              <option value="-idFlusso" {% if ord == '-idFlusso' %}selected{% endif %}>ID flusso (Z → A)</option>
+              <option value="+data" {% if ord == '+data' %}selected{% endif %}>Data flusso (crescente)</option>
             </select>
           </div>
         </div>
