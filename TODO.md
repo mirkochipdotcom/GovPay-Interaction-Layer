@@ -24,6 +24,10 @@
 - [ ] Statistiche
   - Creare una vista per l'api statistica
 
+- [ ] Utenti
+  - Gestione più raffinata dei permessi
+  - Abilitare solo alcune tipologie per ogni utente
+
 # LONG RUN
 
 - [ ] Notifiche

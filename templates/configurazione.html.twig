@@ -838,10 +838,32 @@
 
         {% if app_debug %}
           <hr>
-          <div class="d-flex flex-wrap gap-2 align-items-center">
-            <span class="badge bg-warning text-dark">Debug</span>
-            {% if app_json %}
-              <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#rawAppDet" aria-expanded="false" aria-controls="rawAppDet">Mostra JSON - Applicazione {{ a2a }}</button>
+          <div class="d-flex flex-column gap-2">
+            <div class="d-flex flex-wrap gap-2 align-items-center">
+              <span class="badge bg-warning text-dark">Debug</span>
+              {% if app_json %}
+                <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#rawAppDet" aria-expanded="false" aria-controls="rawAppDet">Mostra JSON - Applicazione {{ a2a }}</button>
+              {% endif %}
+            </div>
+            {% if ruoli_api_status %}
+              <div class="d-flex flex-wrap gap-2 align-items-center small">
+                <span>
+                  <strong>RuoliApi</strong>:
+                  {% if ruoli_api_status == 'ok' %}
+                    <span class="text-success">OK</span>
+                    {% if ruoli_api_count is not null %}
+                      <span class="text-muted">({{ ruoli_api_count }} risultati)</span>
+                    {% endif %}
+                  {% elseif ruoli_api_status == 'missing-client' %}
+                    <span class="text-warning">{{ ruoli_api_error|default('Client non disponibile') }}</span>
+                  {% else %}
+                    <span class="text-danger">{{ ruoli_api_error|default('Errore') }}</span>
+                  {% endif %}
+                </span>
+                {% if ruoli_api_status == 'ok' and ruoli_api_json %}
+                  <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#rawRuoliApi" aria-expanded="false" aria-controls="rawRuoliApi">Mostra JSON - /ruoli</button>
+                {% endif %}
+              </div>
             {% endif %}
           </div>
           {% if apps_json %}
@@ -852,6 +874,11 @@
           {% if app_json %}
             <div class="collapse mt-2" id="rawAppDet">
               <pre class="mb-0">{{ app_json }}</pre>
+            </div>
+          {% endif %}
+          {% if ruoli_api_status == 'ok' and ruoli_api_json %}
+            <div class="collapse mt-2" id="rawRuoliApi">
+              <pre class="mb-0">{{ ruoli_api_json }}</pre>
             </div>
           {% endif %}
         {% endif %}

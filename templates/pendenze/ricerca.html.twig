@@ -27,12 +27,12 @@
     <div class="card-body">
       <div class="row">
         <div class="form-group col-md-4">
-          <label for="idPendenza">ID pendenza</label>
-          <input type="text" class="form-control" id="idPendenza" name="idPendenza" value="{{ f.idPendenza|default('') }}" placeholder="ID pendenza">
-        </div>
-        <div class="form-group col-md-4">
           <label for="idDebitore">ID debitore (CF/PI)</label>
           <input type="text" class="form-control" id="idDebitore" name="idDebitore" value="{{ f.idDebitore|default('') }}" placeholder="CF/PI">
+        </div>
+        <div class="form-group col-md-4">
+          <label for="idPendenza">ID pendenza</label>
+          <input type="text" class="form-control" id="idPendenza" name="idPendenza" value="{{ f.idPendenza|default('') }}" placeholder="ID pendenza">
         </div>
         <div class="form-group col-md-4">
           <label for="iuv">IUV</label>

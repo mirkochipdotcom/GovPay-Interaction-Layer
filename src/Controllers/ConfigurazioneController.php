@@ -48,6 +48,10 @@ class ConfigurazioneController
         $infoArr = null;
         $dominioJson = null;
         $dominioArr = null;
+        $ruoliApiJson = null;
+        $ruoliApiStatus = null;
+        $ruoliApiError = null;
+        $ruoliApiCount = null;
     $idDominio = null;
         $tab = $request->getQueryParams()['tab'] ?? 'principali';
         $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
@@ -114,6 +118,30 @@ class ConfigurazioneController
                         }
                     } catch (\Throwable $e) {
                         $errors[] = 'Errore lettura applicazioni: ' . $e->getMessage();
+                    }
+
+                    try {
+                        if (class_exists('GovPay\\Backoffice\\Api\\RuoliApi')) {
+                            $ruoliApi = new \GovPay\Backoffice\Api\RuoliApi($httpClient, $config);
+                            $ruoliResponse = $ruoliApi->findRuoli(1, 200, true);
+                            $ruoliData = \GovPay\Backoffice\ObjectSerializer::sanitizeForSerialization($ruoliResponse);
+                            $ruoliApiJson = json_encode($ruoliData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+                            if (is_array($ruoliData)) {
+                                $results = $ruoliData['risultati'] ?? null;
+                                if (is_array($results)) {
+                                    $ruoliApiCount = count($results);
+                                } elseif (!empty($ruoliData)) {
+                                    $ruoliApiCount = count($ruoliData);
+                                }
+                            }
+                            $ruoliApiStatus = 'ok';
+                        } else {
+                            $ruoliApiStatus = 'missing-client';
+                            $ruoliApiError = 'Client Backoffice Ruoli non disponibile';
+                        }
+                    } catch (\Throwable $e) {
+                        $ruoliApiStatus = 'error';
+                        $ruoliApiError = $e->getMessage();
                     }
 
                     try {
@@ -304,6 +332,10 @@ class ConfigurazioneController
             'apps' => $appsArr,
             'app_json' => $appJson,
             'app' => $appArr,
+            'ruoli_api_json' => $ruoliApiJson,
+            'ruoli_api_status' => $ruoliApiStatus,
+            'ruoli_api_error' => $ruoliApiError,
+            'ruoli_api_count' => $ruoliApiCount,
             'idA2A' => getenv('ID_A2A') ?: null,
             'profilo_json' => $profiloJson,
             'entrate_json' => $entrateJson,
