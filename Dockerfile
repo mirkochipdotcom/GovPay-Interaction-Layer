@@ -22,6 +22,9 @@ ARG FA_VERSION="7.1.0"
 ENV FA_URL=https://github.com/FortAwesome/Font-Awesome/releases/download/${FA_VERSION}/fontawesome-free-${FA_VERSION}-web.zip
 ENV FA_DIR="fontawesome-free-${FA_VERSION}-web"
 
+# Variabili per Chart.js
+ARG CHARTJS_VERSION="4.5.1"
+
 # 1. Clona il repository, checkout, installa e compila Bootstrap Italia
 RUN git clone https://github.com/italia/bootstrap-italia.git . && \
     git checkout ${BOOTSTRAP_TAG} && \
@@ -38,8 +41,18 @@ RUN mkdir -p /tmp/fa_download && \
     mv ${FA_DIR} /app/fontawesome-dist && \
     rm -rf /tmp/fa_download
 
+# 3. Scarica Chart.js (bundle UMD) per distribuirlo localmente tramite npm
+RUN mkdir -p /app/chartjs-dist && \
+    echo "Scarico Chart.js ${CHARTJS_VERSION} via npm..." && \
+    npm install chart.js@${CHARTJS_VERSION} --prefix /tmp/chartjs-download && \
+    cp /tmp/chartjs-download/node_modules/chart.js/dist/chart.umd.js /app/chartjs-dist/chart.umd.js && \
+    cp /tmp/chartjs-download/node_modules/chart.js/dist/chart.umd.min.js /app/chartjs-dist/chart.umd.min.js && \
+    cp /tmp/chartjs-download/node_modules/chart.js/dist/chart.umd.min.js.map /app/chartjs-dist/chart.umd.min.js.map && \
+    rm -rf /tmp/chartjs-download
+
 # Il risultato della compilazione di Bootstrap Italia è in /app/dist
 # Il risultato del download di Font Awesome è in /app/fontawesome-dist
+# Il risultato del download di Chart.js è in /app/chartjs-dist
 
 ######################################################################
 # STAGE 2: Composer vendor builder (solo dipendenze PHP)
@@ -79,7 +92,7 @@ WORKDIR /var/www/html
 # COPIA ASSET FRONT-END
 # ----------------------------------------------------------------------
 
-RUN mkdir -p public/assets/bootstrap-italia public/assets/fontawesome
+RUN mkdir -p public/assets/bootstrap-italia public/assets/fontawesome public/assets/chartjs
 COPY --from=asset_builder /app/dist/ /var/www/html/public/assets/bootstrap-italia/
 
 # 2. Copia Font Awesome (Asset scaricati dalla Fase 1)
@@ -87,6 +100,9 @@ ENV FA_DEST="/var/www/html/public/assets/fontawesome"
 COPY --from=asset_builder /app/fontawesome-dist/css ${FA_DEST}/css/
 COPY --from=asset_builder /app/fontawesome-dist/js ${FA_DEST}/js/
 COPY --from=asset_builder /app/fontawesome-dist/webfonts ${FA_DEST}/webfonts/
+
+# 3. Copia Chart.js
+COPY --from=asset_builder /app/chartjs-dist/ /var/www/html/public/assets/chartjs/
 
 # Imposta i permessi per gli asset copiati
 RUN chmod -R 755 public/assets

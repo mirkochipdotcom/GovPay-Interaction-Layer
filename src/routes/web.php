@@ -11,6 +11,7 @@ use App\Controllers\ConfigurazioneController;
 use App\Controllers\HomeController;
 use App\Controllers\FlussiController;
 use App\Controllers\PendenzeController;
+use App\Controllers\StatisticheController;
 use App\Controllers\UsersController;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -30,6 +31,12 @@ return function (App $app, Twig $twig): void {
     $app->get('/guida', function(Request $request, Response $response) use ($twig): Response {
         $controller = new HomeController($twig);
         return $controller->guida($request, $response);
+    });
+
+    // Statistiche
+    $app->get('/statistiche', function(Request $request, Response $response) use ($twig): Response {
+        $controller = new StatisticheController($twig);
+        return $controller->index($request, $response);
     });
 
     // Pendenze
