@@ -54,8 +54,33 @@ class ConfigurazioneController
         $ruoliApiCount = null;
         $operatoriJson = null;
         $operatoriArr = null;
-    $idDominio = null;
-        $tab = $request->getQueryParams()['tab'] ?? 'principali';
+        $idDominio = null;
+
+        $params = $request->getQueryParams();
+        $tab = $params['tab'] ?? 'principali';
+
+        $operatoriPage = isset($params['operatori_pagina']) ? (int)$params['operatori_pagina'] : 1;
+        if ($operatoriPage < 1) {
+            $operatoriPage = 1;
+        }
+
+        $operatoriPerPage = isset($params['operatori_rpp']) ? (int)$params['operatori_rpp'] : 25;
+        if ($operatoriPerPage < 1) {
+            $operatoriPerPage = 25;
+        } elseif ($operatoriPerPage > 200) {
+            $operatoriPerPage = 200;
+        }
+
+        $operatoriPagination = [
+            'page' => $operatoriPage,
+            'perPage' => $operatoriPerPage,
+            'totalPages' => null,
+            'totalResults' => null,
+            'hasPrev' => false,
+            'hasNext' => false,
+            'prevUrl' => null,
+            'nextUrl' => null,
+        ];
         $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
 
         if (class_exists('\\GovPay\\Backoffice\\Api\\ConfigurazioniApi')) {
@@ -143,11 +168,96 @@ class ConfigurazioneController
                         }
                         // Operatori (lista)
                         if (class_exists('GovPay\\Backoffice\\Api\\OperatoriApi')) {
-                            $operatoriApi = new \GovPay\Backoffice\Api\OperatoriApi($httpClient, $config);
-                            $operRes = $operatoriApi->findOperatori(1, 200, '+ragioneSociale', null, null, true, true);
-                            $operData = \GovPay\Backoffice\ObjectSerializer::sanitizeForSerialization($operRes);
-                            $operatoriJson = json_encode($operData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-                            $operatoriArr = is_array($operData) ? $operData : (json_decode(json_encode($operData, JSON_UNESCAPED_SLASHES), true) ?: []);
+                                $operatoriApi = new \GovPay\Backoffice\Api\OperatoriApi($httpClient, $config);
+                                $operRes = $operatoriApi->findOperatori($operatoriPagination['page'], $operatoriPagination['perPage'], '+ragioneSociale', null, null, true, true);
+                                $operData = \GovPay\Backoffice\ObjectSerializer::sanitizeForSerialization($operRes);
+                                $operatoriJson = json_encode($operData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+                                $operatoriArr = is_array($operData)
+                                    ? $operData
+                                    : (json_decode(json_encode($operData, JSON_UNESCAPED_SLASHES), true) ?: []);
+
+                                if (is_array($operatoriArr)) {
+                                    $extractInt = static function (array $src, array $paths): ?int {
+                                        foreach ($paths as $path) {
+                                            $cursor = $src;
+                                            foreach (explode('.', $path) as $segment) {
+                                                if (!is_array($cursor) || !array_key_exists($segment, $cursor)) {
+                                                    continue 2;
+                                                }
+                                                $cursor = $cursor[$segment];
+                                            }
+                                            if ($cursor !== null && $cursor !== '') {
+                                                return (int)$cursor;
+                                            }
+                                        }
+                                        return null;
+                                    };
+
+                                    $pageFromResponse = $extractInt($operatoriArr, ['pagina', 'page']);
+                                    if ($pageFromResponse !== null && $pageFromResponse > 0) {
+                                        $operatoriPagination['page'] = $pageFromResponse;
+                                    }
+
+                                    $perPageFromResponse = $extractInt($operatoriArr, ['risultatiPerPagina', 'risultati_per_pagina']);
+                                    if ($perPageFromResponse !== null && $perPageFromResponse > 0) {
+                                        $operatoriPagination['perPage'] = $perPageFromResponse;
+                                    }
+
+                                    $operatoriPagination['totalPages'] = $extractInt($operatoriArr, [
+                                        'numPagine',
+                                        'num_pagine',
+                                        'metadatiPaginazione.numPagine',
+                                        'metadatiPaginazione.num_pagine',
+                                    ]);
+                                    $operatoriPagination['totalResults'] = $extractInt($operatoriArr, [
+                                        'numRisultati',
+                                        'num_risultati',
+                                        'metadatiPaginazione.numRisultati',
+                                        'metadatiPaginazione.num_risultati',
+                                    ]);
+                                    if ($operatoriPagination['totalPages'] === null
+                                        && $operatoriPagination['totalResults'] !== null
+                                        && $operatoriPagination['perPage'] > 0) {
+                                        $operatoriPagination['totalPages'] = (int)ceil($operatoriPagination['totalResults'] / $operatoriPagination['perPage']);
+                                    }
+
+                                    $hasPrev = $operatoriPagination['page'] > 1;
+                                    $hasNext = false;
+                                    if ($operatoriPagination['totalPages'] !== null) {
+                                        $hasNext = $operatoriPagination['page'] < $operatoriPagination['totalPages'];
+                                    } elseif ($operatoriPagination['perPage'] > 0 && isset($operatoriArr['risultati']) && is_array($operatoriArr['risultati'])) {
+                                        $hasNext = count($operatoriArr['risultati']) >= $operatoriPagination['perPage'];
+                                    }
+
+                                    $buildOperatoriUrl = static function (Request $req, array $overrides): string {
+                                        $qs = $req->getQueryParams();
+                                        $qs['tab'] = 'operatori';
+                                        foreach ($overrides as $key => $value) {
+                                            if ($value === null) {
+                                                unset($qs[$key]);
+                                            } else {
+                                                $qs[$key] = $value;
+                                            }
+                                        }
+                                        return $req->getUri()->getPath() . '?' . http_build_query($qs, '', '&', PHP_QUERY_RFC3986);
+                                    };
+
+                                    if ($hasPrev) {
+                                        $operatoriPagination['prevUrl'] = $buildOperatoriUrl($request, [
+                                            'operatori_pagina' => $operatoriPagination['page'] - 1,
+                                            'operatori_rpp' => $operatoriPagination['perPage'],
+                                        ]);
+                                    }
+                                    if ($hasNext) {
+                                        $operatoriPagination['nextUrl'] = $buildOperatoriUrl($request, [
+                                            'operatori_pagina' => $operatoriPagination['page'] + 1,
+                                            'operatori_rpp' => $operatoriPagination['perPage'],
+                                        ]);
+                                    }
+
+                                    $operatoriPagination['hasPrev'] = $hasPrev;
+                                    $operatoriPagination['hasNext'] = $hasNext;
+                                }
                         }
                     } catch (\Throwable $e) {
                         $ruoliApiStatus = 'error';
@@ -357,11 +467,13 @@ class ConfigurazioneController
             'dominio' => $dominioArr,
             'operatori_json' => $operatoriJson,
             'operatori' => $operatoriArr,
+            'operatori_pagination' => $operatoriPagination,
             'dominio_json' => $dominioJson,
             'tipologie_esterne' => $externalTypes,
             'backoffice_base' => rtrim($backofficeUrl, '/'),
             'tab' => $tab,
             'logs_lines' => $logsLines,
+            'query_params' => $params,
         ]);
     }
 

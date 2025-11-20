@@ -733,54 +733,6 @@
                           {% else %}
                             <span class="text-muted">—</span>
                           {% endif %}
-                          {% elseif currentTab == 'operatori' %}
-                            <h2 class="h5">Operatori (Backoffice)</h2>
-                            {% set list = operatori.risultati|default([]) %}
-                            <div class="mb-3 d-flex gap-2 align-items-center">
-                              <form method="post" action="/configurazione/operatori/add" class="d-flex gap-2 align-items-start">
-                                <input name="principal" class="form-control form-control-sm" placeholder="username (principal)" required>
-                                <input name="ragione_sociale" class="form-control form-control-sm" placeholder="Nome operatore" required>
-                                <button class="btn btn-sm btn-primary">Aggiungi/aggiorna</button>
-                              </form>
-                            </div>
-
-                            {% if list and list|length > 0 %}
-                              <div class="table-responsive">
-                                <table class="table table-sm table-striped align-middle">
-                                  <thead>
-                                    <tr>
-                                      <th>Principal</th>
-                                      <th>Nome</th>
-                                      <th class="text-nowrap">Abilitato</th>
-                                      <th></th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {% for op in list %}
-                                      <tr>
-                                        <td class="font-monospace">{{ op.principal|default('—') }}</td>
-                                        <td>{{ op.ragioneSociale|default('—') }}</td>
-                                        <td>
-                                          {% if op.abilitato %}
-                                            <span class="badge bg-success">Sì</span>
-                                          {% else %}
-                                            <span class="badge bg-secondary">No</span>
-                                          {% endif %}
-                                        </td>
-                                        <td class="text-end">
-                                          <form method="post" action="/configurazione/operatori/{{ op.principal }}/abilitato" class="d-inline">
-                                            <input type="hidden" name="enable" value="{{ op.abilitato ? 0 : 1 }}">
-                                            <button class="btn btn-sm {{ op.abilitato ? 'btn-warning' : 'btn-success' }}">{{ op.abilitato ? 'Disabilita' : 'Abilita' }}</button>
-                                          </form>
-                                        </td>
-                                      </tr>
-                                    {% endfor %}
-                                  </tbody>
-                                </table>
-                              </div>
-                            {% else %}
-                              <p class="text-muted">Nessun operatore trovato.</p>
-                            {% endif %}
                         </td>
                       </tr>
                     {% endfor %}
@@ -931,7 +883,114 @@
             </div>
           {% endif %}
         {% endif %}
-  {% elseif currentTab == 'confapi' %}
+      {% elseif currentTab == 'operatori' %}
+        <h2 class="h5">Operatori (Backoffice)</h2>
+        {% set list = operatori.risultati|default([]) %}
+        {% set opPag = operatori_pagination|default({}) %}
+        <div class="mb-3 d-flex gap-2 align-items-center">
+          <form method="post" action="/configurazione/operatori/add" class="d-flex gap-2 align-items-start">
+            <input name="principal" class="form-control form-control-sm" placeholder="username (principal)" required>
+            <input name="ragione_sociale" class="form-control form-control-sm" placeholder="Nome operatore" required>
+            <button class="btn btn-sm btn-primary">Aggiungi/aggiorna</button>
+          </form>
+        </div>
+
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+          <div class="small text-muted">
+            Pagina <strong>{{ opPag.page|default(1) }}</strong>
+            {% if opPag.totalPages is defined and opPag.totalPages %}
+              di <strong>{{ opPag.totalPages }}</strong>
+            {% endif %}
+            {% if opPag.totalResults is defined and opPag.totalResults %}
+              · {{ opPag.totalResults }} operatori
+            {% endif %}
+          </div>
+          <div class="d-flex flex-wrap gap-2 align-items-center">
+            <form method="get" class="d-flex align-items-center gap-2">
+              <input type="hidden" name="tab" value="operatori">
+              <input type="hidden" name="operatori_pagina" value="1">
+              {% for key, value in query_params|default({}) %}
+                {% if key not in ['operatori_rpp', 'operatori_pagina', 'tab'] and value is not iterable %}
+                  <input type="hidden" name="{{ key }}" value="{{ value }}">
+                {% endif %}
+              {% endfor %}
+              <label for="opRpp" class="small text-muted mb-0">Per pagina</label>
+              <select id="opRpp" class="form-select form-select-sm" name="operatori_rpp" onchange="this.form.submit()">
+                {% for size in [25, 50, 100, 200] %}
+                  <option value="{{ size }}" {{ size == opPag.perPage|default(25) ? 'selected' }}>{{ size }}</option>
+                {% endfor %}
+              </select>
+            </form>
+            <div class="btn-group btn-group-sm" role="group" aria-label="Paginazione operatori">
+              <a class="btn btn-outline-secondary {{ not opPag.hasPrev ? 'disabled' }}" href="{{ opPag.hasPrev ? opPag.prevUrl : '#' }}">
+                &laquo;
+              </a>
+              <a class="btn btn-outline-secondary {{ not opPag.hasNext ? 'disabled' }}" href="{{ opPag.hasNext ? opPag.nextUrl : '#' }}">
+                &raquo;
+              </a>
+            </div>
+          </div>
+        </div>
+
+        {% if list and list|length > 0 %}
+          <div class="table-responsive">
+            <table class="table table-sm table-striped align-middle">
+              <thead>
+                <tr>
+                  <th>Principal</th>
+                  <th>Nome</th>
+                  <th class="text-nowrap">Abilitato</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for op in list %}
+                  <tr>
+                    <td class="font-monospace">{{ op.principal|default('—') }}</td>
+                    <td>{{ op.ragioneSociale|default('—') }}</td>
+                    <td>
+                      {% if op.abilitato %}
+                        <span class="badge bg-success">Sì</span>
+                      {% else %}
+                        <span class="badge bg-secondary">No</span>
+                      {% endif %}
+                    </td>
+                    <td class="text-end">
+                      <form method="post" action="/configurazione/operatori/{{ op.principal|url_encode }}/abilitato" class="d-inline">
+                        <input type="hidden" name="enable" value="{{ op.abilitato ? 0 : 1 }}">
+                        <button class="btn btn-sm {{ op.abilitato ? 'btn-warning' : 'btn-success' }}">{{ op.abilitato ? 'Disabilita' : 'Abilita' }}</button>
+                      </form>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <div class="d-flex justify-content-end mt-3">
+            <div class="btn-group btn-group-sm" role="group" aria-label="Paginazione operatori">
+              <a class="btn btn-outline-secondary {{ not opPag.hasPrev ? 'disabled' }}" href="{{ opPag.hasPrev ? opPag.prevUrl : '#' }}">&laquo; Precedente</a>
+              <span class="btn btn-outline-secondary disabled">Pagina {{ opPag.page|default(1) }}</span>
+              <a class="btn btn-outline-secondary {{ not opPag.hasNext ? 'disabled' }}" href="{{ opPag.hasNext ? opPag.nextUrl : '#' }}">Successiva &raquo;</a>
+            </div>
+          </div>
+        {% else %}
+          <p class="text-muted">Nessun operatore trovato.</p>
+        {% endif %}
+
+        {% if app_debug and operatori_json %}
+          <hr>
+          <div class="d-flex justify-content-between align-items-center">
+            <div class="text-muted small">Backoffice: /operatori</div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="badge bg-warning text-dark">Debug</span>
+              <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#rawOperatori" aria-expanded="false" aria-controls="rawOperatori">Mostra JSON</button>
+            </div>
+          </div>
+          <div class="collapse mt-2" id="rawOperatori">
+            <pre class="mb-0">{{ operatori_json }}</pre>
+          </div>
+        {% endif %}
+      {% elseif currentTab == 'confapi' %}
         <h2 class="h5">Configurazioni (API Backoffice)</h2>
         {% if app_debug and cfg_json %}
           <div class="d-flex justify-content-between align-items-center">
