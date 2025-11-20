@@ -62,11 +62,13 @@
                   <input type="date" id="dateEnd" class="form-control">
                 </div>
               </div>
-              <div class="d-flex flex-wrap gap-2 mt-3">
-                <button type="button" class="btn btn-outline-primary btn-sm" data-range="week">Ultima settimana</button>
-                <button type="button" class="btn btn-outline-primary btn-sm" data-range="month">Ultimo mese</button>
-                <button type="button" class="btn btn-outline-secondary btn-sm" data-range="all">Tutto</button>
-                <button type="button" class="btn btn-primary btn-sm ms-auto" data-action="apply">Applica</button>
+              <div class="d-flex flex-wrap align-items-center gap-2 mt-3">
+                <span class="small text-muted fw-semibold">Periodo:</span>
+                <button type="button" class="btn btn-outline-primary btn-xs" data-range="week">Settimana</button>
+                <button type="button" class="btn btn-outline-primary btn-xs" data-range="month">Mese</button>
+                <button type="button" class="btn btn-outline-primary btn-xs" data-range="year">Anno</button>
+                <button type="button" class="btn btn-outline-secondary btn-xs" data-range="all">Azzera</button>
+                <button type="button" class="btn btn-primary btn-xs ms-auto" data-action="apply">Applica</button>
               </div>
             </div>
           </div>
@@ -81,26 +83,53 @@
             </select>
           </div>
         </div>
-        <div class="form-group col-md-4">
-          <div class="select-wrapper">
-            <label for="ordinamento" class="active">Ordina per</label>
-            <select class="form-select" id="ordinamento" name="ordinamento">
-              <option value="-data" {% if ord == '-data' %}selected{% endif %}>Data flusso (decrescente)</option>
-              <option value="+data" {% if ord == '+data' %}selected{% endif %}>Data flusso (crescente)</option>
+        <div class="form-group col-md-4 d-flex flex-column">
+          <div class="d-flex align-items-center gap-2 mt-auto">
+            <label for="ordinamento" class="small mb-0 text-muted">Ordina per</label>
+            <select class="form-select" id="ordinamento" name="ordinamento" data-default-value="-data">
+              <option value="-data" {% if ord == '-data' %}selected{% endif %}>Data flusso (più recenti prima)</option>
+              <option value="+data" {% if ord == '+data' %}selected{% endif %}>Data flusso (più vecchie prima)</option>
             </select>
           </div>
         </div>
       </div>
 
-      <div class="row g-3 mt-3">
-        <div class="col-12 d-flex flex-wrap align-items-center gap-2">
+      <div class="row g-3 mt-1">
+        <div class="col-12 col-lg-auto d-flex flex-wrap align-items-center gap-2">
           <button type="submit" class="btn btn-primary">
             <i class="fas fa-search me-1"></i> Cerca
           </button>
-          <a class="btn btn-outline-secondary" href="/pagamenti/ricerca-flussi">
+          <a class="btn btn-outline-secondary" href="/pagamenti/ricerca-flussi?reset=1">
             <i class="fas fa-eraser me-1"></i> Azzera
           </a>
+          <button class="btn btn-link px-0" type="button" data-bs-toggle="collapse" data-bs-target="#advancedFiltersFlussi" aria-expanded="false" aria-controls="advancedFiltersFlussi">
+            <i class="fas fa-sliders-h me-1"></i> Filtri avanzati
+          </button>
         </div>
+      </div>
+
+      <div class="collapse mt-4" id="advancedFiltersFlussi">
+        <fieldset class="row g-4">
+          <legend class="visually-hidden">Filtri avanzati flussi</legend>
+          <div class="col-12 col-lg-6 col-xl-3">
+            <div class="form-group">
+              <label for="idDominio">ID Dominio</label>
+              <input type="text" class="form-control" id="idDominio" name="idDominio" value="{{ f.idDominio|default('') }}" placeholder="ID Dominio">
+            </div>
+          </div>
+          <div class="col-12 col-lg-6 col-xl-3">
+            <div class="form-group">
+              <label for="idA2A">ID A2A</label>
+              <input type="text" class="form-control" id="idA2A" name="idA2A" value="{{ f.idA2A|default('') }}" placeholder="ID A2A">
+            </div>
+          </div>
+          <div class="col-12 col-lg-6 col-xl-3">
+            <div class="form-group form-check mt-4">
+              <input type="checkbox" class="form-check-input" id="escludiObsoleti" name="escludiObsoleti" value="true" {% if f.escludiObsoleti is defined and f.escludiObsoleti %}checked{% endif %}>
+              <label class="form-check-label" for="escludiObsoleti">Escludi flussi obsoleti</label>
+            </div>
+          </div>
+        </fieldset>
       </div>
     </div>
   </form>
