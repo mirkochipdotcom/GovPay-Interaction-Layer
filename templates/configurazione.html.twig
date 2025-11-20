@@ -26,6 +26,7 @@
   <a class="nav-link {{ currentTab == 'logs' ? 'active' : '' }}" href="/configurazione?tab=logs"><i class="fas fa-file-alt me-2"></i>Logs</a>
         <a class="nav-link {{ currentTab == 'applicazioni' ? 'active' : '' }}" href="/configurazione?tab=applicazioni"><i class="fas fa-puzzle-piece me-2"></i>Applicazioni</a>
         <a class="nav-link {{ currentTab == 'confapi' ? 'active' : '' }}" href="/configurazione?tab=confapi"><i class="fas fa-code me-2"></i>Config API</a>
+        <a class="nav-link {{ currentTab == 'operatori' ? 'active' : '' }}" href="/configurazione?tab=operatori"><i class="fas fa-user-cog me-2"></i>Operatori</a>
       </nav>
     </div>
     <div class="col-lg-9">
@@ -732,6 +733,54 @@
                           {% else %}
                             <span class="text-muted">—</span>
                           {% endif %}
+                          {% elseif currentTab == 'operatori' %}
+                            <h2 class="h5">Operatori (Backoffice)</h2>
+                            {% set list = operatori.risultati|default([]) %}
+                            <div class="mb-3 d-flex gap-2 align-items-center">
+                              <form method="post" action="/configurazione/operatori/add" class="d-flex gap-2 align-items-start">
+                                <input name="principal" class="form-control form-control-sm" placeholder="username (principal)" required>
+                                <input name="ragione_sociale" class="form-control form-control-sm" placeholder="Nome operatore" required>
+                                <button class="btn btn-sm btn-primary">Aggiungi/aggiorna</button>
+                              </form>
+                            </div>
+
+                            {% if list and list|length > 0 %}
+                              <div class="table-responsive">
+                                <table class="table table-sm table-striped align-middle">
+                                  <thead>
+                                    <tr>
+                                      <th>Principal</th>
+                                      <th>Nome</th>
+                                      <th class="text-nowrap">Abilitato</th>
+                                      <th></th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {% for op in list %}
+                                      <tr>
+                                        <td class="font-monospace">{{ op.principal|default('—') }}</td>
+                                        <td>{{ op.ragioneSociale|default('—') }}</td>
+                                        <td>
+                                          {% if op.abilitato %}
+                                            <span class="badge bg-success">Sì</span>
+                                          {% else %}
+                                            <span class="badge bg-secondary">No</span>
+                                          {% endif %}
+                                        </td>
+                                        <td class="text-end">
+                                          <form method="post" action="/configurazione/operatori/{{ op.principal }}/abilitato" class="d-inline">
+                                            <input type="hidden" name="enable" value="{{ op.abilitato ? 0 : 1 }}">
+                                            <button class="btn btn-sm {{ op.abilitato ? 'btn-warning' : 'btn-success' }}">{{ op.abilitato ? 'Disabilita' : 'Abilita' }}</button>
+                                          </form>
+                                        </td>
+                                      </tr>
+                                    {% endfor %}
+                                  </tbody>
+                                </table>
+                              </div>
+                            {% else %}
+                              <p class="text-muted">Nessun operatore trovato.</p>
+                            {% endif %}
                         </td>
                       </tr>
                     {% endfor %}

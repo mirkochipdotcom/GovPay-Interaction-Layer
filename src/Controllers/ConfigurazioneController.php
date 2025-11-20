@@ -52,6 +52,8 @@ class ConfigurazioneController
         $ruoliApiStatus = null;
         $ruoliApiError = null;
         $ruoliApiCount = null;
+        $operatoriJson = null;
+        $operatoriArr = null;
     $idDominio = null;
         $tab = $request->getQueryParams()['tab'] ?? 'principali';
         $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
@@ -138,6 +140,14 @@ class ConfigurazioneController
                         } else {
                             $ruoliApiStatus = 'missing-client';
                             $ruoliApiError = 'Client Backoffice Ruoli non disponibile';
+                        }
+                        // Operatori (lista)
+                        if (class_exists('GovPay\\Backoffice\\Api\\OperatoriApi')) {
+                            $operatoriApi = new \GovPay\Backoffice\Api\OperatoriApi($httpClient, $config);
+                            $operRes = $operatoriApi->findOperatori(1, 200, '+ragioneSociale', null, null, true, true);
+                            $operData = \GovPay\Backoffice\ObjectSerializer::sanitizeForSerialization($operRes);
+                            $operatoriJson = json_encode($operData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+                            $operatoriArr = is_array($operData) ? $operData : (json_decode(json_encode($operData, JSON_UNESCAPED_SLASHES), true) ?: []);
                         }
                     } catch (\Throwable $e) {
                         $ruoliApiStatus = 'error';
@@ -345,6 +355,8 @@ class ConfigurazioneController
             'info' => $infoArr,
             'info_json' => $infoJson,
             'dominio' => $dominioArr,
+            'operatori_json' => $operatoriJson,
+            'operatori' => $operatoriArr,
             'dominio_json' => $dominioJson,
             'tipologie_esterne' => $externalTypes,
             'backoffice_base' => rtrim($backofficeUrl, '/'),
@@ -740,6 +752,103 @@ class ConfigurazioneController
         }
 
         return $this->redirectToTab($response, 'tipologie');
+    }
+
+    public function addOperatore(Request $request, Response $response): Response
+    {
+        if (!$this->isSuperadmin()) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Accesso negato'];
+            return $this->redirectToTab($response, 'operatori');
+        }
+
+        $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
+        if ($backofficeUrl === '') {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'GOVPAY_BACKOFFICE_URL non impostata'];
+            return $this->redirectToTab($response, 'operatori');
+        }
+
+        $data = (array)($request->getParsedBody() ?? []);
+        $principal = trim((string)($data['principal'] ?? ''));
+        $ragione = trim((string)($data['ragione_sociale'] ?? ''));
+        $abilitato = isset($data['abilitato']) ? ((string)$data['abilitato'] === '1') : true;
+
+        if ($principal === '' || $ragione === '') {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Compila principal e ragione sociale'];
+            return $this->redirectToTab($response, 'operatori');
+        }
+
+        try {
+            $config = new \GovPay\Backoffice\Configuration();
+            $config->setHost(rtrim($backofficeUrl, '/'));
+            $username = getenv('GOVPAY_USER');
+            $password = getenv('GOVPAY_PASSWORD');
+            if ($username !== false && $password !== false && $username !== '' && $password !== '') {
+                $config->setUsername($username);
+                $config->setPassword($password);
+            }
+            $httpClient = new \GuzzleHttp\Client();
+
+            $api = new \GovPay\Backoffice\Api\OperatoriApi($httpClient, $config);
+            $opPost = new \GovPay\Backoffice\Model\OperatorePost([
+                'ragione_sociale' => $ragione,
+                'abilitato' => (bool)$abilitato
+            ]);
+            $api->addOperatore($principal, $opPost);
+            $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Operatore aggiunto/aggiornato'];
+        } catch (\GovPay\Backoffice\ApiException $e) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Errore Backoffice: ' . $e->getMessage()];
+        } catch (\Throwable $e) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Errore: ' . $e->getMessage()];
+        }
+
+        return $this->redirectToTab($response, 'operatori');
+    }
+
+    public function toggleOperatoreAbilitato(Request $request, Response $response, array $args): Response
+    {
+        if (!$this->isSuperadmin()) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Accesso negato'];
+            return $this->redirectToTab($response, 'operatori');
+        }
+
+        $principal = $args['principal'] ?? '';
+        if ($principal === '') return $this->redirectToTab($response, 'operatori');
+
+        $data = (array)($request->getParsedBody() ?? []);
+        $enable = isset($data['enable']) ? ((string)$data['enable'] === '1') : null;
+        if ($enable === null) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Parametro enable mancante'];
+            return $this->redirectToTab($response, 'operatori');
+        }
+
+        $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
+        if ($backofficeUrl === '') {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'GOVPAY_BACKOFFICE_URL non impostata'];
+            return $this->redirectToTab($response, 'operatori');
+        }
+
+        try {
+            $config = new \GovPay\Backoffice\Configuration();
+            $config->setHost(rtrim($backofficeUrl, '/'));
+            $username = getenv('GOVPAY_USER');
+            $password = getenv('GOVPAY_PASSWORD');
+            if ($username !== false && $password !== false && $username !== '' && $password !== '') {
+                $config->setUsername($username);
+                $config->setPassword($password);
+            }
+            $httpClient = new \GuzzleHttp\Client();
+
+            $operApi = new \GovPay\Backoffice\Api\OperatoriApi($httpClient, $config);
+            $opPost = new \GovPay\Backoffice\Model\OperatorePost(['abilitato' => (bool)$enable]);
+            $operApi->addOperatore($principal, $opPost);
+            $_SESSION['flash'][] = ['type' => 'success', 'text' => ($enable ? 'Operatore abilitato' : 'Operatore disabilitato')];
+        } catch (\GovPay\Backoffice\ApiException $e) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Errore Backoffice: ' . $e->getMessage()];
+        } catch (\Throwable $e) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Errore: ' . $e->getMessage()];
+        }
+
+        return $this->redirectToTab($response, 'operatori');
     }
 
     public function resetTipologia(Request $request, Response $response, array $args): Response
