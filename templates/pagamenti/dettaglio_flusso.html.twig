@@ -149,15 +149,27 @@
               } %}
               {% for p in pagamenti %}
                 {% set idx = loop.index %}
-                {% set iuv = p.iuv|default('') %}
-                {% set voceId = p.riscossione.vocePendenza.idVocePendenza|default(p.vocePendenza.idVocePendenza|default('')) %}
-                {% set causale = p.causale|default(p.vocePendenza.descrizione|default(p.descrizione|default(''))) %}
-                {% set tipologia = p.tipologia|default(p.tipoPendenza.descrizione|default(p.tipoPendenza.idTipoPendenza|default(''))) %}
-                {% set anno = p.annoRiferimento|default(p.pendenza.annoRiferimento|default('')) %}
-                {% set importo = p.importo|default(p.riscossione.importo|default(null)) %}
-                {% set esito_code = p.stato|default(p.esito|default(p.esitoPagamento|default(''))) %}
+                {% set risc = p.riscossione|default(null) %}
+                {% if risc is iterable and risc|length == 0 %}
+                  {% set risc = null %}
+                {% endif %}
+                {% set voce = {} %}
+                {% if risc is not null and risc.vocePendenza is defined %}
+                  {% set voce = risc.vocePendenza %}
+                {% elseif p.vocePendenza is defined %}
+                  {% set voce = p.vocePendenza %}
+                {% endif %}
+                {% set pend = voce.pendenza|default(p.pendenza|default({})) %}
+                {% set iuv = p.iuv|default(risc.iuv|default(p.iuvPagamento|default(p.iuvAvviso|default('')))) %}
+                {% set voceId = voce.idVocePendenza|default('') %}
+                {% set causale = p.causale|default(voce.descrizione|default(pend.causale|default(''))) %}
+                {% set tipologia = p.tipologia|default(pend.tipoPendenza.descrizione|default(pend.tipoPendenza.idTipoPendenza|default(''))) %}
+                {% set anno = p.annoRiferimento|default(pend.annoRiferimento|default('')) %}
+                {% set importo = p.importo|default(voce.importo|default(risc.importo|default(null))) %}
+                {% set esito_code = p.stato|default(voce.stato|default(risc.stato|default(p.esito|default(p.esitoPagamento|default(''))))) %}
                 {% set esito_label = esiti_map[esito_code ~ '']|default('') %}
                 {% set collapseId = 'payRow-' ~ idx %}
+                {% set hasDetail = risc is not null %}
                 <tr>
                   <td class="text-center small text-muted">{{ idx }}</td>
                   <td class="text-break">
@@ -177,48 +189,54 @@
                     {% endif %}
                   </td>
                   <td class="text-center">
-                    <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#{{ collapseId }}" aria-expanded="false" aria-controls="{{ collapseId }}" title="Mostra dettaglio">
-                      <i class="fas fa-eye"></i>
-                    </button>
+                    {% if hasDetail %}
+                      <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#{{ collapseId }}" aria-expanded="false" aria-controls="{{ collapseId }}" title="Mostra dettaglio">
+                        <i class="fas fa-eye"></i>
+                      </button>
+                    {% else %}
+                      <span class="text-muted">—</span>
+                    {% endif %}
                   </td>
                 </tr>
-                <tr class="collapse" id="{{ collapseId }}">
-                  <td colspan="8" class="bg-light">
-                    <div class="card mb-2 shadow-sm">
-                      <div class="card-body small">
-                        <div class="row g-3">
-                          <div class="col-12 col-md-6">
-                            <h6 class="text-secondary text-uppercase mb-2">Soggetto</h6>
-                            {% set sogg = p.soggettoPagatore|default(p.debitore|default({})) %}
-                            {% set cf = sogg.identificativo|default('') %}
-                            {% set den = sogg.anagrafica|default(sogg.denominazione|default('')) %}
-                            <dl class="row mb-0">
-                              <dt class="col-sm-5 text-muted">Identificativo</dt>
-                              <dd class="col-sm-7">{{ cf ?: '—' }}</dd>
-                              <dt class="col-sm-5 text-muted">Denominazione</dt>
-                              <dd class="col-sm-7">{{ den ?: '—' }}</dd>
-                              <dt class="col-sm-5 text-muted">Email</dt>
-                              <dd class="col-sm-7">{{ sogg.email|default('—') }}</dd>
-                            </dl>
-                          </div>
-                          <div class="col-12 col-md-6">
-                            <h6 class="text-secondary text-uppercase mb-2">Pagamento</h6>
-                            {% set dataPag = p.dataPagamento|default(p.data|default('')) %}
-                            {% set rata = p.rata|default(p.numeroRata|default('')) %}
-                            <dl class="row mb-0">
-                              <dt class="col-sm-5 text-muted">Data pagamento</dt>
-                              <dd class="col-sm-7">{% if dataPag %}{{ dataPag|date('d/m/Y H:i') }}{% else %}—{% endif %}</dd>
-                              <dt class="col-sm-5 text-muted">Rata</dt>
-                              <dd class="col-sm-7">{{ rata ?: '—' }}</dd>
-                              <dt class="col-sm-5 text-muted">Voce pendenza</dt>
-                              <dd class="col-sm-7">{{ voceId ?: '—' }}</dd>
-                            </dl>
+                {% if hasDetail %}
+                  {% set sogg = pend.soggettoPagatore|default(p.soggettoPagatore|default(p.debitore|default({}))) %}
+                  {% set cf = sogg.identificativo|default('') %}
+                  {% set den = sogg.anagrafica|default(sogg.denominazione|default('')) %}
+                  {% set dataPag = pend.dataPagamento|default(risc.dataPagamento|default(risc.data|default(p.dataPagamento|default(p.data|default(''))))) %}
+                  {% set rata = pend.rata|default(p.rata|default(p.numeroRata|default(''))) %}
+                  <tr class="collapse" id="{{ collapseId }}">
+                    <td colspan="8" class="bg-light">
+                      <div class="card mb-2 shadow-sm">
+                        <div class="card-body small">
+                          <div class="row g-3">
+                            <div class="col-12 col-md-6">
+                              <h6 class="text-secondary text-uppercase mb-2">Soggetto</h6>
+                              <dl class="row mb-0">
+                                <dt class="col-sm-5 text-muted">Identificativo</dt>
+                                <dd class="col-sm-7">{{ cf ?: '—' }}</dd>
+                                <dt class="col-sm-5 text-muted">Denominazione</dt>
+                                <dd class="col-sm-7">{{ den ?: '—' }}</dd>
+                                <dt class="col-sm-5 text-muted">Email</dt>
+                                <dd class="col-sm-7">{{ sogg.email|default('—') }}</dd>
+                              </dl>
+                            </div>
+                            <div class="col-12 col-md-6">
+                              <h6 class="text-secondary text-uppercase mb-2">Pagamento</h6>
+                              <dl class="row mb-0">
+                                <dt class="col-sm-5 text-muted">Data pagamento</dt>
+                                <dd class="col-sm-7">{% if dataPag %}{{ dataPag|date('d/m/Y H:i') }}{% else %}—{% endif %}</dd>
+                                <dt class="col-sm-5 text-muted">Rata</dt>
+                                <dd class="col-sm-7">{{ rata ?: '—' }}</dd>
+                                <dt class="col-sm-5 text-muted">Voce pendenza</dt>
+                                <dd class="col-sm-7">{{ voceId ?: '—' }}</dd>
+                              </dl>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  </td>
-                </tr>
+                    </td>
+                  </tr>
+                {% endif %}
               {% endfor %}
             {% else %}
               <tr><td colspan="8" class="text-center text-muted">Nessun pagamento presente nel flusso</td></tr>
