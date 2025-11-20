@@ -184,6 +184,18 @@ return function (App $app, Twig $twig): void {
         return $controller->index($request, $response);
     });
 
+    // Aggiungi/aggiorna operatore - solo superadmin
+    $app->post('/configurazione/operatori/add', function($request, $response) use ($twig) {
+        $controller = new ConfigurazioneController($twig);
+        return $controller->addOperatore($request, $response);
+    });
+
+    // Abilita/disabilita operatore - solo superadmin
+    $app->post('/configurazione/operatori/{principal}/abilitato', function($request, $response, $args) use ($twig) {
+        $controller = new ConfigurazioneController($twig);
+        return $controller->toggleOperatoreAbilitato($request, $response, $args);
+    });
+
     // Aggiorna dati dominio (Backoffice addDominio) - solo superadmin
     $app->post('/configurazione/dominio', function($request, $response) use ($twig) {
         $controller = new ConfigurazioneController($twig);
