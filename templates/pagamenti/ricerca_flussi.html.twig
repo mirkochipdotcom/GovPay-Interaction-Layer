@@ -84,9 +84,9 @@
           </div>
         </div>
         <div class="form-group col-md-4 d-flex flex-column">
-          <div class="d-flex align-items-center gap-2 mt-auto">
+          <div class="select-wrapper">
             <label for="ordinamento" class="small mb-0 text-muted">Ordina per</label>
-            <select class="form-select" id="ordinamento" name="ordinamento" data-default-value="-data">
+            <select id="ordinamento" name="ordinamento" data-default-value="-data">
               <option value="-data" {% if ord == '-data' %}selected{% endif %}>Data flusso (più recenti prima)</option>
               <option value="+data" {% if ord == '+data' %}selected{% endif %}>Data flusso (più vecchie prima)</option>
             </select>
