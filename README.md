@@ -1,49 +1,54 @@
 # 🇮🇹 GovPay Interaction Layer (GIL)
-
-Piattaforma containerizzata (PHP/Apache + frontend) per migliorare il flusso di lavoro degli enti che usano GovPay come soluzione PagoPA.
-Lo scopo è avere un portale da cui gli uffici possano creare e gestire le pendenze, rendicontare e controllare i flussi di pagamento, in maniera più semplice rispetto alla GUI di GovPay.
-Inoltre è possibile esporre un frontend semplificato per i cittadini, con la possibilità di esporre altri portali di pagamento esterni per alcune tipologie di pagamento.
-
-[![GitHub Repository](https://img.shields.io/badge/GitHub-mirkochipdotcom%2FGovPay--Interaction--Layer-blue?style=flat&logo=github)](https://github.com/mirkochipdotcom/GovPay-Interaction-Layer.git)
-
-License: European Union Public Licence v1.2 (EUPL-1.2)
-SPDX-License-Identifier: EUPL-1.2
-
----
-
-## 🚀 Avvio rapido (primo utilizzo)
-
-### Prerequisiti
-- Docker
-- Docker Compose (o il plugin `docker compose` incluso nelle versioni recenti)
-
-### 1. Clona il repository
-
 ```bash
+# URL dell'istanza GovPay
+GOVPAY_PENDENZE_URL=https://your-govpay-instance.example.com
+
+# Metodo di autenticazione (tipicamente 'sslheader' per certificati client)
+AUTHENTICATION_GOVPAY=sslheader
+
+# Percorsi certificati GovPay (all'interno del container)
+GOVPAY_TLS_CERT=/var/www/certificate/certificate.cer
+GOVPAY_TLS_KEY=/var/www/certificate/private_key.key
+# Password della chiave privata (se richiesta)
+GOVPAY_TLS_KEY_PASSWORD=your_key_password
+```
+
+> Nota: in questa versione l'integrazione è stata testata solo con la modalità `sslheader` (autenticazione tramite certificato client). Le altre modalità documentate da GovPay potrebbero richiedere adattamenti o test ulteriori.
 git clone https://github.com/mirkochipdotcom/GovPay-Interaction-Layer.git
 cd GovPay-Interaction-Layer
 ```
 
-### 2. Avvia l'applicazione
+### 2. Prepara la configurazione
+1. Copia il file di esempio e personalizzalo:
+   ```bash
+   cp .env.example .env
+   ```
+2. Imposta le variabili minime:
+   - `ADMIN_EMAIL`, `ADMIN_PASSWORD` per il seed del superadmin
+   - Parametri DB (`DB_HOST`, `DB_DATABASE`, ...)
+   - Configurazione GovPay (`GOVPAY_PENDENZE_URL`, `AUTHENTICATION_GOVPAY`, certificati)
+3. (Opzionale) Inserisci i certificati GovPay in `certificate/` e quelli HTTPS in `ssl/` prima della prima esecuzione così non dovrai rebuildare in seguito.
 
-**Prima esecuzione** (build automatica):
+### 3. Avvia i container
+
 ```bash
+# Prima esecuzione (build automatica)
 docker compose up -d
-```
 
-**Se hai modifiche al Dockerfile** (forza rebuild):
-```bash
+# Quando modifichi Dockerfile/composer/npm
 docker compose up -d --build
 ```
 
-La prima build può impiegare qualche minuto perché scarica dipendenze e compila asset.
+La prima build può richiedere alcuni minuti per scaricare dipendenze e compilare gli asset.
 
-### 3. Accedi all'applicazione
+### 4. Primo accesso
 
-- **URL principale**: https://localhost:8443
-- **Debug tool**: https://localhost:8443/debug/
+- Portale operatori: https://localhost:8443
+- Debug tool: https://localhost:8443/debug/
 
-⚠️ **Nota SSL**: Se non fornisci certificati personalizzati in `ssl/`, al primo avvio verranno generati certificati self-signed. Il browser mostrerà un avviso di sicurezza che puoi ignorare per lo sviluppo.
+Il seed creerà automaticamente un utente `superadmin` con le credenziali impostate nel `.env`. Accedi a `/login` e, subito dopo, crea nuovi utenti o aggiorna la password del seed.
+
+⚠️ **Nota SSL**: se non fornisci certificati personalizzati in `ssl/`, il container genera certificati self‑signed. I browser segnaleranno l'avviso di sicurezza: conferma l'eccezione per ambienti di sviluppo.
 
 ## 🛠️ Workflow di sviluppo
 
@@ -124,16 +129,15 @@ GOVPAY_PENDENZE_URL=https://your-govpay-instance.example.com
 
 # Metodo di autenticazione (tipicamente 'sslheader' per certificati client)
 AUTHENTICATION_GOVPAY=sslheader
-
-> Nota: in questa versione l'integrazione è stata testata con la modalità `sslheader` (autenticazione tramite certificato client). Le altre modalità documentate da GovPay non sono state verificate qui e potrebbero richiedere adattamenti o test aggiuntivi.
-
+ 
 # Percorsi certificati GovPay (all'interno del container)
 GOVPAY_TLS_CERT=/var/www/certificate/certificate.cer
 GOVPAY_TLS_KEY=/var/www/certificate/private_key.key
-
 # Password della chiave privata (se richiesta)
 GOVPAY_TLS_KEY_PASSWORD=your_key_password
 ```
+
+> Nota: in questa versione l'integrazione è stata testata solo con la modalità `sslheader` (autenticazione tramite certificato client). Le altre modalità documentate da GovPay potrebbero richiedere adattamenti o test ulteriori.
 
 ### Certificati GovPay
 I certificati per l'autenticazione con le API GovPay devono essere posizionati nella directory `certificate/`:
