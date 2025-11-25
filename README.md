@@ -1,19 +1,36 @@
 # 🇮🇹 GovPay Interaction Layer (GIL)
+
+Piattaforma containerizzata (PHP/Apache + frontend) per migliorare il flusso di lavoro degli enti che usano GovPay come soluzione PagoPA.
+Lo scopo è avere un portale da cui gli uffici possano creare e gestire le pendenze, rendicontare e controllare i flussi di pagamento, in maniera più semplice rispetto alla GUI di GovPay.
+Inoltre è possibile esporre un frontend semplificato per i cittadini, con la possibilità di esporre altri portali di pagamento esterni per alcune tipologie di pagamento.
+
+[![GitHub Repository](https://img.shields.io/badge/GitHub-mirkochipdotcom%2FGovPay--Interaction--Layer-blue?style=flat&logo=github)](https://github.com/mirkochipdotcom/GovPay-Interaction-Layer.git)
+
+License: European Union Public Licence v1.2 (EUPL-1.2)
+SPDX-License-Identifier: EUPL-1.2
+
+---
+
+## 🧭 Cos'è e a cosa serve
+
+GovPay Interaction Layer (GIL) funge da livello intermedio tra GovPay e gli operatori dell'ente. In pratica fornisce:
+- **Backoffice unificato** per creare/modificare pendenze, consultare lo stato degli incassi e scaricare i flussi di rendicontazione.
+- **Strumenti di controllo** (ricerche, filtri, viste dedicate) per individuare rapidamente flussi in errore, stand-in o pagamenti non riconciliati.
+- **Front-end semplificato** per cittadini o sportelli, con la possibilità di reindirizzare alcune tipologie di pagamento verso portali esterni.
+- **Gestione certificati e API**: la piattaforma si occupa di autenticazione, certificati client e configurazione GovPay così i team applicativi possono concentrarsi sui processi dell'ente.
+
+In sintesi, GIL riduce il carico operativo degli uffici e fornisce un punto di accesso coerente per tutte le attività ricorrenti legate a GovPay/PagoPA.
+
+## 🚀 Avvio rapido (primo utilizzo)
+
+### 0. Prerequisiti
+- Docker Desktop (o Docker Engine + plugin `docker compose`)
+- Git
+- Porta 8443 libera sul tuo host (modificabile in `docker-compose.yml`)
+
+### 1. Clona il repository
+
 ```bash
-# URL dell'istanza GovPay
-GOVPAY_PENDENZE_URL=https://your-govpay-instance.example.com
-
-# Metodo di autenticazione (tipicamente 'sslheader' per certificati client)
-AUTHENTICATION_GOVPAY=sslheader
-
-# Percorsi certificati GovPay (all'interno del container)
-GOVPAY_TLS_CERT=/var/www/certificate/certificate.cer
-GOVPAY_TLS_KEY=/var/www/certificate/private_key.key
-# Password della chiave privata (se richiesta)
-GOVPAY_TLS_KEY_PASSWORD=your_key_password
-```
-
-> Nota: in questa versione l'integrazione è stata testata solo con la modalità `sslheader` (autenticazione tramite certificato client). Le altre modalità documentate da GovPay potrebbero richiedere adattamenti o test ulteriori.
 git clone https://github.com/mirkochipdotcom/GovPay-Interaction-Layer.git
 cd GovPay-Interaction-Layer
 ```
@@ -39,12 +56,12 @@ docker compose up -d
 docker compose up -d --build
 ```
 
-La prima build può richiedere alcuni minuti per scaricare dipendenze e compilare gli asset.
+La prima build può impiegare qualche minuto perché scarica dipendenze e compila asset.
 
 ### 4. Primo accesso
 
-- Portale operatori: https://localhost:8443
-- Debug tool: https://localhost:8443/debug/
+- **URL principale**: https://localhost:8443
+- **Debug tool**: https://localhost:8443/debug/
 
 Il seed creerà automaticamente un utente `superadmin` con le credenziali impostate nel `.env`. Accedi a `/login` e, subito dopo, crea nuovi utenti o aggiorna la password del seed.
 
@@ -108,17 +125,13 @@ Ruoli disponibili:
 
 Note importanti:
 - Il seed è idempotente: viene creato un utente `superadmin` solo se non è già presente nel database. Al primo avvio lo script di first‑run crea l'account usando `ADMIN_EMAIL` e `ADMIN_PASSWORD` presenti in `.env`.
-
-- Regola di sicurezza (importante): l'app impedisce la rimozione dell'ultimo account con ruolo `superadmin`. Questo significa che non puoi cancellare l'admin seed se non esiste già un altro `superadmin` attivo. Se desideri sostituire l'admin seed procedi così in sicurezza:
-   1. Accedi con l'admin seed (creato al primo avvio) e crea un nuovo account con ruolo `superadmin` dalla sezione “Utenti”.
-   2. Effettua il logout e verifica l'accesso col nuovo superadmin.
-   3. A questo punto puoi eliminare l'admin seed o modificarne la password/ruolo.
-
-- Se invece vuoi forzare la rigenerazione dell'account seed con le credenziali in `.env`, elimina prima manualmente il superadmin esistente (dopo aver creato un altro superadmin) o, in ambienti di sviluppo, puoi cancellare la riga corrispondente nella tabella utenti e riavviare il servizio (attenzione: questa operazione è distruttiva).
-
-- Nota su autofill e sicurezza: alcuni browser possono proporre l'autocompletamento dei campi credenziali. L'app fornisce attributi per disabilitare l'autofill sui form sensibili ma il comportamento dipende anche dalle impostazioni del browser; se necessario, cancella le credenziali salvate o usa una finestra di navigazione privata per testare il login.
-
-- Comportamento delle notifiche: i messaggi di successo o errore sono mostrati come flash message nell'area superiore della pagina dopo i redirect; assicurati di controllare la barra delle notifiche subito dopo le operazioni di creazione/aggiornamento.
+- Regola di sicurezza (importante): l'app impedisce la rimozione dell'ultimo account con ruolo `superadmin`. Questo significa che non puoi cancellare l'admin seed se non esiste già un altro `superadmin` attivo. Per sostituirlo:
+   1. Accedi con l'admin seed e crea un nuovo account con ruolo `superadmin` dalla sezione “Utenti”.
+   2. Verifica l'accesso col nuovo superadmin.
+   3. Solo a questo punto elimina o modifica l'utente seed.
+- Per forzare la rigenerazione dell'account seed con nuove credenziali, elimina manualmente il superadmin esistente (dopo averne creato un altro) o, in ambienti di sviluppo, cancella la relativa riga nel database e riavvia il servizio (operazione distruttiva).
+- Nota su autofill: alcuni browser potrebbero proporre l'autocompletamento dei campi credenziali. Se necessario, disabilita l'autofill o usa una finestra in incognito.
+- Flash messages: i messaggi di esito compaiono nella barra notifiche superiore dopo i redirect; controllala dopo ogni azione.
 
 ### Configurazione GovPay
 Per l'integrazione con GovPay, configura le seguenti variabili nel file `.env`:
@@ -129,7 +142,7 @@ GOVPAY_PENDENZE_URL=https://your-govpay-instance.example.com
 
 # Metodo di autenticazione (tipicamente 'sslheader' per certificati client)
 AUTHENTICATION_GOVPAY=sslheader
- 
+
 # Percorsi certificati GovPay (all'interno del container)
 GOVPAY_TLS_CERT=/var/www/certificate/certificate.cer
 GOVPAY_TLS_KEY=/var/www/certificate/private_key.key
@@ -240,20 +253,20 @@ docker compose logs
 docker exec -it govpay-interaction-layer find /var/www/html -name "*.php" | head -10
 ```
 
----
+--- 
 
 ## 📚 Struttura del progetto
 
 ```
 GovPay-Interaction-Layer/
 ├── docker-compose.yml      # Configurazione servizi Docker
-├── Dockerfile             # Build dell'immagine PHP/Apache
-├── src/                   # Codice sorgente PHP (copiato in build)
-├── templates/             # Template Twig (copiati in build)
-├── debug/                 # Tool di debug (montato come volume)
-├── govpay-clients/        # Client API generati da OpenAPI
-├── ssl/                   # Certificati SSL personalizzati
-└── .env                   # Configurazione ambiente (da creare)
+├── Dockerfile              # Build dell'immagine PHP/Apache
+├── src/                    # Codice sorgente PHP (copiato in build)
+├── templates/              # Template Twig (copiati in build)
+├── debug/                  # Tool di debug (montato come volume)
+├── govpay-clients/         # Client API generati da OpenAPI
+├── ssl/                    # Certificati SSL personalizzati
+└── .env                    # Configurazione ambiente (da creare)
 ```
 
 ## 🤝 Contribuire
@@ -270,7 +283,7 @@ Per domande, problemi o suggerimenti:
 - 🐛 **Issues**: [GitHub Issues](https://github.com/mirkochipdotcom/GovPay-Interaction-Layer/issues)
 - 📧 **Email**: Contatta il maintainer del progetto
 
----
+--- 
 
 # Stato del progetto
 
@@ -283,8 +296,18 @@ Breve riepilogo dello stato corrente (aggiornamento):
 - Sicurezza: guardie server-side per prevenire la rimozione involontaria dell'ultimo superadmin e miglioramenti degli accessi.
 
 ## TODO - Elenco degli sviluppi successivi
-[![TODO](https://img.shields.io/badge/TODO-Lista%20attivit%C3%A0-blue)](docs/TODO.md)
+[![TODO](https://img.shields.io/badge/TODO-Lista%20attivit%C3%A0-blue)](.github/TODO.md)
 
 
 
 **Nota**: Questo progetto è sviluppato per facilitare l'integrazione con GovPay/PagoPA negli Enti.
+docker compose down -v
+docker compose build --no-cache
+docker compose up -d
+docker compose ps
+docker system df
+docker compose down -v --remove-orphans
+docker system prune -f
+docker inspect govpay-interaction-layer
+docker compose logs
+docker exec -it govpay-interaction-layer find /var/www/html -name "*.php" | head -10
