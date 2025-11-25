@@ -2,7 +2,7 @@
 
 Piattaforma containerizzata (PHP/Apache + frontend) per migliorare il flusso di lavoro degli enti che usano GovPay come soluzione PagoPA.
 Lo scopo è avere un portale da cui gli uffici possano creare e gestire le pendenze, rendicontare e controllare i flussi di pagamento, in maniera più semplice rispetto alla GUI di GovPay.
-Inoltre è possibile esporre un frontend semplificato per i cittadini, con la possibilità di esporre altri portali di pagamento esterni per alcune tipologie di pagamento.
+Inoltre è possibile esporre un frontend semplificato per i cittadini (in sviluppo), con la possibilità di esporre altri portali di pagamento esterni per alcune tipologie di pagamento.
 
 [![GitHub Repository](https://img.shields.io/badge/GitHub-mirkochipdotcom%2FGovPay--Interaction--Layer-blue?style=flat&logo=github)](https://github.com/mirkochipdotcom/GovPay-Interaction-Layer.git)
 
