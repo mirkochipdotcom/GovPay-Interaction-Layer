@@ -256,7 +256,7 @@
             {% endif %}
             {% if idDom and topIuv and topCcp %}
               <a class="btn btn-outline-success btn-sm" href="/pendenze/rpp/{{ idDom|url_encode }}/{{ topIuv|url_encode }}/{{ topCcp|url_encode }}/rt" target="_blank" rel="noopener" title="Scarica ricevuta (IUV {{ topIuv }}, CCP {{ topCcp }})">
-                <i class="fas fa-file-pdf me-1"></i> Ricevuta
+                <i class="fas fa-file-invoice-dollar me-1"></i> Ricevuta
               </a>
             {% endif %}
             {# Bottone Rate: solo se abbiamo rate con numeriAvviso #}
@@ -269,8 +269,8 @@
               {% endfor %}
             {% endif %}
             {% if numeri|length > 0 %}
-              <button id="stampa-rate-btn" class="btn btn-success btn-sm" title="Scarica documento rate (PDF)">
-                <i class="fas fa-file-pdf me-1"></i> Rate
+              <button id="stampa-rate-btn" class="btn btn-success btn-sm" title="Scarica l'avviso multirata (PDF)">
+                <i class="fas fa-clipboard-list me-1"></i> Rate
               </button>
               <script>
                 (function(){
@@ -292,8 +292,8 @@
                     // Log per capire eventuali 404
                     console.debug('Chiamata stampa avvisi', { url: '/documenti/' + docId + '/avvisi', numeri });
                     btn.disabled = true;
-                    const orig = btn.textContent;
-                    btn.textContent = 'Preparazione...';
+                    const origHtml = btn.innerHTML;
+                    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Preparazione...';
                     try {
                       const resp = await fetch('/documenti/' + encodeURIComponent(docId) + '/avvisi', {
                         method: 'POST',
@@ -309,7 +309,7 @@
                       console.error(err);
                     } finally {
                       btn.disabled = false;
-                      btn.textContent = orig;
+                      btn.innerHTML = origHtml;
                     }
                   });
                 })();
