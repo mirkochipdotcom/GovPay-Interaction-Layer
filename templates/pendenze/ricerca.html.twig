@@ -165,6 +165,16 @@
   </form>
 
   {% if query_made and results %}
+    {% set tipo_map = {} %}
+    {% if tipologie_pendenze is iterable %}
+      {% for t in tipologie_pendenze %}
+        {% set key = t.id_entrata|default(t.idTipoPendenza|default('')) %}
+        {% if key %}
+          {% set value = t.descrizione|default('') %}
+          {% set tipo_map = tipo_map|merge({ (key): value }) %}
+        {% endif %}
+      {% endfor %}
+    {% endif %}
     <div class="card shadow-sm">
       <div class="card-header bg-light border-bottom py-3">
         <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-lg-between gap-2">
@@ -224,7 +234,18 @@
                   {% endif %}
                 </td>
                 <td>{{ r.causale|default(r.nome|default('')) }}</td>
-                <td>{{ r.tipoPendenza.descrizione|default('') }}</td>
+                {% set tipo_id = '' %}
+                {% if r.tipoPendenza is defined %}
+                  {% if r.tipoPendenza.idTipoPendenza is defined %}
+                    {% set tipo_id = r.tipoPendenza.idTipoPendenza %}
+                  {% elseif r.tipoPendenza.idTipo is defined %}
+                    {% set tipo_id = r.tipoPendenza.idTipo %}
+                  {% elseif r.tipoPendenza.id is defined %}
+                    {% set tipo_id = r.tipoPendenza.id %}
+                  {% endif %}
+                {% endif %}
+                {% set tipo_label = tipo_id and tipo_map[tipo_id] is defined ? tipo_map[tipo_id] : r.tipoPendenza.descrizione|default('') %}
+                <td>{{ tipo_label }}</td>
                 <td class="text-nowrap">
                   {% set ds = r.dataScadenza|default('') %}
                   {% if ds %}
