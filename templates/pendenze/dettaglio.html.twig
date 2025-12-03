@@ -3,11 +3,17 @@
 {% block title %}Pendenza {{ idPendenza }}{% endblock %}
 
 {% block content %}
+  {% set target_return = return_url|default('/pendenze/ricerca') %}
+  {% set return_origin = return_origin|default('') %}
+  {% set from_flow = (return_origin == 'flusso') %}
+  {% if not from_flow and 'pagamenti/ricerca-flussi/dettaglio' in target_return %}
+    {% set from_flow = true %}
+  {% endif %}
   <div class="d-flex align-items-center justify-content-between mb-3">
     <h2 class="h4 mb-0">Dettaglio pendenza <span class="text-muted">{{ idPendenza }}</span></h2>
     <div class="d-flex gap-2">
       {% if pendenza and pendenza.stato == 'NON_ESEGUITA' %}
-        <a class="btn btn-warning" href="/pendenze/modifica/{{ idPendenza }}?return={{ return_url|url_encode }}">Modifica</a>
+        <a class="btn btn-warning" href="/pendenze/modifica/{{ idPendenza }}?return={{ target_return|url_encode }}">Modifica</a>
         <form method="post" action="/pendenze/annulla/{{ idPendenza }}" style="display:inline;">
           <button type="submit" class="btn btn-danger" onclick="return confirm('Sei sicuro di voler annullare questa pendenza?')">Annulla</button>
         </form>
@@ -19,7 +25,7 @@
       {% if came_from_insert %}
         <a class="btn btn-primary" href="/pendenze/inserimento">Inserisci nuova pendenza</a>
       {% else %}
-        <a class="btn btn-outline-secondary" href="{{ return_url|default('/pendenze/ricerca') }}">&laquo; Torna alla ricerca</a>
+        <a class="btn btn-outline-secondary" href="{{ target_return }}">&laquo; {{ from_flow ? 'Torna al dettaglio flusso' : 'Torna alla ricerca' }}</a>
       {% endif %}
     </div>
 
@@ -687,8 +693,6 @@
         </div>
         <div class="collapse" id="rawCollapse">
           <div class="card-body">
-            <pre>{{ displayed_rates|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre>
-            <pre>{{ tipologie|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre>
             <pre class="mb-0">{{ pendenza|json_encode(constant('JSON_PRETTY_PRINT') b-or constant('JSON_UNESCAPED_SLASHES')) }}</pre>
           </div>
         </div>
@@ -705,7 +709,7 @@
     {% if came_from_insert %}
       <a class="btn btn-primary" href="/pendenze/inserimento">Inserisci nuova pendenza</a>
     {% else %}
-      <a class="btn btn-outline-secondary" href="{{ return_url|default('/pendenze/ricerca') }}">&laquo; Torna alla ricerca</a>
+      <a class="btn btn-outline-secondary" href="{{ target_return }}">&laquo; {{ from_flow ? 'Torna al dettaglio flusso' : 'Torna alla ricerca' }}</a>
     {% endif %}
   </div>
 

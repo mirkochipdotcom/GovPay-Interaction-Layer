@@ -35,6 +35,13 @@
     {% set numeroPagamenti = flow.numeroPagamenti|default(flow.numero_pagamenti|default(null)) %}
     {% set trn = flow.trn|default('') %}
     {% set bic = flow.bicRiversamento|default(flow.bic_riversamento|default('')) %}
+    {% set flow_return_url = '/pagamenti/ricerca-flussi/dettaglio' %}
+    {% if idFlusso %}
+      {% set flow_return_url = flow_return_url ~ '/' ~ idFlusso %}
+    {% endif %}
+    {% if return_url is defined and return_url %}
+      {% set flow_return_url = flow_return_url ~ '?return=' ~ return_url|url_encode %}
+    {% endif %}
 
     <div class="card shadow-sm mb-4">
       <div class="card-body">
@@ -183,7 +190,7 @@
                   <td class="align-middle">
                     {% if voceId %}
                       <div class="fw-semibold text-nowrap">
-                        <a href="/pendenze/dettaglio/{{ voceId }}" class="link-underline-opacity-0 link-underline-opacity-100-hover">
+                        <a href="/pendenze/dettaglio/{{ voceId|url_encode }}?return={{ flow_return_url|url_encode }}&origin=flusso" class="link-underline-opacity-0 link-underline-opacity-100-hover">
                           {{ voceId }}
                         </a>
                       </div>
@@ -251,7 +258,7 @@
                                 <dt class="col-sm-5 text-muted">Voce pendenza</dt>
                                 <dd class="col-sm-7">
                                   {% if voceId %}
-                                    <a href="/pendenze/dettaglio/{{ voceId }}" class="link-primary">
+                                    <a href="/pendenze/dettaglio/{{ voceId|url_encode }}?return={{ flow_return_url|url_encode }}&origin=flusso" class="link-primary">
                                       {{ voceId }}
                                     </a>
                                   {% else %}

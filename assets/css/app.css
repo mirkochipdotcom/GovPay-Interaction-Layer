@@ -84,3 +84,11 @@ body {
     overflow-x: clip;
   }
 }
+
+/* Users table disabled rows */
+.user-row-disabled {
+	opacity: 0.75;
+}
+.user-row-disabled td {
+	vertical-align: middle;
+}

@@ -1,0 +1,111 @@
+{% set wrap_class = within_config ? '' : 'container my-5' %}
+<div class="{{ wrap_class }}">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="{{ within_config ? 'h5 mb-0' : 'h4' }}">{{ within_config ? 'Gestione utenti applicazione' : 'Utenti' }}</h2>
+    {% set can_manage = can_manage_users is defined ? can_manage_users : true %}
+    {% if can_manage %}
+      <a class="btn btn-primary" href="/users/new">Nuovo utente</a>
+    {% endif %}
+  </div>
+
+  {% if not can_manage %}
+    <div class="alert alert-warning" role="alert">
+      Non hai i permessi per modificare gli utenti, ma puoi consultarne l'elenco.
+    </div>
+  {% endif %}
+
+  <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <div class="flex-grow-1">
+      <input id="usersSearch" type="search" class="form-control form-control-sm" placeholder="Cerca per ID, nome, cognome, email o ruolo" aria-label="Cerca utenti">
+    </div>
+    <div class="text-muted small" id="usersCounter" aria-live="polite"></div>
+    <button id="usersClear" type="button" class="btn btn-sm btn-outline-secondary">Pulisci</button>
+  </div>
+
+  {% set list = users|default([]) %}
+  {% set count_super = count_superadmins|default(0) %}
+
+  <table class="table table-striped" id="usersTable">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Nome</th>
+        <th>Cognome</th>
+        <th>Email</th>
+        <th>Ruolo</th>
+        <th>Stato</th>
+        <th>Azioni</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if list|length > 0 %}
+        {% for u in list %}
+          {% set is_admin = current_user is defined and current_user.role == 'admin' %}
+          {% set target_is_super = u.role == 'superadmin' %}
+          {% set is_self = current_user is defined and current_user.id == u.id %}
+          {% set is_disabled = u.is_disabled|default(0) %}
+          <tr class="{{ is_disabled ? 'table-warning user-row-disabled' : '' }}" data-user-status="{{ is_disabled ? 'disabilitato' : 'attivo' }}">
+            <td class="font-monospace">{{ u.id }}</td>
+            <td>{{ u.first_name|default('') }}</td>
+            <td>{{ u.last_name|default('') }}</td>
+            <td>{{ u.email }}</td>
+            <td>
+              {% set roleClass = 'bg-secondary' %}
+              {% if u.role == 'superadmin' %}
+                {% set roleClass = 'bg-danger' %}
+              {% elseif u.role == 'admin' %}
+                {% set roleClass = 'bg-primary' %}
+              {% elseif u.role == 'user' %}
+                {% set roleClass = 'bg-success' %}
+              {% endif %}
+              <span class="badge {{ roleClass }}">{{ u.role|capitalize }}</span>
+            </td>
+            <td>
+              {% if is_disabled %}
+                <span class="badge bg-secondary">Disabilitato</span>
+                {% if u.disabled_at is defined and u.disabled_at %}
+                  <div class="text-muted small">dal {{ u.disabled_at|date('d/m/Y H:i') }}</div>
+                {% endif %}
+              {% else %}
+                <span class="badge bg-success">Attivo</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if not can_manage %}
+                <span class="text-muted small">Permessi insufficienti</span>
+              {% else %}
+                {% if is_admin and target_is_super %}
+                  <button class="btn btn-sm btn-outline-primary" disabled title="Non puoi modificare un account superadmin">Modifica</button>
+                  <button class="btn btn-sm btn-outline-danger" disabled title="Non puoi disabilitare un account superadmin">Disabilita</button>
+                {% elseif is_self %}
+                  <a class="btn btn-sm btn-outline-primary" href="/users/{{ u.id }}/edit">Modifica</a>
+                  <button class="btn btn-sm btn-outline-danger" disabled title="Non puoi disabilitare il tuo account">Disabilita</button>
+                {% else %}
+                  <a class="btn btn-sm btn-outline-primary" href="/users/{{ u.id }}/edit">Modifica</a>
+                  {% if not is_disabled %}
+                    {% if target_is_super and count_super <= 1 %}
+                      <button class="btn btn-sm btn-outline-danger" disabled title="Impossibile disabilitare l'ultimo superadmin attivo">Disabilita</button>
+                    {% else %}
+                      <form method="post" action="/users/{{ u.id }}/disable" style="display:inline-block" onsubmit="return confirm('Confermi la disabilitazione dell\'utente?');">
+                        <button class="btn btn-sm btn-outline-danger" type="submit">Disabilita</button>
+                      </form>
+                    {% endif %}
+                  {% else %}
+                    <form method="post" action="/users/{{ u.id }}/enable" style="display:inline-block" onsubmit="return confirm('Confermi la riattivazione dell\'utente?');">
+                      <button class="btn btn-sm btn-outline-success" type="submit">Riabilita</button>
+                    </form>
+                  {% endif %}
+                {% endif %}
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      {% else %}
+        <tr id="noUsersRow"><td colspan="7" class="text-center text-muted">Nessun utente</td></tr>
+      {% endif %}
+      <tr id="noUsersMatchRow" class="d-none"><td colspan="7" class="text-center text-muted">Nessun utente corrisponde al filtro</td></tr>
+    </tbody>
+  </table>
+
+  <script src="/assets/js/users-list-filter.js"></script>
+</div>

@@ -1967,17 +1967,37 @@ class PendenzeController
         $queryParams = (array)$request->getQueryParams();
         $returnCandidate = $queryParams['return'] ?? null;
 
-        $returnUrl = null;
-        if (is_string($returnCandidate) && $returnCandidate !== '') {
-            $returnUrl = $returnCandidate;
-        } elseif (is_array($sessionSearch) && isset($sessionSearch['return_url'])) {
-            $returnUrl = (string)$sessionSearch['return_url'];
+        $allowedReturnPrefixes = ['/pendenze/ricerca', '/pagamenti/ricerca-flussi', '/pagamenti/ricerca-flussi/dettaglio'];
+        $sanitizeReturn = static function ($candidate) use ($allowedReturnPrefixes): ?string {
+            if (!is_string($candidate) || $candidate === '') {
+                return null;
+            }
+            $decoded = rawurldecode($candidate);
+            if ($decoded === '' || $decoded[0] !== '/') {
+                return null;
+            }
+            foreach ($allowedReturnPrefixes as $prefix) {
+                if (strncmp($decoded, $prefix, strlen($prefix)) === 0) {
+                    return $decoded;
+                }
+            }
+            return null;
+        };
+
+        $returnUrl = $sanitizeReturn($returnCandidate);
+        if ($returnUrl === null && is_array($sessionSearch) && isset($sessionSearch['return_url'])) {
+            $returnUrl = $sanitizeReturn((string)$sessionSearch['return_url']);
         }
-        if (!is_string($returnUrl) || $returnUrl === '') {
+        if ($returnUrl === null) {
             $returnUrl = '/pendenze/ricerca';
         }
-        if (strpos($returnUrl, '/pendenze/ricerca') !== 0) {
-            $returnUrl = '/pendenze/ricerca';
+
+        $returnOrigin = '';
+        if (isset($queryParams['origin']) && is_string($queryParams['origin'])) {
+            $returnOrigin = (string)$queryParams['origin'];
+        }
+        if ($returnOrigin === '' && strncmp($returnUrl, '/pagamenti/ricerca-flussi/dettaglio', strlen('/pagamenti/ricerca-flussi/dettaglio')) === 0) {
+            $returnOrigin = 'flusso';
         }
 
         $highlightParam = isset($queryParams['highlight']) ? (string)$queryParams['highlight'] : '';
@@ -2217,6 +2237,7 @@ class PendenzeController
         return $this->twig->render($response, 'pendenze/dettaglio.html.twig', [
             'idPendenza' => $idPendenza,
             'return_url' => $returnUrl,
+            'return_origin' => $returnOrigin,
             'pendenza' => $pendenza,
             'error' => $error,
             'id_dominio' => $idDominio,

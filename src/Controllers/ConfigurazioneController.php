@@ -8,6 +8,7 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Auth\UserRepository;
 use App\Database\EntrateRepository;
 use App\Database\ExternalPaymentTypeRepository;
 use App\Logger;
@@ -17,20 +18,28 @@ use Slim\Views\Twig;
 
 class ConfigurazioneController
 {
+    private UserRepository $userRepository;
+
     public function __construct(private readonly Twig $twig)
     {
+        $this->userRepository = new UserRepository();
     }
 
     public function index(Request $request, Response $response): Response
     {
-        if (!$this->isSuperadmin()) {
+        $currentUser = $_SESSION['user'] ?? null;
+        $role = $currentUser['role'] ?? null;
+        if (!in_array($role, ['admin', 'superadmin'], true)) {
             $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Accesso negato: permessi insufficienti'];
             return $response->withHeader('Location', '/')->withStatus(302);
         }
 
-        if (isset($_SESSION['user'])) {
-            $this->twig->getEnvironment()->addGlobal('current_user', $_SESSION['user']);
+        if ($currentUser) {
+            $this->twig->getEnvironment()->addGlobal('current_user', $currentUser);
         }
+
+        $canEditConfig = $role === 'superadmin';
+        $canManageUsers = in_array($role, ['admin', 'superadmin'], true);
 
         $errors = [];
         $cfgJson = null;
@@ -444,6 +453,17 @@ class ConfigurazioneController
             }
         }
 
+        $usersList = [];
+        $countSuperadmins = 0;
+        if ($tab === 'utenti' && $canManageUsers) {
+            try {
+                $usersList = $this->userRepository->listAll();
+                $countSuperadmins = $this->userRepository->countByRole('superadmin', false);
+            } catch (\Throwable $e) {
+                $errors[] = 'Errore caricamento utenti: ' . $e->getMessage();
+            }
+        }
+
         return $this->twig->render($response, 'configurazione.html.twig', [
             'errors' => $errors,
             'cfg_json' => $cfgJson,
@@ -474,6 +494,10 @@ class ConfigurazioneController
             'tab' => $tab,
             'logs_lines' => $logsLines,
             'query_params' => $params,
+            'users' => $usersList,
+            'count_superadmins' => $countSuperadmins,
+            'config_readonly' => !$canEditConfig,
+            'can_manage_users' => $canManageUsers,
         ]);
     }
 

@@ -9,6 +9,11 @@
       <a class="btn btn-outline-secondary" href="/">&laquo; Torna alla home</a>
     </div>
   </div>
+    {% if config_readonly %}
+      <div class="alert alert-warning" role="alert">
+        Sei autenticato come <strong>admin</strong>: le sezioni di configurazione sono in sola lettura. Per modificare i parametri dell'ente è necessario l'intervento di un superadmin. La scheda <strong>Utenti</strong> resta pienamente operativa.
+      </div>
+    {% endif %}
 
   {% set currentTab = current is defined and current ? current : (tab|default('dominio')) %}
   {% if currentTab == 'principali' %}
@@ -26,6 +31,7 @@
   <a class="nav-link {{ currentTab == 'logs' ? 'active' : '' }}" href="/configurazione?tab=logs"><i class="fas fa-file-alt me-2"></i>Logs</a>
         <a class="nav-link {{ currentTab == 'applicazioni' ? 'active' : '' }}" href="/configurazione?tab=applicazioni"><i class="fas fa-puzzle-piece me-2"></i>Applicazioni</a>
         <a class="nav-link {{ currentTab == 'confapi' ? 'active' : '' }}" href="/configurazione?tab=confapi"><i class="fas fa-code me-2"></i>Config API</a>
+          <a class="nav-link {{ currentTab == 'utenti' ? 'active' : '' }}" href="/configurazione?tab=utenti"><i class="fas fa-users me-2"></i>Utenti</a>
         <a class="nav-link {{ currentTab == 'operatori' ? 'active' : '' }}" href="/configurazione?tab=operatori"><i class="fas fa-user-cog me-2"></i>Operatori</a>
       </nav>
     </div>
@@ -990,6 +996,24 @@
             <pre class="mb-0">{{ operatori_json }}</pre>
           </div>
         {% endif %}
+      {% elseif currentTab == 'utenti' %}
+        <div class="card shadow-sm">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <div>
+              <h2 class="h6 mb-0">Utenti applicazione</h2>
+              <p class="small text-muted mb-0">Gestisci gli account locali senza lasciare la configurazione.</p>
+            </div>
+            <span class="badge bg-secondary text-white">{{ users|default([])|length }}</span>
+          </div>
+          <div class="card-body">
+            {% include 'users/_list_content.html.twig' with {
+              within_config: true,
+              users: users|default([]),
+              count_superadmins: count_superadmins|default(0),
+              can_manage_users: can_manage_users|default(false)
+            } %}
+          </div>
+        </div>
       {% elseif currentTab == 'confapi' %}
         <h2 class="h5">Configurazioni (API Backoffice)</h2>
         {% if app_debug and cfg_json %}

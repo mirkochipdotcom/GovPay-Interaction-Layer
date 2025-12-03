@@ -199,6 +199,17 @@ class FlussiController
         $qsCurrent = http_build_query($qsClean, '', '&', PHP_QUERY_RFC3986);
         $returnUrl = '/pagamenti/ricerca-flussi' . ($qsCurrent ? ('?' . $qsCurrent) : '');
 
+        if ($queryMade) {
+            if (session_status() !== PHP_SESSION_ACTIVE) {
+                @session_start();
+            }
+            $_SESSION['flussi_last_search'] = [
+                'return_url' => $returnUrl,
+                'query_params' => $qsClean,
+                'updated_at' => time(),
+            ];
+        }
+
         return $this->twig->render($response, 'pagamenti/ricerca_flussi.html.twig', [
             'filters' => $filters,
             'errors' => $errors,
@@ -218,6 +229,11 @@ class FlussiController
     public function detail(Request $request, Response $response, array $args): Response
     {
         $this->exposeCurrentUser();
+
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            @session_start();
+        }
+        $lastSearch = $_SESSION['flussi_last_search'] ?? null;
 
         $errors = [];
         $idFlusso = isset($args['idFlusso']) ? (string)$args['idFlusso'] : '';
@@ -273,8 +289,29 @@ class FlussiController
             }
         }
 
-        $return = (string)($request->getQueryParams()['return'] ?? '/pagamenti/ricerca-flussi');
-        if ($return === '' || !str_starts_with($return, '/')) {
+        $allowedReturnPrefixes = ['/pagamenti/ricerca-flussi'];
+        $sanitizeReturn = static function ($candidate) use ($allowedReturnPrefixes): ?string {
+            if (!is_string($candidate) || $candidate === '') {
+                return null;
+            }
+            $decoded = rawurldecode($candidate);
+            if ($decoded === '' || $decoded[0] !== '/') {
+                return null;
+            }
+            foreach ($allowedReturnPrefixes as $prefix) {
+                if (strncmp($decoded, $prefix, strlen($prefix)) === 0) {
+                    return $decoded;
+                }
+            }
+            return null;
+        };
+
+        $returnCandidate = $request->getQueryParams()['return'] ?? null;
+        $return = $sanitizeReturn($returnCandidate);
+        if ($return === null && is_array($lastSearch) && isset($lastSearch['return_url'])) {
+            $return = $sanitizeReturn((string)$lastSearch['return_url']);
+        }
+        if ($return === null) {
             $return = '/pagamenti/ricerca-flussi';
         }
 

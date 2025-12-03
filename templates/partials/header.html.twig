@@ -190,11 +190,8 @@
                       </li>
                     {% endif %}
                     {% if current_user %}
-                      {% if current_user.role in ['admin','superadmin'] %}
-                        <li class="nav-item"><a class="nav-link {{ current_path starts with '/users' ? 'active' : '' }}" href="/users"><span>Utenti</span></a></li>
-                      {% endif %}
                       <li class="nav-item"><a class="nav-link {{ current_path starts with '/statistiche' ? 'active' : '' }}" href="/statistiche"><span>Statistiche</span></a></li>
-                      {% if current_user.role == 'superadmin' %}
+                      {% if current_user.role in ['admin','superadmin'] %}
                         {% set in_config = current_path starts with '/configurazione' %}
                         <li class="nav-item">
                           <a class="nav-link {{ in_config ? 'active' : '' }}" href="/configurazione"><span>Configurazione</span></a>

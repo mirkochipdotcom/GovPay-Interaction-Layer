@@ -19,22 +19,24 @@ class UserRepository
 
     public function findByEmail(string $email): ?array
     {
-        $stmt = $this->pdo->prepare('SELECT id, email, password_hash, role, first_name, last_name, created_at, updated_at FROM users WHERE email = :email LIMIT 1');
+        $stmt = $this->pdo->prepare('SELECT id, email, password_hash, role, first_name, last_name, is_disabled, disabled_at, created_at, updated_at FROM users WHERE email = :email LIMIT 1');
         $stmt->execute([':email' => $email]);
         $row = $stmt->fetch();
         return $row ?: null;
     }
 
-    public function insertUser(string $email, string $password, string $role = 'superadmin', string $firstName = '', string $lastName = ''): int
+    public function insertUser(string $email, string $password, string $role = 'superadmin', string $firstName = '', string $lastName = '', bool $disabled = false): int
     {
         $hash = password_hash($password, PASSWORD_ARGON2ID);
-        $stmt = $this->pdo->prepare('INSERT INTO users (email, password_hash, role, first_name, last_name, created_at, updated_at) VALUES (:email, :password_hash, :role, :first_name, :last_name, NOW(), NOW())');
+        $stmt = $this->pdo->prepare('INSERT INTO users (email, password_hash, role, first_name, last_name, is_disabled, created_at, updated_at, disabled_at) VALUES (:email, :password_hash, :role, :first_name, :last_name, :is_disabled, NOW(), NOW(), :disabled_at)');
         $stmt->execute([
             ':email' => $email,
             ':password_hash' => $hash,
             ':role' => $role,
             ':first_name' => $firstName,
             ':last_name' => $lastName,
+            ':is_disabled' => $disabled ? 1 : 0,
+            ':disabled_at' => $disabled ? (new \DateTimeImmutable())->format('Y-m-d H:i:s') : null,
         ]);
         return (int)$this->pdo->lastInsertId();
     }
@@ -47,13 +49,13 @@ class UserRepository
     /** @return array<int, array{id:int,email:string,role:string,created_at:string,updated_at:string}> */
     public function listAll(): array
     {
-        $stmt = $this->pdo->query('SELECT id, email, role, first_name, last_name, created_at, updated_at FROM users ORDER BY email ASC');
+        $stmt = $this->pdo->query('SELECT id, email, role, first_name, last_name, is_disabled, disabled_at, created_at, updated_at FROM users ORDER BY is_disabled ASC, email ASC');
         return $stmt->fetchAll();
     }
 
     public function findById(int $id): ?array
     {
-        $stmt = $this->pdo->prepare('SELECT id, email, password_hash, role, first_name, last_name, created_at, updated_at FROM users WHERE id = :id LIMIT 1');
+        $stmt = $this->pdo->prepare('SELECT id, email, password_hash, role, first_name, last_name, is_disabled, disabled_at, created_at, updated_at FROM users WHERE id = :id LIMIT 1');
         $stmt->execute([':id' => $id]);
         $row = $stmt->fetch();
         return $row ?: null;
@@ -72,16 +74,26 @@ class UserRepository
         $stmt->execute([':email' => $email, ':role' => $role, ':first_name' => $firstName, ':last_name' => $lastName, ':id' => $id]);
     }
 
-    public function deleteById(int $id): void
+    public function setDisabled(int $id, bool $disabled): void
     {
-        $stmt = $this->pdo->prepare('DELETE FROM users WHERE id = :id');
-        $stmt->execute([':id' => $id]);
+        $stmt = $this->pdo->prepare('UPDATE users SET is_disabled = :is_disabled, disabled_at = :disabled_at, updated_at = NOW() WHERE id = :id');
+        $disabledAt = $disabled ? (new \DateTimeImmutable())->format('Y-m-d H:i:s') : null;
+        $stmt->execute([
+            ':is_disabled' => $disabled ? 1 : 0,
+            ':disabled_at' => $disabledAt,
+            ':id' => $id,
+        ]);
     }
 
-    public function countByRole(string $role): int
+    public function countByRole(string $role, bool $includeDisabled = true): int
     {
-        $stmt = $this->pdo->prepare('SELECT COUNT(*) as c FROM users WHERE role = :role');
-        $stmt->execute([':role' => $role]);
+        $sql = 'SELECT COUNT(*) as c FROM users WHERE role = :role';
+        $params = [':role' => $role];
+        if (!$includeDisabled) {
+            $sql .= ' AND (is_disabled IS NULL OR is_disabled = 0)';
+        }
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
         $row = $stmt->fetch();
         return (int)($row['c'] ?? 0);
     }
