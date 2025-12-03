@@ -31,6 +31,12 @@ class AuthMiddleware implements MiddlewareInterface
         }
 
         if (isset($_SESSION['user'])) {
+            if (!empty($_SESSION['user']['is_disabled'])) {
+                $_SESSION['flash'][] = ['type' => 'danger', 'text' => 'Account disabilitato: effettua di nuovo l\'accesso dopo la riattivazione'];
+                unset($_SESSION['user']);
+                $resp = new SlimResponse(302);
+                return $resp->withHeader('Location', '/login');
+            }
             return $handler->handle($request);
         }
 

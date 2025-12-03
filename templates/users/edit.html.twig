@@ -3,6 +3,9 @@
 <div class="container my-5" style="max-width:640px;">
   <h1 class="h4 mb-3">Modifica utente</h1>
   {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+  {% if edit_user.is_disabled %}
+    <div class="alert alert-warning">Questo utente è attualmente disabilitato. Usa l'elenco utenti per riabilitarlo se necessario.</div>
+  {% endif %}
   <form method="post" action="/users/{{ edit_user.id }}/edit" autocomplete="off">
     {# Hidden dummy fields to discourage browser autofill of credentials #}
     <input type="text" name="fakeusernameremembered" autocomplete="username" style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;" aria-hidden="true" tabindex="-1">
@@ -41,7 +44,7 @@
         {% endif %}
     </div>
     <button class="btn btn-primary" type="submit">Salva</button>
-    <a class="btn btn-outline-secondary" href="/users">Annulla</a>
+    <a class="btn btn-outline-secondary" href="/configurazione?tab=utenti">Annulla</a>
   </form>
   </div>
 {% endblock %}

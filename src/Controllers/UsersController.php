@@ -33,18 +33,9 @@ class UsersController
     private function assertAdmin(): void
     {
         $u = $_SESSION['user'] ?? null;
-        if (!$u || !in_array($u['role'], ['admin','superadmin'], true)) {
+        if (!$u || !in_array($u['role'], ['admin','superadmin'], true) || !empty($u['is_disabled'])) {
             throw new \RuntimeException('Forbidden');
         }
-    }
-
-    public function index(Request $request, Response $response, array $args)
-    {
-        $this->assertAdmin();
-        $list = $this->users->listAll();
-        $countSuperadmins = $this->users->countByRole('superadmin');
-        $request = $request->withAttribute('users', $list)->withAttribute('count_superadmins', $countSuperadmins);
-        return $request;
     }
 
     public function new(Request $request, Response $response, array $args)
@@ -69,8 +60,8 @@ class UsersController
             return $request->withAttribute('error', 'Email già in uso');
         }
         $this->users->insertUser($email, $password, $role, $firstName, $lastName);
-    $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Utente creato con successo'];
-        return $response->withHeader('Location', '/users')->withStatus(302);
+        $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Utente creato con successo'];
+        return $response->withHeader('Location', $this->usersHome())->withStatus(302);
     }
 
     public function edit(Request $request, Response $response, array $args)
@@ -92,7 +83,7 @@ class UsersController
         // Determine if a superadmin editing their own account can demote themselves
         $canDemoteSelf = true;
         if ($current && isset($current['id']) && (int)$current['id'] === $id && ($current['role'] ?? '') === 'superadmin') {
-            $count = $this->users->countByRole('superadmin');
+            $count = $this->users->countByRole('superadmin', false);
             $canDemoteSelf = ($count > 1);
         }
 
@@ -124,7 +115,7 @@ class UsersController
             $role = $target['role'] ?? 'admin';
         } elseif ($current && isset($current['id']) && (int)$current['id'] === $id && ($current['role'] ?? '') === 'superadmin' && $submittedRole !== 'superadmin') {
             // Superadmin attempting to declass themselves: allow only if there is another superadmin
-            $count = $this->users->countByRole('superadmin');
+            $count = $this->users->countByRole('superadmin', false);
             if ($count <= 1) {
                 // Block and return an informative error
                 Logger::getInstance()->warning('Attempt to self-demote last superadmin blocked', ['current_id' => $current['id'] ?? null, 'target_id' => $id]);
@@ -148,45 +139,91 @@ class UsersController
         if ($current && isset($current['id']) && (int)$current['id'] === $id) {
             $fresh = $this->users->findById($id);
             if ($fresh) {
-                // Ensure session contains the same shape we expect elsewhere
-                $_SESSION['user'] = $fresh;
+                $_SESSION['user'] = [
+                    'id' => $fresh['id'],
+                    'email' => $fresh['email'],
+                    'role' => $fresh['role'],
+                    'first_name' => $fresh['first_name'] ?? '',
+                    'last_name' => $fresh['last_name'] ?? '',
+                    'is_disabled' => !empty($fresh['is_disabled']),
+                ];
             }
         }
         $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Utente aggiornato'];
-        return $response->withHeader('Location', '/users')->withStatus(302);
+        return $response->withHeader('Location', $this->usersHome())->withStatus(302);
     }
 
-    public function delete(Request $request, Response $response, array $args)
+    public function disable(Request $request, Response $response, array $args): Response
     {
         $this->assertAdmin();
         $id = (int)($args['id'] ?? 0);
         $target = $this->users->findById($id);
         $current = $_SESSION['user'] ?? null;
-        // Prevent users (admin or superadmin) from deleting themselves
+
+        if (!$target) {
+            $_SESSION['flash'][] = ['type' => 'danger', 'text' => 'Utente non trovato'];
+            return $response->withHeader('Location', $this->usersHome())->withStatus(302);
+        }
+
         if ($current && isset($current['id']) && (int)$current['id'] === $id) {
-            $_SESSION['flash'][] = ['type' => 'danger', 'text' => 'Non puoi eliminare il tuo account'];
-            return $response->withHeader('Location', '/users')->withStatus(302);
+            $_SESSION['flash'][] = ['type' => 'danger', 'text' => 'Non puoi disabilitare il tuo account'];
+            return $response->withHeader('Location', $this->usersHome())->withStatus(302);
         }
 
-        if ($target && ($target['role'] ?? '') === 'superadmin' && ($current['role'] ?? '') === 'admin') {
-            // Block deletion by plain admin
-            $_SESSION['flash'][] = ['type' => 'danger', 'text' => 'Non puoi eliminare un account superadmin'];
-            Logger::getInstance()->warning('Blocked delete by admin on superadmin', ['current_id' => $current['id'] ?? null, 'target_id' => $id]);
-            return $response->withHeader('Location', '/users')->withStatus(302);
+        if (($target['role'] ?? '') === 'superadmin' && ($current['role'] ?? '') === 'admin') {
+            $_SESSION['flash'][] = ['type' => 'danger', 'text' => 'Non puoi disabilitare un account superadmin'];
+            Logger::getInstance()->warning('Blocked disable by admin on superadmin', ['current_id' => $current['id'] ?? null, 'target_id' => $id]);
+            return $response->withHeader('Location', $this->usersHome())->withStatus(302);
         }
 
-        // Prevent deleting the last superadmin in the system
-        if ($target && ($target['role'] ?? '') === 'superadmin') {
-            $count = $this->users->countByRole('superadmin');
+        if (($target['role'] ?? '') === 'superadmin') {
+            $count = $this->users->countByRole('superadmin', false);
             if ($count <= 1) {
-                $_SESSION['flash'][] = ['type' => 'danger', 'text' => 'Impossibile eliminare l\'ultimo superadmin. Assegna il ruolo di superadmin a un altro utente prima di procedere.'];
-                Logger::getInstance()->warning('Attempt to delete last superadmin blocked', ['current_id' => $current['id'] ?? null, 'target_id' => $id]);
-                return $response->withHeader('Location', '/users')->withStatus(302);
+                $_SESSION['flash'][] = ['type' => 'danger', 'text' => 'Impossibile disabilitare l\'ultimo superadmin attivo.'];
+                Logger::getInstance()->warning('Attempt to disable last superadmin blocked', ['current_id' => $current['id'] ?? null, 'target_id' => $id]);
+                return $response->withHeader('Location', $this->usersHome())->withStatus(302);
             }
         }
 
-        $this->users->deleteById($id);
-        $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Utente eliminato'];
-        return $response->withHeader('Location', '/users')->withStatus(302);
+        if (!empty($target['is_disabled'])) {
+            $_SESSION['flash'][] = ['type' => 'info', 'text' => 'L\'utente è già disabilitato'];
+            return $response->withHeader('Location', $this->usersHome())->withStatus(302);
+        }
+
+        $this->users->setDisabled($id, true);
+        $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Utente disabilitato'];
+        return $response->withHeader('Location', $this->usersHome())->withStatus(302);
+    }
+
+    public function enable(Request $request, Response $response, array $args): Response
+    {
+        $this->assertAdmin();
+        $id = (int)($args['id'] ?? 0);
+        $target = $this->users->findById($id);
+        $current = $_SESSION['user'] ?? null;
+        if (!$target) {
+            $_SESSION['flash'][] = ['type' => 'danger', 'text' => 'Utente non trovato'];
+            return $response->withHeader('Location', $this->usersHome())->withStatus(302);
+        }
+
+        if (($target['role'] ?? '') === 'superadmin' && ($current['role'] ?? '') === 'admin') {
+            $_SESSION['flash'][] = ['type' => 'danger', 'text' => 'Non puoi riabilitare un account superadmin'];
+            Logger::getInstance()->warning('Blocked enable by admin on superadmin', ['current_id' => $current['id'] ?? null, 'target_id' => $id]);
+            return $response->withHeader('Location', $this->usersHome())->withStatus(302);
+        }
+
+        if (empty($target['is_disabled'])) {
+            $_SESSION['flash'][] = ['type' => 'info', 'text' => 'L\'utente è già attivo'];
+            return $response->withHeader('Location', $this->usersHome())->withStatus(302);
+        }
+
+        $this->users->setDisabled($id, false);
+        $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Utente riabilitato'];
+        return $response->withHeader('Location', $this->usersHome())->withStatus(302);
+    }
+
+    private function usersHome(): string
+    {
+        return '/configurazione?tab=utenti';
     }
 }

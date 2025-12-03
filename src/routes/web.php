@@ -251,17 +251,6 @@ return function (App $app, Twig $twig): void {
         return $controller->resetTipologia($request, $response, $args);
     });
 
-    // Users management (admin/superadmin)
-    $app->get('/users', function($request, $response) use ($twig) {
-        $controller = new UsersController();
-        $req = $controller->index($request, $response, []);
-        $users = $req->getAttribute('users', []);
-        if (isset($_SESSION['user'])) {
-            $twig->getEnvironment()->addGlobal('current_user', $_SESSION['user']);
-        }
-        return $twig->render($response, 'users/index.html.twig', ['users' => $users]);
-    });
-
     $app->get('/users/new', function($request, $response) use ($twig) {
         if (isset($_SESSION['user'])) {
             $twig->getEnvironment()->addGlobal('current_user', $_SESSION['user']);
@@ -314,9 +303,14 @@ return function (App $app, Twig $twig): void {
         return $response->withHeader('Location', '/users')->withStatus(302);
     });
 
-    $app->post('/users/{id}/delete', function($request, $response, $args) {
+    $app->post('/users/{id}/disable', function($request, $response, $args) {
         $controller = new UsersController();
-        return $controller->delete($request, $response, $args);
+        return $controller->disable($request, $response, $args);
+    });
+
+    $app->post('/users/{id}/enable', function($request, $response, $args) {
+        $controller = new UsersController();
+        return $controller->enable($request, $response, $args);
     });
     // Login routes
     $app->get('/login', function($request, $response) use ($twig) {
@@ -336,6 +330,12 @@ return function (App $app, Twig $twig): void {
         $repo = new UserRepository();
         $user = $email !== '' ? $repo->findByEmail($email) : null;
         if ($user && $repo->verifyPassword($password, $user['password_hash'])) {
+            if (!empty($user['is_disabled'])) {
+                return $twig->render($response, 'login.html.twig', [
+                    'error' => 'Account disabilitato: contatta un amministratore',
+                    'last_email' => $email,
+                ]);
+            }
             // Set session user (include name fields for templates)
             $_SESSION['user'] = [
                 'id' => $user['id'],
@@ -343,6 +343,7 @@ return function (App $app, Twig $twig): void {
                 'role' => $user['role'],
                 'first_name' => $user['first_name'] ?? '',
                 'last_name' => $user['last_name'] ?? '',
+                'is_disabled' => !empty($user['is_disabled']),
             ];
             $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Accesso effettuato'];
             return $response->withHeader('Location', '/')->withStatus(302);
