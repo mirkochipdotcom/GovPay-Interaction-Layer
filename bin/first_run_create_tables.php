@@ -24,8 +24,10 @@ $statements = [
         role ENUM('superadmin','admin','user') NOT NULL DEFAULT 'user',
         first_name VARCHAR(255) NOT NULL DEFAULT '',
         last_name VARCHAR(255) NOT NULL DEFAULT '',
+        is_disabled TINYINT(1) UNSIGNED NOT NULL DEFAULT 0,
         created_at DATETIME NOT NULL,
-        updated_at DATETIME NOT NULL
+        updated_at DATETIME NOT NULL,
+        disabled_at DATETIME NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
 
     // entrate_tipologie
@@ -98,6 +100,29 @@ try {
     if (!$has) {
         $pdo->exec("ALTER TABLE entrate_tipologie ADD COLUMN descrizione_locale VARCHAR(255) NULL AFTER descrizione");
         echo "Added column descrizione_locale to entrate_tipologie\n";
+    }
+} catch (Throwable $e) {
+    // non fatale
+}
+
+// Ensure user disable columns exist for upgraded installs
+try {
+    $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'is_disabled'");
+    $has = $stmt ? $stmt->fetch() : false;
+    if (!$has) {
+        $pdo->exec("ALTER TABLE users ADD COLUMN is_disabled TINYINT(1) UNSIGNED NOT NULL DEFAULT 0 AFTER last_name");
+        echo "Added column is_disabled to users\n";
+    }
+} catch (Throwable $e) {
+    // non fatale
+}
+
+try {
+    $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'disabled_at'");
+    $has = $stmt ? $stmt->fetch() : false;
+    if (!$has) {
+        $pdo->exec("ALTER TABLE users ADD COLUMN disabled_at DATETIME NULL AFTER updated_at");
+        echo "Added column disabled_at to users\n";
     }
 } catch (Throwable $e) {
     // non fatale
