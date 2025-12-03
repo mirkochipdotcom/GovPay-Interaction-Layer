@@ -67,6 +67,70 @@ class ConfigurazioneController
 
         $params = $request->getQueryParams();
         $tab = $params['tab'] ?? 'principali';
+        $tassonomieTree = [];
+        $tassonomieStats = null;
+        $tassonomieError = null;
+        $tassonomieRaw = null;
+        $tassonomieFilteredStats = null;
+        $tassonomieUrl = getenv('TASSONOMIE_PAGOPA') ?: null;
+        $tassonomieSearch = trim((string)($params['tq'] ?? ''));
+
+        $normalizeTipologiaCode = static function (?string $code): ?string {
+            if ($code === null) {
+                return null;
+            }
+            $code = trim($code);
+            if ($code === '') {
+                return null;
+            }
+            if (str_contains($code, '/')) {
+                $parts = array_values(array_filter(explode('/', $code), static fn($segment) => $segment !== null && $segment !== ''));
+                if (!empty($parts)) {
+                    $code = (string)end($parts);
+                }
+            }
+            $sanitized = preg_replace('/[^A-Za-z0-9\-_.]/', '', $code);
+            if (!is_string($sanitized) || $sanitized === '') {
+                return null;
+            }
+            return mb_strtoupper($sanitized, 'UTF-8');
+        };
+
+        $tipologieCodici = [];
+        $rawUpperCode = static function (?string $code): ?string {
+            if ($code === null) {
+                return null;
+            }
+            $code = trim($code);
+            if ($code === '') {
+                return null;
+            }
+            return mb_strtoupper($code, 'UTF-8');
+        };
+
+        $registerTipologiaCode = static function (?string $code) use (&$tipologieCodici, $normalizeTipologiaCode, $rawUpperCode): void {
+            $normalized = $normalizeTipologiaCode($code);
+            if ($normalized !== null) {
+                $tipologieCodici[$normalized] = true;
+            }
+
+            $raw = $rawUpperCode($code);
+            if ($raw !== null) {
+                $tipologieCodici[$raw] = true;
+            }
+        };
+
+        $extractValue = static function (?array $source, array $candidateKeys): ?string {
+            if (!is_array($source)) {
+                return null;
+            }
+            foreach ($candidateKeys as $candidate) {
+                if (array_key_exists($candidate, $source) && $source[$candidate] !== null && $source[$candidate] !== '') {
+                    return (string)$source[$candidate];
+                }
+            }
+            return null;
+        };
 
         $operatoriPage = isset($params['operatori_pagina']) ? (int)$params['operatori_pagina'] : 1;
         if ($operatoriPage < 1) {
@@ -293,10 +357,34 @@ class ConfigurazioneController
                                 $entrateArr = [];
                             }
 
+                            $entrateRows = $entrateArr['risultati'] ?? [];
+                            if (!is_array($entrateRows)) {
+                                $entrateRows = [];
+                            }
+                            foreach ($entrateRows as $row) {
+                                if (!is_array($row)) {
+                                    continue;
+                                }
+                                $registerTipologiaCode($extractValue($row, ['codiceContabilita', 'codice_contabilita']));
+                                $registerTipologiaCode($extractValue($row, ['idEntrata', 'id_entrata']));
+
+                                $tipoEntrataPayload = null;
+                                if (isset($row['tipoEntrata']) && is_array($row['tipoEntrata'])) {
+                                    $tipoEntrataPayload = $row['tipoEntrata'];
+                                } elseif (isset($row['tipo_entrata']) && is_array($row['tipo_entrata'])) {
+                                    $tipoEntrataPayload = $row['tipo_entrata'];
+                                }
+
+                                if ($tipoEntrataPayload !== null) {
+                                    $registerTipologiaCode($extractValue($tipoEntrataPayload, ['codiceContabilita', 'codice_contabilita']));
+                                    $registerTipologiaCode($extractValue($tipoEntrataPayload, ['idEntrata', 'id_entrata']));
+                                }
+                            }
+
                             if (!empty($idDominioEnv ?? '')) {
                                 try {
                                     $repoEntr = new EntrateRepository();
-                                    $rows = $entrateArr['risultati'] ?? [];
+                                    $rows = $entrateRows;
                                     if (isset($idDominio)) {
                                         foreach ($rows as $row) {
                                             $repoEntr->upsertFromBackoffice($idDominio, $row);
@@ -314,6 +402,8 @@ class ConfigurazioneController
                                             $urlMap[$idE] = $r['external_url'] ?? null;
                                             $descrMap[$idE] = $r['descrizione_locale'] ?? null;
                                             $descrEffMap[$idE] = $r['descrizione_effettiva'] ?? ($r['descrizione'] ?? null);
+                                            $registerTipologiaCode($extractValue($r, ['codice_contabilita', 'codiceContabilita']));
+                                            $registerTipologiaCode($extractValue($r, ['id_entrata', 'idEntrata']));
                                         }
                                         $entrateArr['_bo_map'] = $boMap;
                                         $entrateArr['_override_map'] = $ovrMap;
@@ -412,6 +502,217 @@ class ConfigurazioneController
             $errors[] = 'Client Backoffice non disponibile (namespace GovPay\\Backoffice)';
         }
 
+        if ($tab === 'tassonomie') {
+            if (!empty($tassonomieUrl)) {
+                try {
+                    $http = new \GuzzleHttp\Client(['timeout' => 15]);
+                    $resp = $http->request('GET', $tassonomieUrl, [
+                        'headers' => ['Accept' => 'application/json'],
+                        'http_errors' => false,
+                    ]);
+                    $status = $resp->getStatusCode();
+                    if ($status >= 200 && $status < 300) {
+                        $tassonomieRaw = (string)$resp->getBody();
+                        $rows = json_decode($tassonomieRaw, true, 512, JSON_THROW_ON_ERROR);
+                        if (!is_array($rows)) {
+                            throw new \RuntimeException('Formato tassonomie inatteso: JSON non è un array');
+                        }
+
+                        $tree = [];
+                        $versions = [];
+                        foreach ($rows as $entry) {
+                            if (!is_array($entry)) {
+                                continue;
+                            }
+                            $enteCode = trim((string)($entry['CODICE TIPO ENTE CREDITORE'] ?? ''));
+                            $enteLabel = trim((string)($entry['TIPO ENTE CREDITORE'] ?? ''));
+                            if ($enteLabel === '' && $enteCode !== '') {
+                                $enteLabel = 'Ente ' . $enteCode;
+                            }
+                            if ($enteLabel === '') {
+                                $enteLabel = 'Altro ente creditore';
+                            }
+                            $enteKey = ($enteCode !== '' ? $enteCode : 'NA') . '|' . $enteLabel;
+                            if (!isset($tree[$enteKey])) {
+                                $tree[$enteKey] = [
+                                    'codice' => $enteCode,
+                                    'label' => $enteLabel,
+                                    'macro_aree' => [],
+                                    'servizi_count' => 0,
+                                ];
+                            }
+
+                            $macroProg = trim((string)($entry['PROGRESSIVO MACRO AREA PER ENTE CREDITORE'] ?? ''));
+                            $macroNome = trim((string)($entry['NOME MACRO AREA'] ?? 'Macro area'));
+                            $macroDesc = trim((string)($entry['DESCRIZIONE MACRO AREA'] ?? ''));
+                            $macroKey = ($macroProg !== '' ? $macroProg : 'NA') . '|' . $macroNome;
+                            if (!isset($tree[$enteKey]['macro_aree'][$macroKey])) {
+                                $tree[$enteKey]['macro_aree'][$macroKey] = [
+                                    'progressivo' => $macroProg,
+                                    'nome' => $macroNome,
+                                    'descrizione' => $macroDesc,
+                                    'servizi' => [],
+                                ];
+                            }
+
+                            $service = [
+                                'codice_tipologia' => trim((string)($entry['CODICE TIPOLOGIA SERVIZIO'] ?? '')),
+                                'tipo_servizio' => trim((string)($entry['TIPO SERVIZIO'] ?? '')),
+                                'motivo_giuridico' => trim((string)($entry['MOTIVO GIURIDICO DELLA RISCOSSIONE'] ?? '')),
+                                'descrizione_servizio' => trim((string)($entry['DESCRIZIONE TIPO SERVIZIO'] ?? '')),
+                                'dati_specifici_incasso' => trim((string)($entry['DATI SPECIFICI INCASSO'] ?? '')),
+                                'data_inizio_validita' => trim((string)($entry['DATA INIZIO VALIDITA'] ?? '')),
+                                'data_fine_validita' => trim((string)($entry['DATA FINE VALIDITA'] ?? '')),
+                                'versione' => trim((string)($entry['VERSIONE TASSONOMIA'] ?? '')),
+                            ];
+
+                            $primaryCatalogCode = $service['dati_specifici_incasso'] !== ''
+                                ? $service['dati_specifici_incasso']
+                                : null;
+
+                            $normalizedCatalogCode = $primaryCatalogCode !== null ? $normalizeTipologiaCode($primaryCatalogCode) : null;
+                            $rawCatalogCode = $primaryCatalogCode !== null ? $rawUpperCode($primaryCatalogCode) : null;
+
+                            $service['codice_tipologia_norm'] = $normalizedCatalogCode ?? $rawCatalogCode;
+                            $service['codice_tipologia_raw'] = $rawCatalogCode;
+
+                            $matchSource = null;
+                            if ($normalizedCatalogCode !== null && isset($tipologieCodici[$normalizedCatalogCode])) {
+                                $matchSource = 'normalized';
+                            } elseif ($rawCatalogCode !== null && isset($tipologieCodici[$rawCatalogCode])) {
+                                $matchSource = 'raw';
+                            }
+
+                            $service['match_source'] = $matchSource;
+                            $service['presente_tipologie'] = $matchSource !== null;
+
+                            $tree[$enteKey]['macro_aree'][$macroKey]['servizi'][] = $service;
+                            $tree[$enteKey]['servizi_count']++;
+
+                            if ($service['versione'] !== '') {
+                                $versions[$service['versione']] = true;
+                            }
+                        }
+
+                        $macroTotal = 0;
+                        foreach ($tree as &$enteRow) {
+                            $macroEntries = array_values($enteRow['macro_aree']);
+                            usort($macroEntries, static function (array $a, array $b): int {
+                                $aLabel = trim(($a['progressivo'] !== '' ? $a['progressivo'] . ' · ' : '') . $a['nome']);
+                                $bLabel = trim(($b['progressivo'] !== '' ? $b['progressivo'] . ' · ' : '') . $b['nome']);
+                                return strnatcasecmp($aLabel, $bLabel);
+                            });
+                            foreach ($macroEntries as &$macroEntry) {
+                                usort($macroEntry['servizi'], static function (array $a, array $b): int {
+                                    $aLabel = trim(($a['codice_tipologia'] !== '' ? $a['codice_tipologia'] . ' · ' : '') . $a['tipo_servizio']);
+                                    $bLabel = trim(($b['codice_tipologia'] !== '' ? $b['codice_tipologia'] . ' · ' : '') . $b['tipo_servizio']);
+                                    return strnatcasecmp($aLabel, $bLabel);
+                                });
+                            }
+                            unset($macroEntry);
+                            $macroTotal += count($macroEntries);
+                            $enteRow['macro_aree'] = $macroEntries;
+                        }
+                        unset($enteRow);
+
+                        $treeList = array_values($tree);
+                        usort($treeList, static function (array $a, array $b): int {
+                            return strnatcasecmp($a['label'], $b['label']);
+                        });
+
+                        $totalServizi = array_sum(array_map(static function (array $row): int {
+                            return (int)$row['servizi_count'];
+                        }, $treeList));
+
+                        $versions = array_keys($versions);
+                        sort($versions, SORT_NATURAL);
+                        $tassonomieStats = [
+                            'total_servizi' => $totalServizi,
+                            'total_macro' => $macroTotal,
+                            'enti' => count($treeList),
+                            'versions' => $versions,
+                            'per_ente' => array_map(static function (array $row): array {
+                                return ['label' => $row['label'], 'servizi' => $row['servizi_count']];
+                            }, $treeList),
+                        ];
+
+                        $selectedTree = $treeList;
+                        $filteredStats = [
+                            'servizi' => $totalServizi,
+                            'macro' => $macroTotal,
+                            'enti' => count($treeList),
+                        ];
+
+                        if ($tassonomieSearch !== '') {
+                            $term = mb_strtolower($tassonomieSearch);
+                            $matches = static function (string $text, string $needle): bool {
+                                if ($needle === '') {
+                                    return true;
+                                }
+                                return mb_stripos($text, $needle) !== false;
+                            };
+
+                            $selectedTree = [];
+                            foreach ($treeList as $enteRow) {
+                                $enteMatch = $matches(mb_strtolower($enteRow['label']), $term);
+                                $macroFiltered = [];
+                                foreach ($enteRow['macro_aree'] as $macroRow) {
+                                    $macroMatch = $enteMatch || $matches(mb_strtolower($macroRow['nome'] . ' ' . $macroRow['descrizione']), $term);
+                                    $servicesFiltered = [];
+                                    foreach ($macroRow['servizi'] as $serviceRow) {
+                                        $serviceText = mb_strtolower(
+                                            $serviceRow['tipo_servizio'] . ' ' .
+                                            $serviceRow['descrizione_servizio'] . ' ' .
+                                            $serviceRow['codice_tipologia'] . ' ' .
+                                            $serviceRow['dati_specifici_incasso'] . ' ' .
+                                            $serviceRow['motivo_giuridico']
+                                        );
+                                        if ($macroMatch || $matches($serviceText, $term)) {
+                                            $servicesFiltered[] = $serviceRow;
+                                        }
+                                    }
+                                    if (!empty($servicesFiltered)) {
+                                        $macroCopy = $macroRow;
+                                        $macroCopy['servizi'] = $servicesFiltered;
+                                        $macroFiltered[] = $macroCopy;
+                                    }
+                                }
+                                if (!empty($macroFiltered)) {
+                                    $enteCopy = $enteRow;
+                                    $enteCopy['macro_aree'] = $macroFiltered;
+                                    $enteCopy['servizi_count'] = array_sum(array_map(static function (array $macroRow): int {
+                                        return count($macroRow['servizi']);
+                                    }, $macroFiltered));
+                                    $selectedTree[] = $enteCopy;
+                                }
+                            }
+
+                            $filteredStats = [
+                                'servizi' => array_sum(array_map(static function (array $row): int {
+                                    return (int)$row['servizi_count'];
+                                }, $selectedTree)),
+                                'macro' => array_sum(array_map(static function (array $row): int {
+                                    return count($row['macro_aree']);
+                                }, $selectedTree)),
+                                'enti' => count($selectedTree),
+                            ];
+                        }
+
+                        $tassonomieTree = $selectedTree;
+                        $tassonomieFilteredStats = $filteredStats;
+                    } else {
+                        $tassonomieError = 'Errore HTTP ' . $status . ' dal catalogo tassonomie';
+                    }
+                } catch (\JsonException $e) {
+                    $tassonomieError = 'Errore decoding tassonomie: ' . $e->getMessage();
+                } catch (\Throwable $e) {
+                    $tassonomieError = 'Errore lettura tassonomie PagoPA: ' . $e->getMessage();
+                }
+            } else {
+                $tassonomieError = 'Variabile TASSONOMIE_PAGOPA non impostata';
+            }
+        }
+
         $externalTypes = [];
         try {
             $extRepo = new ExternalPaymentTypeRepository();
@@ -498,6 +799,13 @@ class ConfigurazioneController
             'count_superadmins' => $countSuperadmins,
             'config_readonly' => !$canEditConfig,
             'can_manage_users' => $canManageUsers,
+            'tassonomie_tree' => $tassonomieTree,
+            'tassonomie_stats' => $tassonomieStats,
+            'tassonomie_filtered_stats' => $tassonomieFilteredStats,
+            'tassonomie_error' => $tassonomieError,
+            'tassonomie_url' => $tassonomieUrl,
+            'tassonomie_search' => $tassonomieSearch,
+            'tassonomie_raw' => $tassonomieRaw,
         ]);
     }
 
