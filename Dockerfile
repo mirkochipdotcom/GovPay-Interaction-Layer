@@ -134,7 +134,6 @@ RUN a2ensite 000-default.conf
 COPY img /var/www/html/public/img
 COPY assets /var/www/html/public/assets
 COPY public.htaccess /var/www/html/public/.htaccess
-COPY debug /var/www/html/public/debug
 
 COPY backoffice/ /var/www/html/backoffice/
 RUN ln -s /var/www/html/backoffice/src /var/www/html/src \
