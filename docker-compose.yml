@@ -55,7 +55,6 @@ services:
       - DB_PASSWORD_CITTADINI=${DB_PASSWORD_CITTADINI}
     volumes:
       - db_data:/var/lib/mysql
-      - ./docker/db-init:/docker-entrypoint-initdb.d:ro
 
 volumes:
   db_data:
