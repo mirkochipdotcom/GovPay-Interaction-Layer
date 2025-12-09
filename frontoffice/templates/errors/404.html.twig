@@ -1,0 +1,26 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Pagina non trovata - {{ app_entity.name }}{% endblock %}
+
+{% block content %}
+  <section class="py-5">
+    <div class="container-xxl">
+      <div class="row justify-content-center">
+        <div class="col-lg-8">
+          <div class="text-center py-5">
+            <p class="text-uppercase text-muted small mb-2">Errore 404</p>
+            <h1 class="display-5 mb-3">La pagina richiesta non &egrave; disponibile</h1>
+            <p class="lead text-muted mb-4">Il contenuto che stai cercando potrebbe essere stato spostato oppure non &egrave; piu' disponibile. Torna alla home o contatta l'assistenza.</p>
+            <div class="d-flex gap-3 justify-content-center flex-wrap">
+              <a class="btn btn-primary" href="/">Torna alla home</a>
+              <a class="btn btn-outline-primary" href="mailto:{{ support_email }}">Scrivi all'assistenza</a>
+            </div>
+            {% if requested_path is defined %}
+              <p class="small text-muted mt-4 mb-0">Percorso richiesto: <code>{{ requested_path }}</code></p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+{% endblock %}

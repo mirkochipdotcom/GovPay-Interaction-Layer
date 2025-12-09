@@ -77,7 +77,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && docker-php-ext-install intl mbstring pdo_mysql zip \
     && a2enmod ssl rewrite headers \
     && echo "ServerName localhost" >> /etc/apache2/apache2.conf \
-    && apt-get purge -y --auto-remove libicu-dev libzip-dev libonig-dev \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Copia vendor dal builder
@@ -131,15 +130,8 @@ RUN a2ensite 000-default.conf
 COPY img /var/www/html/public/img
 COPY assets /var/www/html/public/assets
 COPY public.htaccess /var/www/html/public/.htaccess
-
-COPY backoffice/ /var/www/html/backoffice/
-RUN ln -s /var/www/html/backoffice/src /var/www/html/src \
-    && ln -s /var/www/html/src/bootstrap /var/www/html/bootstrap \
-    && ln -s /var/www/html/src/routes /var/www/html/routes \
-    && ln -s /var/www/html/backoffice/templates /var/www/html/templates \
-    && ln -s /var/www/html/backoffice/bin /var/www/html/bin
-RUN cp -r /var/www/html/backoffice/src/public/* /var/www/html/public/ || true
-COPY frontoffice/ /var/www/html/frontoffice/
+COPY app/ /var/www/html/app/
+COPY migrations/ /var/www/html/migrations/
 
 # Copia la sorgente dei client generati (necessario se Composer ha creato symlink per path repositories)
 COPY govpay-clients/ /var/www/html/govpay-clients/
@@ -158,6 +150,15 @@ EXPOSE 443
 CMD ["apache2-foreground"]
 
 FROM runtime-base AS runtime-backoffice
+COPY backoffice/ /var/www/html/backoffice/
+COPY backoffice/bin/ /var/www/html/bin/
+RUN ln -s /var/www/html/backoffice/src/bootstrap /var/www/html/bootstrap \
+    && ln -s /var/www/html/backoffice/src/routes /var/www/html/routes \
+    && ln -s /var/www/html/backoffice/templates /var/www/html/templates
 COPY --from=asset_builder /app/chartjs-dist/ /var/www/html/public/assets/chartjs/
+RUN cp -r /var/www/html/backoffice/src/public/. /var/www/html/public/ || true
+RUN chown -R www-app:www-data /var/www/html
 
 FROM runtime-base AS runtime-frontoffice
+COPY frontoffice/ /var/www/html/frontoffice/
+RUN chown -R www-app:www-data /var/www/html

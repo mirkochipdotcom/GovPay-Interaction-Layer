@@ -16,6 +16,30 @@
     .service-section {
       padding: 4rem 0;
     }
+    .action-card {
+      display: block;
+      height: 100%;
+      padding: 2rem;
+      border-radius: 24px;
+      border: 1px solid rgba(255,255,255,0.2);
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+      text-decoration: none;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+    }
+    .action-card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 20px 50px rgba(5,25,61,0.2);
+      background: rgba(255,255,255,0.18);
+    }
+    .action-card h3 {
+      color: #fff;
+      margin-bottom: 0.75rem;
+    }
+    .action-card p {
+      color: rgba(255,255,255,0.85);
+      margin-bottom: 1.25rem;
+    }
     .service-card {
       border-radius: 24px;
       border: none;
@@ -63,10 +87,10 @@
         <div class="col-lg-7">
           <p class="text-uppercase small mb-2 text-white-50">Sportello digitale</p>
           <h1 class="display-5 fw-semibold mb-3">Gestisci i pagamenti PagoPA con pochi clic</h1>
-          <p class="lead mb-4">Consulta le tue posizioni debitorie, paga un avviso già ricevuto oppure genera un pagamento spontaneo per i servizi del Comune.</p>
+          <p class="lead mb-4">Consulta le tue posizioni debitorie, paga un avviso gia' ricevuto oppure genera un pagamento spontaneo per i servizi del Comune.</p>
           <div class="d-flex flex-wrap gap-3">
-            <a class="btn btn-warning btn-lg text-dark" href="#pagamento-avviso">Paga un avviso</a>
-            <a class="btn btn-outline-light btn-lg" href="#pagamento-spontaneo">Pagamento spontaneo</a>
+            <a class="btn btn-warning btn-lg text-dark" href="/pagamento-avviso">Paga un avviso</a>
+            <a class="btn btn-outline-light btn-lg" href="/pagamento-spontaneo">Pagamento spontaneo</a>
           </div>
         </div>
         <div class="col-lg-5">
@@ -74,10 +98,37 @@
             <h2 class="h5 text-uppercase text-white-50">Cosa ti serve</h2>
             <ul class="cta-list list-unstyled mb-0 text-white">
               <li>Codice avviso o IUV riportato sulla comunicazione ricevuta</li>
-              <li>Codice fiscale del soggetto a cui è intestato l’avviso</li>
+              <li>Codice fiscale del soggetto a cui e' intestato l'avviso</li>
               <li>Metodo di pagamento PagoPA (carta, conto, app o home banking)</li>
             </ul>
           </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="service-section pt-0">
+    <div class="container-xxl">
+      <div class="row g-4">
+        <div class="col-lg-6">
+          <a class="action-card" href="/pagamento-avviso">
+            <div class="d-flex align-items-center justify-content-between">
+              <h3 class="h4 mb-0">Paga un avviso ricevuto</h3>
+              <svg class="icon icon-white"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-chevron-right"></use></svg>
+            </div>
+            <p>Inserisci codice avviso/IUV e codice fiscale del soggetto pagatore per saldare immediatamente la posizione.</p>
+            <span class="btn btn-outline-light btn-sm">Vai alla pagina</span>
+          </a>
+        </div>
+        <div class="col-lg-6">
+          <a class="action-card" href="/pagamento-spontaneo">
+            <div class="d-flex align-items-center justify-content-between">
+              <h3 class="h4 mb-0">Genera un pagamento spontaneo</h3>
+              <svg class="icon icon-white"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-chevron-right"></use></svg>
+            </div>
+            <p>Crea un nuovo avviso PagoPA per mense, servizi scolastici, concessioni e tutti gli altri servizi dell'ente.</p>
+            <span class="btn btn-outline-light btn-sm">Apri il modulo</span>
+          </a>
         </div>
       </div>
     </div>
@@ -92,14 +143,14 @@
               <svg aria-hidden="true"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-bill"></use></svg>
             </div>
             <h2 class="h3 mb-3">Paga un avviso ricevuto</h2>
-            <p class="mb-4">Inserisci il codice avviso/IUV e il codice fiscale per procedere subito con il pagamento di una posizione debitoria già emessa dall’Ente.</p>
+            <p class="mb-4">Inserisci il codice avviso/IUV e il codice fiscale per procedere subito con il pagamento di una posizione debitoria gia' emessa dall'ente.</p>
             <ul class="cta-list list-unstyled mb-4">
               <li>Verifica importo e scadenza direttamente online</li>
               <li>Scegli il canale PagoPA preferito</li>
               <li>Ricevi ricevuta digitale immediata</li>
             </ul>
             <div class="d-flex gap-3 flex-wrap">
-              <a class="btn btn-primary" href="#" role="button">Inserisci codice avviso</a>
+              <a class="btn btn-primary" href="/pagamento-avviso" role="button">Inserisci codice avviso</a>
               <a class="btn btn-outline-primary" href="#supporto">Serve aiuto?</a>
             </div>
           </div>
@@ -107,7 +158,7 @@
         <div class="col-lg-6">
           <div class="p-4 p-lg-5 rounded-4 bg-primary text-white h-100 d-flex flex-column justify-content-center">
             <h3 class="h4 mb-3">Paghi da smartphone o computer</h3>
-            <p class="mb-0">Accedi con SPID/CIE sui canali abilitati PagoPA oppure completa il pagamento con carta e wallet digitali. Lo stato dell’avviso sarà aggiornato automaticamente senza dover presentare ricevute agli sportelli.</p>
+            <p class="mb-0">Accedi con SPID/CIE sui canali abilitati PagoPA oppure completa il pagamento con carta e wallet digitali. Lo stato dell'avviso sara' aggiornato automaticamente senza dover presentare ricevute agli sportelli.</p>
           </div>
         </div>
       </div>
@@ -123,22 +174,22 @@
               <svg aria-hidden="true"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-pen"></use></svg>
             </div>
             <h2 class="h3 mb-3">Genera un pagamento spontaneo</h2>
-            <p class="mb-4">Non hai ricevuto un avviso ma devi corrispondere un importo all’Ente? Compila il modulo guidato e ottieni immediatamente un codice avviso PagoPA.</p>
+            <p class="mb-4">Non hai ricevuto un avviso ma devi corrispondere un importo all'ente? Compila il modulo guidato e ottieni immediatamente un codice avviso PagoPA.</p>
             <ul class="cta-list list-unstyled mb-4">
               <li>Seleziona servizio o causale</li>
-              <li>Compila i dati anagrafici e l’importo</li>
-              <li>Scarica l’avviso o paga subito online</li>
+              <li>Compila i dati anagrafici e l'importo</li>
+              <li>Scarica l'avviso o paga subito online</li>
             </ul>
             <div class="d-flex gap-3 flex-wrap">
-              <a class="btn btn-primary" href="#" role="button">Avvia richiesta</a>
+              <a class="btn btn-primary" href="/pagamento-spontaneo" role="button">Avvia richiesta</a>
               <a class="btn btn-outline-primary" href="#supporto">Informazioni</a>
             </div>
           </div>
         </div>
         <div class="col-lg-6 order-lg-1">
           <div class="p-4 p-lg-5 rounded-4 bg-dark text-white h-100 d-flex flex-column justify-content-center">
-            <h3 class="h4 mb-3">Servizi più richiesti</h3>
-            <p class="mb-0">Mensa scolastica, retta degli asili, concessioni, diritti di segreteria, multe: raccogliamo tutto in un’unica procedura guidata per ridurre code e tempi allo sportello.</p>
+            <h3 class="h4 mb-3">Servizi piu' richiesti</h3>
+            <p class="mb-0">Mensa scolastica, retta degli asili, concessioni, diritti di segreteria, multe: raccogliamo tutto in un'unica procedura guidata per ridurre code e tempi allo sportello.</p>
           </div>
         </div>
       </div>
