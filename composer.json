@@ -51,7 +51,7 @@
         "prefer-stable": true,
     "autoload": {
         "psr-4": {
-            "App\\": "src/"
+            "App\\": "backoffice/src/"
         }
     },
     "require-dev": {
@@ -59,7 +59,7 @@
         "symfony/var-dumper": "^6.0"
     },
     "scripts": {
-        "start": "php -S 0.0.0.0:8080 -t src/public",
+        "start": "php -S 0.0.0.0:8080 -t backoffice/src/public",
         "post-install-cmd": ["@dump-autoload"],
         "post-update-cmd": ["@dump-autoload"]
     }
