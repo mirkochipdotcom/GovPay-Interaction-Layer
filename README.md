@@ -26,7 +26,7 @@ In sintesi, GIL riduce il carico operativo degli uffici e fornisce un punto di a
 ### 0. Prerequisiti
 - Docker Desktop (o Docker Engine + plugin `docker compose`)
 - Git
-- Porta 8443 libera sul tuo host (modificabile in `docker-compose.yml`)
+- Porta `BACKOFFICE_HTTPS_PORT` libera sul tuo host (default 8443, configurabile via `.env`)
 
 ### 1. Clona il repository
 
@@ -60,8 +60,8 @@ La prima build può impiegare qualche minuto perché scarica dipendenze e compil
 
 ### 4. Primo accesso
 
-- **URL principale**: https://localhost:8443
-- **Debug tool**: https://localhost:8443/debug/
+- **URL principale (default)**: https://localhost:8443 *(configurabile tramite `BACKOFFICE_HTTPS_PORT`)*
+- **Debug tool**: https://localhost:8443/debug/ *(stessa porta del backoffice)*
 
 Il seed creerà automaticamente un utente `superadmin` con le credenziali impostate nel `.env`. Accedi a `/login` e, subito dopo, crea nuovi utenti o aggiorna la password del seed.
 
@@ -95,6 +95,10 @@ Crea il file `.env` (puoi partire da `.env.example` se presente) e configura le 
 ```bash
 cp .env.example .env
 ```
+
+Variabili porte:
+- `BACKOFFICE_HTTPS_PORT`: porta HTTPS esposta dal container backoffice (default 8443)
+- `FRONTOFFICE_HTTPS_PORT`: porta HTTPS esposta dal container frontoffice (default 8444)
 
 ### 🔐 Autenticazione e superadmin
 

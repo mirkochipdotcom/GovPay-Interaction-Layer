@@ -4,7 +4,7 @@ services:
     image: govpay-interaction-backoffice:latest
     container_name: govpay-interaction-backoffice
     ports:
-      - "8443:443"
+      - "${BACKOFFICE_HTTPS_PORT:-8443}:443"
     volumes:
       # Monta solo la cartella debug per sviluppo live
       - ./debug:/var/www/html/public/debug
@@ -24,7 +24,7 @@ services:
     image: govpay-interaction-frontoffice:latest
     container_name: govpay-interaction-frontoffice
     ports:
-      - "8444:443"
+      - "${FRONTOFFICE_HTTPS_PORT:-8444}:443"
     volumes:
       - ./debug:/var/www/html/public/debug
     environment:
