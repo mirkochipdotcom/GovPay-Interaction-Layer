@@ -77,14 +77,15 @@ Il seed creerà automaticamente un utente `superadmin` con le credenziali impost
 ### Monitoraggio e debug
 ```bash
 # Visualizza i log in tempo reale
-docker compose logs -f govpay-interaction-layer
+docker compose logs -f govpay-interaction-backoffice
 
 # Accedi al container per debug
-docker compose exec govpay-interaction-layer bash
+docker compose exec govpay-interaction-backoffice bash
 
 # Riavvia solo il servizio PHP senza rebuild
-docker compose restart govpay-interaction-layer
+docker compose restart govpay-interaction-backoffice
 ```
+> Sostituisci con `govpay-interaction-frontoffice` per operare sul portale cittadini.
 
 ## 🔧 Configurazione di avvio
 
@@ -244,14 +245,15 @@ docker system prune -f
 ### Debug avanzato
 ```bash
 # Ispeziona configurazione container
-docker inspect govpay-interaction-layer
+docker inspect govpay-interaction-backoffice
 
 # Controlla logs di tutti i servizi
 docker compose logs
 
 # Accesso diretto al filesystem del container
-docker exec -it govpay-interaction-layer find /var/www/html -name "*.php" | head -10
+docker exec -it govpay-interaction-backoffice find /var/www/html -name "*.php" | head -10
 ```
+> Anche qui puoi usare `govpay-interaction-frontoffice` per verificare il container cittadini.
 
 --- 
 
@@ -308,6 +310,6 @@ docker compose ps
 docker system df
 docker compose down -v --remove-orphans
 docker system prune -f
-docker inspect govpay-interaction-layer
+docker inspect govpay-interaction-backoffice
 docker compose logs
-docker exec -it govpay-interaction-layer find /var/www/html -name "*.php" | head -10
+docker exec -it govpay-interaction-backoffice find /var/www/html -name "*.php" | head -10

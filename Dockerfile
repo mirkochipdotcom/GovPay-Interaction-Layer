@@ -136,12 +136,14 @@ COPY assets /var/www/html/public/assets
 COPY public.htaccess /var/www/html/public/.htaccess
 COPY debug /var/www/html/public/debug
 
-COPY src/ /var/www/html/src/
-RUN ln -s /var/www/html/src/bootstrap /var/www/html/bootstrap \
-    && ln -s /var/www/html/src/routes /var/www/html/routes
-COPY templates/ /var/www/html/templates/
-COPY bin/ /var/www/html/bin/
-RUN cp -r /var/www/html/src/public/* /var/www/html/public/ || true
+COPY backoffice/ /var/www/html/backoffice/
+RUN ln -s /var/www/html/backoffice/src /var/www/html/src \
+    && ln -s /var/www/html/src/bootstrap /var/www/html/bootstrap \
+    && ln -s /var/www/html/src/routes /var/www/html/routes \
+    && ln -s /var/www/html/backoffice/templates /var/www/html/templates \
+    && ln -s /var/www/html/backoffice/bin /var/www/html/bin
+RUN cp -r /var/www/html/backoffice/src/public/* /var/www/html/public/ || true
+COPY frontoffice/ /var/www/html/frontoffice/
 
 # Copia la sorgente dei client generati (necessario se Composer ha creato symlink per path repositories)
 COPY govpay-clients/ /var/www/html/govpay-clients/
