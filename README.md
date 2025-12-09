@@ -61,7 +61,7 @@ La prima build può impiegare qualche minuto perché scarica dipendenze e compil
 ### 4. Primo accesso
 
 - **URL principale (default)**: https://localhost:8443 *(configurabile tramite `BACKOFFICE_HTTPS_PORT`)*
-- **Debug tool**: https://localhost:8443/debug/ *(stessa porta del backoffice)*
+- **Debug tool**: https://localhost:8443/debug/ *(solo nel container backoffice, stessa porta)*
 
 Il seed creerà automaticamente un utente `superadmin` con le credenziali impostate nel `.env`. Accedi a `/login` e, subito dopo, crea nuovi utenti o aggiorna la password del seed.
 
@@ -71,7 +71,7 @@ Il seed creerà automaticamente un utente `superadmin` con le credenziali impost
 
 ### Modifiche al codice
 - **Backend PHP**: Modifica i file in `src/` - richiede rebuild: `docker compose up -d --build`
-- **Debug/test**: Modifica i file in `debug/` - le modifiche sono immediate (volume montato)
+- **Debug/test**: Modifica i file in `debug/` - le modifiche sono immediate (montato **solo** nel servizio backoffice)
 - **Template Twig**: Modifica i file in `templates/` - richiede rebuild: `docker compose up -d --build`
 
 ### Monitoraggio e debug
@@ -85,7 +85,7 @@ docker compose exec govpay-interaction-backoffice bash
 # Riavvia solo il servizio PHP senza rebuild
 docker compose restart govpay-interaction-backoffice
 ```
-> Sostituisci con `govpay-interaction-frontoffice` per operare sul portale cittadini.
+> Sostituisci con `govpay-interaction-frontoffice` per operare sul portale cittadini. Nota: il container frontoffice non monta la cartella `debug/` e non espone lo strumento `/debug`.
 
 ## 🔧 Configurazione di avvio
 
@@ -96,7 +96,7 @@ Crea il file `.env` (puoi partire da `.env.example` se presente) e configura le 
 cp .env.example .env
 ```
 
-Variabili porte:
+Variabili porte di rete:
 - `BACKOFFICE_HTTPS_PORT`: porta HTTPS esposta dal container backoffice (default 8443)
 - `FRONTOFFICE_HTTPS_PORT`: porta HTTPS esposta dal container frontoffice (default 8444)
 
@@ -194,7 +194,7 @@ Per certificati SSL personalizzati del server web, posiziona i file nella cartel
 ## 🎯 Testing e Debug
 
 ### Debug Tool integrato
-Accedi a https://localhost:8443/debug/ per:
+Accedi (solo dal container backoffice) a https://localhost:8443/debug/ per:
 - Testare chiamate API GovPay
 - Verificare configurazione ambiente
 - Debug delle pendenze
@@ -269,7 +269,7 @@ GovPay-Interaction-Layer/
 ├── Dockerfile              # Build dell'immagine PHP/Apache
 ├── src/                    # Codice sorgente PHP (copiato in build)
 ├── templates/              # Template Twig (copiati in build)
-├── debug/                  # Tool di debug (montato come volume)
+├── debug/                  # Tool di debug (montato come volume solo nel backoffice)
 ├── govpay-clients/         # Client API generati da OpenAPI
 ├── ssl/                    # Certificati SSL personalizzati
 └── .env                    # Configurazione ambiente (da creare)

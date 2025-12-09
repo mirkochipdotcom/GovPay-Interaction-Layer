@@ -137,20 +137,12 @@ if [ "$APP_SUITE" = "frontoffice" ]; then
   TARGET_PUBLIC="/var/www/html/public"
   SOURCE_PUBLIC="/var/www/html/frontoffice/public"
   if [ -d "$SOURCE_PUBLIC" ]; then
+    rm -rf "$TARGET_PUBLIC"
     mkdir -p "$TARGET_PUBLIC"
-    # Rimuove tutto il contenuto esistente tranne la cartella debug montata come volume
-    shopt -s dotglob nullglob
-    for entry in "$TARGET_PUBLIC"/*; do
-      base="$(basename "$entry")"
-      if [ "$base" = "debug" ]; then
-        continue
-      fi
-      rm -rf "$entry"
-    done
-    shopt -u dotglob nullglob
     cp -R "$SOURCE_PUBLIC"/. "$TARGET_PUBLIC"/
+    rm -rf "$TARGET_PUBLIC"/debug
     chown -R www-app:www-data "$TARGET_PUBLIC" || true
-    echo "✅ Frontoffice pubblicato in $TARGET_PUBLIC (debug preservata)"
+    echo "✅ Frontoffice pubblicato in $TARGET_PUBLIC (debug disattivata)"
   else
     echo "⚠️  Sorgente frontoffice $SOURCE_PUBLIC non trovata" >&2
   fi
