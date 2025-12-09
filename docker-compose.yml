@@ -1,6 +1,8 @@
 services:
   govpay-interaction-backoffice:
-    build: .
+    build:
+      context: .
+      target: runtime-backoffice
     image: govpay-interaction-backoffice:latest
     container_name: govpay-interaction-backoffice
     ports:
@@ -20,7 +22,9 @@ services:
     entrypoint: ["/usr/local/bin/docker-setup.sh"] # Esegue script di setup (composer/autoload + cert) poi CMD apache
     restart: unless-stopped
   govpay-interaction-frontoffice:
-    build: .
+    build:
+      context: .
+      target: runtime-frontoffice
     image: govpay-interaction-frontoffice:latest
     container_name: govpay-interaction-frontoffice
     ports:

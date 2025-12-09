@@ -1,0 +1,202 @@
+{# Header in stile Bootstrap Italia, semplificato e parametrizzato #}
+<header class="it-header-wrapper">
+  <div class="it-header-slim-wrapper">
+    <div class="container-xxl">
+      <div class="row">
+        <div class="col-12">
+          <div class="it-header-slim-wrapper-content">
+            <a class="d-none d-lg-block navbar-brand text-white" href="#">{{ app_entity.name }}</a>
+            <div class="nav-mobile">
+              <nav aria-label="Navigazione secondaria">
+                <a class="it-opener d-lg-none" data-bs-toggle="collapse" href="#menuC1" role="button" aria-expanded="false" aria-controls="menuC1">
+                  <span>{{ app_entity.name }}</span>
+                  <svg class="icon" aria-hidden="true"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-expand"></use></svg>
+                </a>
+                {% if current_user %}
+                <div class="link-list-wrapper collapse" id="menuC1">
+                  <ul class="link-list">
+                      <li>
+                        <a class="dropdown-item list-item {{ current_path == '/guida' ? 'active' : '' }}" href="/guida">Guida</a>
+                      </li>
+                    </ul>
+                </div>
+                {% endif %}
+              </nav>
+            </div>
+            <div class="it-header-slim-right-zone">
+              <div class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                  <span class="visually-hidden">Selezione lingua: lingua selezionata</span>
+                  <span>ITA</span>
+                  <svg class="icon d-none d-lg-block"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-expand"></use></svg>
+                </a>
+                <div class="dropdown-menu">
+                  <div class="row">
+                    <div class="col-12">
+                      <div class="link-list-wrapper">
+                        <ul class="link-list">
+                          <li><a class="dropdown-item list-item" href="#"><span>ITA <span class="visually-hidden">selezionata</span></span></a></li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="it-access-top-wrapper">
+                 {% if current_user %}
+                <div class="it-user-wrapper nav-item dropdown show">
+                  <a aria-expanded="false" class="btn btn-primary btn-icon btn-full" data-bs-toggle="dropdown" href="#" id="userDropdown">
+                    {% set first = current_user.first_name|default('') %}
+                    {% set last = current_user.last_name|default('') %}
+                    {% set show_name = (first != '') or (last != '') %}
+                    {% set display_name = first ~ (last != '' ? ' ' ~ last|upper : '') %}
+                    {% set initials = (first|slice(0,1)) ~ (last|slice(0,1)) %}
+                    {% if show_name -%}
+                      <span class="d-none d-md-inline">{{ display_name }}</span>
+                    {% else -%}
+                      <span class="d-none d-md-inline">{{ current_user.email }}</span>
+                    {% endif %}
+                    <span class="badge bg-light text-dark ms-2 d-none d-md-inline" aria-hidden="false" aria-label="{{ display_name != '' ? display_name : current_user.email }}">{{ initials|upper }}</span>
+                    <span class="d-inline d-md-none user-initials-avatar ms-2 d-flex align-items-center justify-content-center" role="img" aria-label="{{ display_name != '' ? display_name : current_user.email }}">{{ initials|upper }}</span>
+                    <svg class="icon icon-white d-none d-lg-block ms-2" style="width:18px;height:18px;">
+                      <use xlink:href="/assets/bootstrap-italia/svg/sprites.svg#it-expand"></use>
+                    </svg>
+                  </a>
+                  <div class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                    <div class="row">
+                      <div class="col-12">
+                        <div class="link-list-wrapper px-3 py-2">
+                          <ul class="link-list list-unstyled mb-0">
+                            <li>
+                              <a class="list-item d-block text-dark py-1 {{ current_path == '/profile' ? 'active' : '' }}" href="/profile">Profilo</a>
+                            </li>
+                            <li>
+                              <a class="list-item d-block text-danger py-1" href="/logout">Logout</a>
+                            </li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                {% else %}
+                  <a class="btn btn-primary btn-sm" href="/login">Accedi</a>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="it-nav-wrapper">
+    <div class="it-header-center-wrapper">
+      <div class="container-xxl">
+        <div class="row">
+          <div class="col-12">
+            <div class="it-header-center-content-wrapper">
+              <div class="it-brand-wrapper">
+                <a href="/">
+                  {% if app_logo.type == 'img' %}
+                    <img src="{{ app_logo.src }}" alt="{{ app_entity.name }}" class="me-2" style="height:40px; width:auto;" />
+                  {% else %}
+                    <svg class="icon icon-white me-2" style="height:40px; width:40px;">
+                      <use xlink:href="{{ app_logo.src ?: '/assets/bootstrap-italia/svg/sprites.svg#it-pa' }}"></use>
+                    </svg>
+                  {% endif %}
+                  <div class="it-brand-text">
+                    <div class="it-brand-title">{{ app_entity.name }}</div>
+                    <div class="it-brand-tagline d-none d-md-block">{{ app_entity.suffix }}</div>
+                  </div>
+                </a>
+              </div>
+              <div class="it-right-zone">
+                <span class="text-white-50 small">Servizi digitali</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="it-header-navbar-wrapper">
+      <div class="container-xxl">
+        <div class="row">
+          <div class="col-12">
+            <nav class="navbar navbar-expand-lg has-megamenu" aria-label="Navigazione principale">
+              <button class="custom-navbar-toggler" type="button" data-bs-toggle="navbarcollapsible" data-bs-target="#navC1" aria-controls="navC1" aria-label="Mostra/Nascondi la navigazione">
+                <svg class="icon">
+                  <use href="/assets/bootstrap-italia/svg/sprites.svg#it-burger"></use>
+                </svg>
+              </button>
+              <div class="navbar-collapsable" id="navC1" tabindex="-1">
+                <div class="close-div">
+                  <button class="btn close-menu" type="button">
+                    <span class="visually-hidden">Nascondi la navigazione</span>
+                    <svg class="icon">
+                      <use href="/assets/bootstrap-italia/svg/sprites.svg#it-close-big"></use>
+                    </svg>
+                  </button>
+                </div>
+                <div class="menu-wrapper">
+                  <ul class="navbar-nav">
+                    {% if current_user %}
+                      <li class="nav-item"><a class="nav-link {{ current_path == '/' ? 'active' : '' }}" href="/"><span>Home</span></a></li>
+                      {% set in_pendenze = current_path starts with '/pendenze' %}
+                      <li class="nav-item dropdown {{ in_pendenze ? 'active' : '' }}">
+                        <a class="nav-link dropdown-toggle {{ in_pendenze ? 'active' : '' }}" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false" id="pendenzeDropdown">
+                          <span>Pendenze</span>
+                          <svg class="icon icon-xs">
+                            <use href="/assets/bootstrap-italia/svg/sprites.svg#it-expand"></use>
+                          </svg>
+                        </a>
+                        <div class="dropdown-menu" role="region" aria-labelledby="pendenzeDropdown">
+                          <div class="link-list-wrapper">
+                            <ul class="link-list">
+                              <li><a class="dropdown-item list-item {{ current_path == '/pendenze/ricerca' ? 'active' : '' }}" href="/pendenze/ricerca"><span>Ricerca</span></a></li>
+                              <li><a class="dropdown-item list-item {{ current_path == '/pendenze/inserimento' ? 'active' : '' }}" href="/pendenze/inserimento"><span>Inserimento</span></a></li>
+                              <li><a class="dropdown-item list-item {{ current_path == '/pendenze/inserimento-massivo' ? 'active' : '' }}" href="/pendenze/inserimento-massivo"><span>Inserimento massivo</span></a></li>
+                            </ul>
+                          </div>
+                        </div>
+                      </li>
+                      {% set in_pagamenti = current_path starts with '/pagamenti' %}
+                      <li class="nav-item dropdown {{ in_pagamenti ? 'active' : '' }}">
+                        <a class="nav-link dropdown-toggle {{ in_pagamenti ? 'active' : '' }}" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false" id="pagamentiDropdown">
+                          <span>Pagamenti</span>
+                          <svg class="icon icon-xs">
+                            <use href="/assets/bootstrap-italia/svg/sprites.svg#it-expand"></use>
+                          </svg>
+                        </a>
+                        <div class="dropdown-menu" role="region" aria-labelledby="pagamentiDropdown">
+                          <div class="link-list-wrapper">
+                            <ul class="link-list">
+                              <li><a class="dropdown-item list-item {{ current_path == '/pagamenti/ricerca-incassi' ? 'active' : '' }}" href="/pagamenti/ricerca-incassi"><span>Ricerca Incassi</span></a></li>
+                              <li><a class="dropdown-item list-item {{ current_path == '/pagamenti/ricerca-flussi' ? 'active' : '' }}" href="/pagamenti/ricerca-flussi"><span>Ricerca Flussi</span></a></li>
+                            </ul>
+                          </div>
+                        </div>
+                      </li>
+                    {% endif %}
+                    {% if current_user %}
+                      <li class="nav-item"><a class="nav-link {{ current_path starts with '/statistiche' ? 'active' : '' }}" href="/statistiche"><span>Statistiche</span></a></li>
+                      {% if current_user.role in ['admin','superadmin'] %}
+                        {% set in_config = current_path starts with '/configurazione' %}
+                        <li class="nav-item">
+                          <a class="nav-link {{ in_config ? 'active' : '' }}" href="/configurazione"><span>Configurazione</span></a>
+                        </li>
+                      {% endif %}
+                    {% endif %}
+                    {% if not current_user %}
+                    <li class="nav-item"><a class="nav-link {{ current_path == '/guida' ? 'active' : '' }}" href="/guida"><span>Guida</span></a></li>
+                    <li class="nav-item"><a class="nav-link {{ current_path == '/login' ? 'active' : '' }}" href="/login"><span>Login</span></a></li>
+                    {% endif %}
+                  </ul>
+                </div>
+              </div>
+            </nav>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>

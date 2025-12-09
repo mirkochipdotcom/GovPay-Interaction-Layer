@@ -137,8 +137,18 @@ if [ "$APP_SUITE" = "frontoffice" ]; then
   TARGET_PUBLIC="/var/www/html/public"
   SOURCE_PUBLIC="/var/www/html/frontoffice/public"
   if [ -d "$SOURCE_PUBLIC" ]; then
-    rm -rf "$TARGET_PUBLIC"
     mkdir -p "$TARGET_PUBLIC"
+    shopt -s dotglob
+    for entry in "$TARGET_PUBLIC"/*; do
+      name="$(basename "$entry")"
+      case "$name" in
+        .|..|assets|img|.htaccess)
+          continue
+          ;;
+      esac
+      rm -rf "$entry"
+    done
+    shopt -u dotglob
     cp -R "$SOURCE_PUBLIC"/. "$TARGET_PUBLIC"/
     rm -rf "$TARGET_PUBLIC"/debug
     chown -R www-app:www-data "$TARGET_PUBLIC" || true

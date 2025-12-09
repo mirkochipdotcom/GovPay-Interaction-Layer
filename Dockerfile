@@ -67,7 +67,7 @@ RUN composer install --no-dev --prefer-dist --optimize-autoloader --no-interacti
 ######################################################################
 # STAGE 3: Runtime (Apache + PHP) harden
 ######################################################################
-FROM php:8.4-apache-trixie
+FROM php:8.4-apache-trixie AS runtime-base
 
 # Installazione delle dipendenze di sistema e PHP (inclusi unzip e wget)
 ARG DEBIAN_FRONTEND=noninteractive
@@ -92,7 +92,7 @@ WORKDIR /var/www/html
 # COPIA ASSET FRONT-END
 # ----------------------------------------------------------------------
 
-RUN mkdir -p public/assets/bootstrap-italia public/assets/fontawesome public/assets/chartjs
+RUN mkdir -p public/assets/bootstrap-italia public/assets/fontawesome
 COPY --from=asset_builder /app/dist/ /var/www/html/public/assets/bootstrap-italia/
 
 # 2. Copia Font Awesome (Asset scaricati dalla Fase 1)
@@ -100,9 +100,6 @@ ENV FA_DEST="/var/www/html/public/assets/fontawesome"
 COPY --from=asset_builder /app/fontawesome-dist/css ${FA_DEST}/css/
 COPY --from=asset_builder /app/fontawesome-dist/js ${FA_DEST}/js/
 COPY --from=asset_builder /app/fontawesome-dist/webfonts ${FA_DEST}/webfonts/
-
-# 3. Copia Chart.js
-COPY --from=asset_builder /app/chartjs-dist/ /var/www/html/public/assets/chartjs/
 
 # Imposta i permessi per gli asset copiati
 RUN chmod -R 755 public/assets
@@ -159,3 +156,8 @@ RUN useradd -r -d /var/www -g www-data www-app && chown -R www-app:www-data /var
 EXPOSE 443
 
 CMD ["apache2-foreground"]
+
+FROM runtime-base AS runtime-backoffice
+COPY --from=asset_builder /app/chartjs-dist/ /var/www/html/public/assets/chartjs/
+
+FROM runtime-base AS runtime-frontoffice
