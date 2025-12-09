@@ -99,7 +99,7 @@
     <input id="anagrafica" name="soggettoPagatore[anagrafica]" type="text" class="form-control" placeholder="{{ tipoSoggetto == 'G' ? 'Ragione sociale' : 'Cognome' }}" required value="{{ old.soggettoPagatore.anagrafica|default('') }}">
   </div>
   <div class="form-group col-md-4" id="colNome" style="{{ tipoSoggetto == 'G' ? 'display:none;' : '' }}">
-    <label for="nome" class="active">Nome (se persona fisica)</label>
+    <label for="nome" class="active">Nome</label>
     <input id="nome" name="soggettoPagatore[nome]" type="text" class="form-control" placeholder="Nome" autocomplete="off" value="{{ old.soggettoPagatore.nome|default('') }}">
   </div>
 </div>

@@ -1,82 +1,81 @@
 <?php
-?><!DOCTYPE html>
-<html lang="it">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Sportello Pagamenti Cittadini</title>
-    <style>
-      :root {
-        color-scheme: light;
-        font-family: "Titillium Web", "Segoe UI", system-ui, sans-serif;
-      }
-      body {
-        margin: 0;
-        min-height: 100vh;
-        display: grid;
-        place-items: center;
-        background: linear-gradient(135deg, #eef2ff 0%, #f8fbff 100%);
-        color: #0b3155;
-      }
-      .card {
-        width: min(420px, 86vw);
-        background: #fff;
-        border-radius: 18px;
-        padding: 2.5rem;
-        box-shadow: 0 25px 60px rgba(22, 58, 99, 0.15);
-        text-align: center;
-      }
-      h1 {
-        font-size: clamp(1.7rem, 4vw, 2.2rem);
-        margin-bottom: 0.75rem;
-      }
-      p {
-        margin: 0 auto 1.5rem;
-        line-height: 1.6;
-        color: #203d63;
-      }
-      .cta {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0.5rem;
-        padding: 0.85rem 1.75rem;
-        border-radius: 999px;
-        border: none;
-        color: #fff;
-        background: #0053a6;
-        text-decoration: none;
-        font-weight: 600;
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-      }
-      .cta:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 12px 30px rgba(0, 83, 166, 0.3);
-      }
-      .tag {
-        display: inline-flex;
-        padding: 0.35rem 0.85rem;
-        border-radius: 999px;
-        background: rgba(0, 83, 166, 0.1);
-        color: #0053a6;
-        font-size: 0.8rem;
-        font-weight: 600;
-        margin-bottom: 1.25rem;
-      }
-    </style>
-  </head>
-  <body>
-    <main class="card">
-      <div class="tag">Anteprima Frontoffice</div>
-      <h1>Benvenuto nello sportello cittadini</h1>
-      <p>
-        Questa è una pagina dimostrativa. Qui troverai il percorso guidato per consultare le tasse
-        e perfezionare i pagamenti PagoPA con la stessa identità grafica del backoffice.
-      </p>
-      <a class="cta" href="#">
-        Inizia ora
-        <span aria-hidden="true">→</span>
-      </a>
-    </main>
-  </body>
-</html>
+declare(strict_types=1);
+
+use Twig\Environment;
+use Twig\Loader\FilesystemLoader;
+
+require dirname(__DIR__) . '/vendor/autoload.php';
+
+$env = static function (string $key, ?string $default = null): string {
+    $value = $_ENV[$key] ?? getenv($key);
+    if ($value === false || $value === null || $value === '') {
+        return $default ?? '';
+    }
+    return (string) $value;
+};
+
+$entityName = trim($env('APP_ENTITY_NAME', 'Comune di Montesilvano'));
+$entitySuffix = trim($env('APP_ENTITY_SUFFIX', 'Provincia di Pescara'));
+$entityGovernment = trim($env('APP_ENTITY_GOVERNMENT', 'Regione Abruzzo'));
+$entityFull = trim($entityName . ($entitySuffix !== '' ? ' - ' . $entitySuffix : '')) ?: $entityGovernment;
+
+$documentRoot = rtrim((string) ($_SERVER['DOCUMENT_ROOT'] ?? __DIR__), '/\\');
+$imgCandidates = [
+    $documentRoot . '/img',
+    __DIR__ . '/img',
+    dirname(__DIR__) . '/img',
+    dirname(__DIR__, 2) . '/public/img',
+    dirname(__DIR__, 2) . '/img',
+];
+$imgDir = null;
+foreach ($imgCandidates as $candidate) {
+    if ($candidate && is_dir($candidate)) {
+        $imgDir = $candidate;
+        break;
+    }
+}
+if ($imgDir === null) {
+    $imgDir = $documentRoot . '/img';
+}
+
+$customLogoPath = $imgDir . '/stemma_ente.png';
+$appLogo = file_exists($customLogoPath)
+    ? ['type' => 'img', 'src' => '/img/stemma_ente.png']
+    : ['type' => 'sprite', 'src' => '/assets/bootstrap-italia/svg/sprites.svg#it-pa'];
+
+$faviconCandidates = [
+    ['href' => '/img/favicon.ico', 'path' => $imgDir . '/favicon.ico', 'type' => 'image/x-icon'],
+    ['href' => '/img/favicon.png', 'path' => $imgDir . '/favicon.png', 'type' => 'image/png'],
+];
+$appFavicon = ['href' => '/img/favicon_default.png', 'type' => 'image/png'];
+foreach ($faviconCandidates as $candidate) {
+    if (file_exists($candidate['path'])) {
+        $appFavicon = ['href' => $candidate['href'], 'type' => $candidate['type']];
+        break;
+    }
+}
+
+$supportEmail = 'pagamenti@' . preg_replace('/[^a-z0-9]+/', '', strtolower($entityName ?: 'ente')) . '.it';
+
+$loader = new FilesystemLoader(__DIR__ . '/../templates');
+$twig = new Environment($loader, [
+    'cache' => false,
+    'autoescape' => 'html',
+]);
+
+echo $twig->render('home.html.twig', [
+    'app_entity' => [
+        'name' => $entityName,
+        'suffix' => $entitySuffix,
+        'government' => $entityGovernment,
+        'full' => $entityFull,
+    ],
+    'app_logo' => $appLogo,
+    'app_favicon' => $appFavicon,
+    'current_user' => null,
+    'current_path' => '/',
+    'support_email' => $supportEmail,
+    'support_phone' => $env('FRONTOFFICE_SUPPORT_PHONE', '800.000.000'),
+    'support_hours' => $env('FRONTOFFICE_SUPPORT_HOURS', 'Lun-Ven 8:30-17:30'),
+    'support_location' => $env('FRONTOFFICE_SUPPORT_LOCATION', 'Palazzo Municipale, piano terra<br>Martedì e Giovedì 9:00-12:30 / 15:00-17:00'),
+]);

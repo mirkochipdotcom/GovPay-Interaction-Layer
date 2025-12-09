@@ -1,0 +1,169 @@
+{% extends 'base.html.twig' %}
+
+{% block head %}
+  <style>
+    body {
+      background: #f4f6fb;
+    }
+    .hero-banner {
+      background: linear-gradient(135deg, #05193d 0%, #003a6d 50%, #0062b8 100%);
+      color: #fff;
+    }
+    .hero-banner .btn {
+      font-weight: 600;
+      border-radius: 999px;
+    }
+    .service-section {
+      padding: 4rem 0;
+    }
+    .service-card {
+      border-radius: 24px;
+      border: none;
+      box-shadow: 0 25px 60px rgba(9, 26, 62, 0.08);
+      padding: 2.5rem;
+      height: 100%;
+    }
+    .service-card .icon-wrapper {
+      width: 60px;
+      height: 60px;
+      border-radius: 16px;
+      background: rgba(0, 95, 204, 0.1);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1.5rem;
+    }
+    .service-card .icon-wrapper svg {
+      width: 28px;
+      height: 28px;
+      fill: #005fcc;
+    }
+    .cta-list li {
+      margin-bottom: 0.5rem;
+      padding-left: 1.25rem;
+      position: relative;
+    }
+    .cta-list li::before {
+      content: '\2022';
+      position: absolute;
+      left: 0;
+      color: #005fcc;
+      font-weight: bold;
+    }
+    footer.it-footer {
+      background: #05193d;
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+  <section class="hero-banner py-5">
+    <div class="container-xxl">
+      <div class="row align-items-center g-4">
+        <div class="col-lg-7">
+          <p class="text-uppercase small mb-2 text-white-50">Sportello digitale</p>
+          <h1 class="display-5 fw-semibold mb-3">Gestisci i pagamenti PagoPA con pochi clic</h1>
+          <p class="lead mb-4">Consulta le tue posizioni debitorie, paga un avviso già ricevuto oppure genera un pagamento spontaneo per i servizi del Comune.</p>
+          <div class="d-flex flex-wrap gap-3">
+            <a class="btn btn-warning btn-lg text-dark" href="#pagamento-avviso">Paga un avviso</a>
+            <a class="btn btn-outline-light btn-lg" href="#pagamento-spontaneo">Pagamento spontaneo</a>
+          </div>
+        </div>
+        <div class="col-lg-5">
+          <div class="p-4 rounded-4 bg-opacity-25 bg-white text-dark">
+            <h2 class="h5 text-uppercase text-white-50">Cosa ti serve</h2>
+            <ul class="cta-list list-unstyled mb-0 text-white">
+              <li>Codice avviso o IUV riportato sulla comunicazione ricevuta</li>
+              <li>Codice fiscale del soggetto a cui è intestato l’avviso</li>
+              <li>Metodo di pagamento PagoPA (carta, conto, app o home banking)</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="pagamento-avviso" class="service-section">
+    <div class="container-xxl">
+      <div class="row align-items-center g-4">
+        <div class="col-lg-6">
+          <div class="service-card bg-white">
+            <div class="icon-wrapper">
+              <svg aria-hidden="true"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-bill"></use></svg>
+            </div>
+            <h2 class="h3 mb-3">Paga un avviso ricevuto</h2>
+            <p class="mb-4">Inserisci il codice avviso/IUV e il codice fiscale per procedere subito con il pagamento di una posizione debitoria già emessa dall’Ente.</p>
+            <ul class="cta-list list-unstyled mb-4">
+              <li>Verifica importo e scadenza direttamente online</li>
+              <li>Scegli il canale PagoPA preferito</li>
+              <li>Ricevi ricevuta digitale immediata</li>
+            </ul>
+            <div class="d-flex gap-3 flex-wrap">
+              <a class="btn btn-primary" href="#" role="button">Inserisci codice avviso</a>
+              <a class="btn btn-outline-primary" href="#supporto">Serve aiuto?</a>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg-6">
+          <div class="p-4 p-lg-5 rounded-4 bg-primary text-white h-100 d-flex flex-column justify-content-center">
+            <h3 class="h4 mb-3">Paghi da smartphone o computer</h3>
+            <p class="mb-0">Accedi con SPID/CIE sui canali abilitati PagoPA oppure completa il pagamento con carta e wallet digitali. Lo stato dell’avviso sarà aggiornato automaticamente senza dover presentare ricevute agli sportelli.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="pagamento-spontaneo" class="service-section bg-white">
+    <div class="container-xxl">
+      <div class="row align-items-center g-4">
+        <div class="col-lg-6 order-lg-2">
+          <div class="service-card bg-light">
+            <div class="icon-wrapper">
+              <svg aria-hidden="true"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-pen"></use></svg>
+            </div>
+            <h2 class="h3 mb-3">Genera un pagamento spontaneo</h2>
+            <p class="mb-4">Non hai ricevuto un avviso ma devi corrispondere un importo all’Ente? Compila il modulo guidato e ottieni immediatamente un codice avviso PagoPA.</p>
+            <ul class="cta-list list-unstyled mb-4">
+              <li>Seleziona servizio o causale</li>
+              <li>Compila i dati anagrafici e l’importo</li>
+              <li>Scarica l’avviso o paga subito online</li>
+            </ul>
+            <div class="d-flex gap-3 flex-wrap">
+              <a class="btn btn-primary" href="#" role="button">Avvia richiesta</a>
+              <a class="btn btn-outline-primary" href="#supporto">Informazioni</a>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg-6 order-lg-1">
+          <div class="p-4 p-lg-5 rounded-4 bg-dark text-white h-100 d-flex flex-column justify-content-center">
+            <h3 class="h4 mb-3">Servizi più richiesti</h3>
+            <p class="mb-0">Mensa scolastica, retta degli asili, concessioni, diritti di segreteria, multe: raccogliamo tutto in un’unica procedura guidata per ridurre code e tempi allo sportello.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="supporto" class="service-section pt-0">
+    <div class="container-xxl">
+      <div class="row g-4">
+        <div class="col-lg-8">
+          <div class="p-4 border rounded-4 bg-white h-100">
+            <h2 class="h4 mb-2">Hai bisogno di assistenza?</h2>
+            <p class="mb-0">
+              Scrivi a <a href="mailto:{{ support_email }}">{{ support_email }}</a>
+              oppure chiama il numero {{ support_phone }} ({{ support_hours }}).
+            </p>
+          </div>
+        </div>
+        <div class="col-lg-4">
+          <div class="p-4 border rounded-4 bg-light h-100">
+            <h3 class="h6 text-uppercase text-muted">Orari sportello fisico</h3>
+            <p class="mb-0">{{ support_location|raw }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+{% endblock %}
