@@ -724,7 +724,7 @@ class ConfigurazioneController
         // Read last N log lines from application log (safe guard: read only up to 20MB tail)
         $logsLines = [];
         $maxLines = 1000;
-        $logPath = __DIR__ . '/../../storage/logs/app.log';
+        $logPath = Logger::getLogFilePath();
         if (is_file($logPath) && is_readable($logPath)) {
             $size = filesize($logPath);
             if ($size > 0) {

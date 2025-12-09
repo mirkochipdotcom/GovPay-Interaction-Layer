@@ -1,0 +1,330 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Pagamento spontaneo - {{ app_entity.name }}{% endblock %}
+
+{% set old = form_data|default({}) %}
+{% set payer = old.soggettoPagatore|default({}) %}
+
+{% block head %}
+  <style>
+    body { background: #f6f8fb; }
+    .page-hero {
+      padding: 3rem 0 1rem;
+      background: linear-gradient(135deg, #05193d 0%, #003a6d 70%, #005fcc 100%);
+      color: #fff;
+    }
+    .page-hero .breadcrumb-item + .breadcrumb-item::before {
+      color: rgba(255,255,255,0.6);
+    }
+    .page-hero .breadcrumb-item a { color: rgba(255,255,255,0.85); }
+    .payment-card {
+      border: none;
+      border-radius: 24px;
+      box-shadow: 0 25px 70px rgba(5, 25, 61, 0.08);
+    }
+    .section-title {
+      font-size: 1rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #5c6f82;
+      font-weight: 600;
+    }
+    .field-divider { border-top: 1px dashed #e0e6ef; margin: 2rem 0; }
+    .summary-card {
+      border-radius: 20px;
+      background: #fff;
+      border: 1px solid #d9e2ef;
+    }
+    .summary-card h3 { font-size: 1.1rem; }
+    .summary-card .icon-wrapper {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: rgba(0,95,204,0.12);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 0.75rem;
+    }
+    .form-check-inline .form-check-input {
+      margin-right: 0.35rem;
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+  <section class="page-hero">
+    <div class="container-xxl">
+      <div class="row align-items-center g-3">
+        <div class="col-lg-8">
+          <nav aria-label="Percorso" class="mb-2">
+            <ol class="breadcrumb mb-0">
+              <li class="breadcrumb-item"><a href="/">Home</a></li>
+              <li class="breadcrumb-item active" aria-current="page">Pagamento spontaneo</li>
+            </ol>
+          </nav>
+          <p class="text-uppercase small mb-2 text-white-50">Servizi PagoPA</p>
+          <h1 class="display-6 fw-semibold mb-3">Genera un avviso PagoPA per un pagamento spontaneo</h1>
+          <p class="mb-0 lead text-white-75">Compila il modulo con i dati del servizio e del soggetto pagatore. L'importo verra' validato dal personale dell'Ente prima dell'emissione dell'avviso digitale.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="py-5">
+    <div class="container-xxl">
+      <div class="row g-4">
+        <div class="col-lg-8">
+          <form class="card payment-card" method="post" action="/pagamento-spontaneo">
+            <div class="card-body p-4 p-lg-5">
+              <div class="d-flex flex-column flex-md-row justify-content-between gap-2 mb-4">
+                <div>
+                  <p class="section-title mb-1">Modulo di richiesta</p>
+                  <h2 class="h3 mb-0">Dati del pagamento</h2>
+                </div>
+                <div class="text-md-end text-muted small">
+                  <span>Campi contrassegnati da * sono obbligatori</span>
+                </div>
+              </div>
+
+              {% if form_errors is defined and form_errors %}
+                <div class="alert alert-danger" role="status">
+                  <h3 class="h6 mb-2">Controlla i dati inseriti</h3>
+                  <ul class="mb-0 ps-3">
+                    {% for error in form_errors %}
+                      <li>{{ error }}</li>
+                    {% endfor %}
+                  </ul>
+                </div>
+              {% endif %}
+
+              {% if form_feedback %}
+                <div class="alert alert-{{ form_feedback.type|default('info') }}" role="status">
+                  <h3 class="h6 mb-1">{{ form_feedback.title }}</h3>
+                  <p class="mb-0">{{ form_feedback.message }}</p>
+                </div>
+              {% endif %}
+
+              {% if pendenza_result is defined and pendenza_result %}
+                {% set codice_avviso = pendenza_result.numeroAvviso|default('—') %}
+                <div class="card border-success-subtle bg-success-subtle mb-4">
+                  <div class="card-body">
+                    <div class="d-flex flex-wrap gap-4 align-items-center mb-3">
+                      <div>
+                        <div class="text-muted text-uppercase small">Codice avviso / IUV</div>
+                        <div class="fs-5 fw-semibold">{{ codice_avviso }}</div>
+                      </div>
+                      <div>
+                        <div class="text-muted text-uppercase small">Importo</div>
+                        <div class="fs-5 fw-semibold">€ {{ pendenza_result.importo|number_format(2, ',', '.') }}</div>
+                      </div>
+                      <div>
+                        <div class="text-muted text-uppercase small">ID pendenza</div>
+                        <div class="fw-semibold">{{ pendenza_result.idPendenza }}</div>
+                      </div>
+                      {% if pendenza_result.data_scadenza %}
+                        <div>
+                          <div class="text-muted text-uppercase small">Scadenza</div>
+                          <div class="fw-semibold">{{ pendenza_result.data_scadenza|date('d/m/Y') }}</div>
+                        </div>
+                      {% endif %}
+                    </div>
+                    <div class="text-muted small mb-3">Per pagare online usa il pulsante dedicato e inserisci il codice avviso quando richiesto.</div>
+                    <div class="d-flex flex-wrap gap-3">
+                      {% if pendenza_result.download_url %}
+                        <a class="btn btn-primary" href="{{ pendenza_result.download_url }}" target="_blank" rel="noopener">Scarica avviso (PDF)</a>
+                      {% else %}
+                        <button class="btn btn-primary" type="button" disabled>PDF disponibile a breve</button>
+                      {% endif %}
+                      <a class="btn btn-outline-primary" href="{{ pay_portal_url|default('https://checkout.pagopa.it/') }}" target="_blank" rel="noopener">Paga ora su pagoPA</a>
+                    </div>
+                  </div>
+                </div>
+              {% endif %}
+
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label for="idTipoPendenza" class="form-label">Servizio da pagare *</label>
+                  <select class="form-select" id="idTipoPendenza" name="idTipoPendenza" required>
+                    <option value="">Seleziona</option>
+                    {% for option in service_options %}
+                      <option value="{{ option.id }}" {% if old.idTipoPendenza|default('') == option.id %}selected{% endif %}>{{ option.label }}</option>
+                    {% endfor %}
+                  </select>
+                  <div class="form-text">Scegli la voce corrispondente al pagamento che vuoi generare.</div>
+                </div>
+                <div class="col-md-3">
+                  {% set selected_year = old.annoRiferimento|default(default_year|default('now'|date('Y'))) %}
+                  {% set start_year = (default_year|default('now'|date('Y'))) + 1 %}
+                  {% set end_year = (default_year|default('now'|date('Y'))) - 5 %}
+                  <label for="annoRiferimento" class="form-label">Anno di riferimento *</label>
+                  <select id="annoRiferimento" name="annoRiferimento" class="form-select" required>
+                    {% if selected_year is defined and selected_year not in range(start_year, end_year) %}
+                      <option value="{{ selected_year }}" selected>{{ selected_year }}</option>
+                    {% endif %}
+                    {% for y in range(start_year, end_year) %}
+                      <option value="{{ y }}" {% if selected_year == y %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <label for="importo" class="form-label">Importo richiesto (&euro;) *</label>
+                  <div class="input-group">
+                    <span class="input-group-text">&euro;</span>
+                    <input type="number" step="0.01" min="0.01" class="form-control" id="importo" name="importo" value="{{ old.importo|default('') }}" required placeholder="0.00">
+                  </div>
+                  <div class="form-text">Inserisci l'importo in euro (esempio 125,50).</div>
+                </div>
+              </div>
+
+              <div class="row g-3 mt-1">
+                <div class="col-12">
+                  <label for="causale" class="form-label">Causale / descrizione *</label>
+                  <input type="text" class="form-control" id="causale" name="causale" value="{{ old.causale|default('') }}" maxlength="140" required placeholder="Descrivi il motivo del pagamento">
+                  <div class="d-flex justify-content-between small text-muted mt-1">
+                    <span>Max 140 caratteri.</span>
+                    <span id="causaleCounter">0/140</span>
+                  </div>
+                </div>
+                <div class="col-12">
+                  <label for="noteRichiedente" class="form-label">Note per l'ufficio (opzionale)</label>
+                  <textarea class="form-control" id="noteRichiedente" name="noteRichiedente" rows="3" maxlength="400" placeholder="Inserisci eventuali dettagli utili">{{ old.noteRichiedente|default('') }}</textarea>
+                </div>
+              </div>
+
+              <hr class="field-divider">
+              <p class="section-title mb-2">Soggetto pagatore</p>
+
+              <div class="row g-3 align-items-end">
+                <div class="col-12">
+                  {% set tipo = payer.tipo|default('F') %}
+                  <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="soggettoPagatore[tipo]" id="soggettoPF" value="F" {% if tipo != 'G' %}checked{% endif %}>
+                    <label class="form-check-label" for="soggettoPF">Persona fisica</label>
+                  </div>
+                  <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="soggettoPagatore[tipo]" id="soggettoPJ" value="G" {% if tipo == 'G' %}checked{% endif %}>
+                    <label class="form-check-label" for="soggettoPJ">Persona giuridica</label>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <label for="identificativo" class="form-label" id="identificativoLabel">{{ tipo == 'G' ? 'Partita IVA *' : 'Codice fiscale *' }}</label>
+                  <input type="text" class="form-control" id="identificativo" name="soggettoPagatore[identificativo]" value="{{ payer.identificativo|default('') }}" required placeholder="{{ tipo == 'G' ? 'IT00000000000' : 'RSSMRA00A01H501Z' }}" autocomplete="off">
+                </div>
+                <div class="col-md-4">
+                  <label for="anagrafica" class="form-label" id="anagraficaLabel">{{ tipo == 'G' ? 'Ragione sociale *' : 'Cognome *' }}</label>
+                  <input type="text" class="form-control" id="anagrafica" name="soggettoPagatore[anagrafica]" value="{{ payer.anagrafica|default('') }}" required autocomplete="off">
+                </div>
+                <div class="col-md-4" id="nomeWrapper" style="{{ tipo == 'G' ? 'display:none;' : '' }}">
+                  <label for="nome" class="form-label">Nome (se persona fisica)</label>
+                  <input type="text" class="form-control" id="nome" name="soggettoPagatore[nome]" value="{{ payer.nome|default('') }}" autocomplete="off">
+                </div>
+              </div>
+
+              <div class="row g-3 mt-1">
+                <div class="col-md-6">
+                  <label for="email" class="form-label">Email di contatto *</label>
+                  <input type="email" class="form-control" id="email" name="soggettoPagatore[email]" value="{{ payer.email|default('') }}" required placeholder="esempio@dominio.it">
+                </div>
+                <div class="col-md-6">
+                  <label for="telefono" class="form-label">Telefono (opzionale)</label>
+                  <input type="tel" class="form-control" id="telefono" name="soggettoPagatore[telefono]" value="{{ payer.telefono|default('') }}" placeholder="333 1234567">
+                </div>
+              </div>
+
+              <div class="alert alert-info mt-4" role="note">
+                <p class="mb-1 fw-semibold">Come funziona</p>
+                <ul class="mb-0 ps-3">
+                  <li>riceverai via email il riepilogo dei dati inviati;</li>
+                  <li>l'ufficio competente valida importo e causale;</li>
+                  <li>entro pochi giorni riceverai il codice avviso PagoPA per procedere al pagamento.</li>
+                </ul>
+              </div>
+
+              <div class="form-check mt-4">
+                <input class="form-check-input" type="checkbox" value="1" id="privacy" required name="privacy">
+                <label class="form-check-label" for="privacy">
+                  Dichiaro di aver letto l'informativa privacy dell'Ente e autorizzo il trattamento dei dati per finalita' connesse al presente pagamento.
+                </label>
+              </div>
+
+              <div class="d-flex gap-3 flex-wrap mt-4">
+                <button type="submit" class="btn btn-primary btn-lg px-4">Invia richiesta</button>
+                <a class="btn btn-outline-secondary btn-lg" href="/">Annulla</a>
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="col-lg-4">
+          <div class="summary-card p-4 mb-4">
+            <div class="icon-wrapper">
+              <svg class="icon"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-info-circle"></use></svg>
+            </div>
+            <h3 class="fw-semibold">Documenti utili</h3>
+            <p class="text-muted mb-2">Tienili a portata di mano per velocizzare la compilazione:</p>
+            <ul class="ps-3 mb-0 text-muted">
+              <li>Codice fiscale o partita IVA del pagatore</li>
+              <li>Dettagli del servizio (numero pratica, periodo, ecc.)</li>
+              <li>Indirizzo email per ricevere l'avviso PagoPA</li>
+            </ul>
+          </div>
+          <div class="summary-card p-4">
+            <h3 class="fw-semibold mb-2">Serve supporto?</h3>
+            <p class="mb-1">Scrivi a <a href="mailto:{{ support_email }}">{{ support_email }}</a></p>
+            <p class="mb-1">Telefono: {{ support_phone }} ({{ support_hours }})</p>
+            <p class="mb-0 text-muted small">Sportello fisico: {{ support_location|raw }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+{% endblock %}
+
+{% block scripts %}
+  {{ parent() }}
+  <script>
+    (function(){
+      const pf = document.getElementById('soggettoPF');
+      const pj = document.getElementById('soggettoPJ');
+      const identificativoLabel = document.getElementById('identificativoLabel');
+      const identificativoInput = document.getElementById('identificativo');
+      const anagraficaLabel = document.getElementById('anagraficaLabel');
+      const nomeWrapper = document.getElementById('nomeWrapper');
+      const causale = document.getElementById('causale');
+      const counter = document.getElementById('causaleCounter');
+
+      function updatePersona(type){
+        if(!identificativoLabel || !anagraficaLabel) return;
+        if(type === 'G'){
+          identificativoLabel.textContent = 'Partita IVA *';
+          identificativoInput.placeholder = 'IT00000000000';
+          anagraficaLabel.textContent = 'Ragione sociale *';
+          if(nomeWrapper) nomeWrapper.style.display = 'none';
+        } else {
+          identificativoLabel.textContent = 'Codice fiscale *';
+          identificativoInput.placeholder = 'RSSMRA00A01H501Z';
+          anagraficaLabel.textContent = 'Cognome *';
+          if(nomeWrapper) nomeWrapper.style.display = '';
+        }
+      }
+
+      [pf,pj].forEach(function(radio){
+        if(!radio) return;
+        radio.addEventListener('change', function(){
+          if(this.checked) updatePersona(this.value);
+        });
+      });
+
+      updatePersona(pf && pf.checked ? 'F' : 'G');
+
+      if(causale && counter){
+        const syncCounter = function(){
+          const value = causale.value || '';
+          counter.textContent = value.length + '/140';
+        };
+        causale.addEventListener('input', syncCounter);
+        syncCounter();
+      }
+    })();
+  </script>
+{% endblock %}

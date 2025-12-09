@@ -1,0 +1,138 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Paga un avviso - {{ app_entity.name }}{% endblock %}
+
+{% set old = form_data|default({}) %}
+
+{% block head %}
+  <style>
+    body { background: #f6f8fb; }
+    .page-hero {
+      padding: 3rem 0 1rem;
+      background: linear-gradient(135deg, #0b1431 0%, #0a2c5f 50%, #005fcc 100%);
+      color: #fff;
+    }
+    .page-hero .breadcrumb-item + .breadcrumb-item::before { color: rgba(255,255,255,0.65); }
+    .page-hero .breadcrumb-item a { color: rgba(255,255,255,0.85); }
+    .payment-card {
+      border: none;
+      border-radius: 24px;
+      box-shadow: 0 20px 60px rgba(8, 26, 60, 0.1);
+    }
+    .section-title {
+      font-size: 0.9rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #5a6f85;
+      font-weight: 600;
+    }
+    .summary-card {
+      border-radius: 20px;
+      border: 1px solid #dbe2ef;
+      background: #fff;
+    }
+    .summary-card .icon-wrapper {
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      background: rgba(0,95,204,0.12);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 0.75rem;
+    }
+    .cta-list li { margin-bottom: 0.35rem; }
+  </style>
+{% endblock %}
+
+{% block content %}
+  <section class="page-hero">
+    <div class="container-xxl">
+      <div class="row align-items-center g-3">
+        <div class="col-lg-8">
+          <nav aria-label="Percorso" class="mb-2">
+            <ol class="breadcrumb mb-0">
+              <li class="breadcrumb-item"><a href="/">Home</a></li>
+              <li class="breadcrumb-item active" aria-current="page">Paga un avviso</li>
+            </ol>
+          </nav>
+          <p class="text-uppercase small mb-2 text-white-50">Pagamenti PagoPA</p>
+          <h1 class="display-6 fw-semibold mb-3">Inserisci il codice avviso PagoPA e paga in sicurezza</h1>
+          <p class="mb-0 lead text-white-75">Servono il codice avviso (IUV) riportato sul documento ricevuto e il codice fiscale del soggetto debitore. Il sistema verifichera' lo stato e ti portera' sul portale PagoPA.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="py-5">
+    <div class="container-xxl">
+      <div class="row g-4">
+        <div class="col-lg-8">
+          <form class="card payment-card" method="post" action="/pagamento-avviso">
+            <div class="card-body p-4 p-lg-5">
+              <div class="d-flex flex-column flex-md-row justify-content-between gap-2 mb-4">
+                <div>
+                  <p class="section-title mb-1">Verifica avviso</p>
+                  <h2 class="h3 mb-0">Dati richiesti</h2>
+                </div>
+                <div class="text-md-end text-muted small">Solo due campi obbligatori</div>
+              </div>
+
+              {% if form_feedback %}
+                <div class="alert alert-{{ form_feedback.type|default('info') }}" role="status">
+                  <h3 class="h6 mb-1">{{ form_feedback.title }}</h3>
+                  <p class="mb-0">{{ form_feedback.message }}</p>
+                </div>
+              {% endif %}
+
+              <div class="row g-4">
+                <div class="col-12">
+                  <label for="codiceAvviso" class="form-label">Codice avviso / IUV *</label>
+                  <input type="text" class="form-control form-control-lg" id="codiceAvviso" name="codiceAvviso" value="{{ old.codiceAvviso|default('') }}" maxlength="35" required placeholder="0123 4567 8901 2345">
+                  <div class="form-text">Lo trovi sul bollettino o sulla comunicazione inviata dall'ente.</div>
+                </div>
+                <div class="col-12">
+                  <label for="codiceFiscale" class="form-label">Codice fiscale del soggetto pagatore *</label>
+                  <input type="text" class="form-control" id="codiceFiscale" name="codiceFiscale" value="{{ old.codiceFiscale|default('') }}" maxlength="16" required placeholder="RSSMRA00A01H501Z">
+                  <div class="form-text">Inserisci il codice fiscale di chi deve pagare l'avviso (persona fisica o intestatario impresa).</div>
+                </div>
+              </div>
+
+              <div class="alert alert-info mt-4" role="note">
+                <p class="mb-1 fw-semibold">Cosa succede dopo</p>
+                <ol class="ps-3 mb-0">
+                  <li>Verifichiamo lo stato dell'avviso e l'importo aggiornato;</li>
+                  <li>apri una finestra PagoPA per scegliere il canale preferito;</li>
+                  <li>ricevi la ricevuta digitale direttamente via email.</li>
+                </ol>
+              </div>
+
+              <div class="d-flex gap-3 flex-wrap mt-4">
+                <button type="submit" class="btn btn-primary btn-lg px-4">Prosegui con PagoPA</button>
+                <a class="btn btn-outline-secondary btn-lg" href="/">Annulla</a>
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="col-lg-4">
+          <div class="summary-card p-4 mb-4">
+            <div class="icon-wrapper">
+              <svg class="icon"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-bill"></use></svg>
+            </div>
+            <h3 class="fw-semibold">Hai perso l'avviso?</h3>
+            <p class="text-muted mb-2">Puoi richiederne una copia scrivendo agli uffici oppure generare un nuovo pagamento spontaneo.</p>
+            <a class="btn btn-outline-primary w-100" href="/pagamento-spontaneo">Genera pagamento spontaneo</a>
+          </div>
+          <div class="summary-card p-4">
+            <h3 class="fw-semibold mb-2">Supporto</h3>
+            <ul class="cta-list text-muted ps-3 mb-0">
+              <li>Email: <a href="mailto:{{ support_email }}">{{ support_email }}</a></li>
+              <li>Telefono: {{ support_phone }} ({{ support_hours }})</li>
+              <li>Sede: {{ support_location|raw }}</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+{% endblock %}

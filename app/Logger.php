@@ -22,10 +22,34 @@ class Logger
     public static function getInstance(): Logger
     {
         if (self::$instance === null) {
-            $path = __DIR__ . '/../storage/logs/app.log';
+            $path = self::resolveLogPath();
             self::$instance = new Logger($path);
         }
         return self::$instance;
+    }
+
+    public static function getLogFilePath(): string
+    {
+        if (self::$instance === null) {
+            self::getInstance();
+        }
+        return self::$instance->filePath;
+    }
+
+    private static function resolveLogPath(): string
+    {
+        $custom = getenv('APP_LOG_PATH');
+        if (is_string($custom) && $custom !== '') {
+            return $custom;
+        }
+
+        $suite = getenv('APP_SUITE') ?: ($_ENV['APP_SUITE'] ?? null);
+        $root = dirname(__DIR__);
+        if ($suite === 'frontoffice') {
+            return $root . '/frontoffice/storage/logs/app.log';
+        }
+
+        return $root . '/backoffice/storage/logs/app.log';
     }
 
     private function write(string $level, string $message, array $context = []): void
@@ -74,14 +98,14 @@ class Logger
     public static function sanitizeErrorForDisplay(string $err): string
     {
         $clean = $err;
-    // Remove common truncation markers and sequences of ellipsis
-    $clean = preg_replace('/\(truncated[^)]*\)/i', '', $clean);
-    $clean = preg_replace('/\[truncated[^\]]*\]/i', '', $clean);
-    // Remove explicit 'truncated' token (case-insensitive) possibly left without brackets
-    $clean = preg_replace('/\btruncated\b/i', '', $clean);
-    // Rimuove sequenze di tre o più punti di sospensione (es. '...' o '....')
-    $clean = preg_replace('/\.{3,}/u', '', $clean);
-    $clean = preg_replace('/\xE2\x80\xA6/u', '', $clean);
+        // Remove common truncation markers and sequences of ellipsis
+        $clean = preg_replace('/\(truncated[^)]*\)/i', '', $clean);
+        $clean = preg_replace('/\[truncated[^\]]*\]/i', '', $clean);
+        // Remove explicit 'truncated' token (case-insensitive) possibly left without brackets
+        $clean = preg_replace('/\btruncated\b/i', '', $clean);
+        // Rimuove sequenze di tre o più punti di sospensione (es. '...' o '....')
+        $clean = preg_replace('/\.{3,}/u', '', $clean);
+        $clean = preg_replace('/\xE2\x80\xA6/u', '', $clean);
         // Remove repeated newlines and excessive whitespace
         $clean = preg_replace('/\s+/', ' ', $clean);
         $clean = trim($clean);
