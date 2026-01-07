@@ -1,0 +1,140 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Seleziona il servizio - {{ app_entity.name }}{% endblock %}
+
+{% block head %}
+  <style>
+    body { background: #f6f8fb; }
+    .page-hero {
+      padding: 3rem 0 1rem;
+      background: linear-gradient(120deg, #05193d 0%, #003a6d 70%, #005fcc 100%);
+      color: #fff;
+    }
+    .page-hero .breadcrumb-item + .breadcrumb-item::before {
+      color: rgba(255,255,255,0.6);
+    }
+    .page-hero .breadcrumb-item a { color: rgba(255,255,255,0.85); }
+    .service-grid-title {
+      font-size: 1rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #5c6f82;
+      font-weight: 600;
+    }
+    .service-card {
+      display: block;
+      height: 100%;
+      border-radius: 20px;
+      padding: 1.5rem;
+      border: 1px solid #dde5f0;
+      background: #fff;
+      text-decoration: none;
+      color: inherit;
+      box-shadow: 0 10px 40px rgba(5, 25, 61, 0.06);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .service-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 20px 45px rgba(5, 25, 61, 0.1);
+    }
+    .service-card__icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 999px;
+      background: #eef3fb;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .service-card--external {
+      border-style: dashed;
+      background: #fdf8ee;
+    }
+    .service-card--external .service-card__icon {
+      background: #fff3d6;
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+  <section class="page-hero">
+    <div class="container-xxl">
+      <div class="row align-items-center g-3">
+        <div class="col-lg-8">
+          <nav aria-label="Percorso" class="mb-2">
+            <ol class="breadcrumb mb-0">
+              <li class="breadcrumb-item"><a href="/">Home</a></li>
+              <li class="breadcrumb-item active" aria-current="page">Pagamento spontaneo</li>
+            </ol>
+          </nav>
+          <p class="text-uppercase small mb-2 text-white-50">Servizi PagoPA</p>
+          <h1 class="display-6 fw-semibold mb-3">Scegli il servizio da pagare</h1>
+          <p class="mb-0 lead text-white-75">Seleziona la tipologia di pagamento per continuare. Alcuni servizi ti porteranno su un portale esterno indicato dall'Ente.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="py-5">
+    <div class="container-xxl">
+      {% if selection_error %}
+        <div class="alert alert-warning" role="alert">
+          {{ selection_error }}
+        </div>
+      {% endif %}
+
+      <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-4">
+        <div>
+          <p class="service-grid-title mb-1">Pagamenti su questo portale</p>
+          <h2 class="h3 fw-semibold mb-0">Servizi con avviso PagoPA generato online</h2>
+        </div>
+        <p class="text-muted mb-0">L'elenco mostra le tipologie attive per il dominio {{ app_entity.name }}.</p>
+      </div>
+
+      {% if internal_services %}
+        <div class="row g-4">
+          {% for service in internal_services %}
+            <div class="col-md-6 col-xl-4">
+              <a class="service-card" href="/pagamento-spontaneo?tipologia={{ service.id }}">
+                <span class="badge text-bg-primary-subtle text-primary-emphasis text-uppercase small mb-3">PagoPA</span>
+                <h3 class="h5 fw-semibold mb-2">{{ service.label }}</h3>
+                <p class="text-muted mb-4">Richiedi l'emissione dell'avviso e completa il pagamento su questo portale.</p>
+                <span class="service-card__icon" aria-hidden="true">
+                  <svg class="icon"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-arrow-right"></use></svg>
+                </span>
+              </a>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="text-muted">Al momento non sono disponibili tipologie interne.</p>
+      {% endif %}
+
+      {% if external_services %}
+        <div class="mt-5">
+          <div class="d-flex flex-column flex-md-row align-items-md-center gap-2 mb-3">
+            <h2 class="h4 fw-semibold mb-0">Servizi gestiti su altri portali</h2>
+            <span class="badge rounded-pill text-bg-secondary">Redirect esterno</span>
+          </div>
+          <p class="text-muted">Verrai reindirizzato al sito specificato dall'ufficio competente per completare la procedura.</p>
+          <div class="row g-4">
+            {% for service in external_services %}
+              <div class="col-md-6 col-xl-4">
+                <a class="service-card service-card--external" href="/pagamento-spontaneo?tipologia={{ service.id }}">
+                  <span class="badge text-bg-light text-secondary text-uppercase small mb-3">Portale esterno</span>
+                  <h3 class="h5 fw-semibold mb-2">{{ service.label }}</h3>
+                  <div class="d-flex align-items-center gap-2 text-secondary fw-semibold">
+                    Vai al servizio
+                    <span class="service-card__icon" aria-hidden="true">
+                      <svg class="icon"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-chevron-right"></use></svg>
+                    </span>
+                  </div>
+                </a>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  </section>
+{% endblock %}

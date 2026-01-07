@@ -202,6 +202,8 @@ Accedi (solo dal container backoffice) a https://localhost:8443/debug/ per:
 ### Database
 Il database MariaDB è accessibile su `localhost:3306` con le credenziali configurate in `.env`.
 
+Al primo avvio il container DB esegue automaticamente gli script in `docker/db-init/` e garantisce che l'utente `DB_USER_CITTADINI` abbia password e permessi `SELECT` aggiornati sul database `MYSQL_DATABASE`. Se hai già un volume dati creato in precedenza, esegui `docker compose down -v` prima di ricostruire per rilanciare gli script di init.
+
 ## 🛑 Fermare l'applicazione
 
 ```bash

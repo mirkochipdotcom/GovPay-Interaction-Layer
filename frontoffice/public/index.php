@@ -36,17 +36,35 @@ if (!function_exists('frontoffice_load_service_options')) {
         if ($idDominio !== '') {
             try {
                 $repo = new EntrateRepository();
-                $rows = $repo->listAbilitateByDominio($idDominio);
+                $rows = $repo->listByDominio($idDominio);
                 foreach ($rows as $row) {
+                    if ((int)($row['abilitato_backoffice'] ?? 0) !== 1) {
+                        continue;
+                    }
                     $id = (string)($row['id_entrata'] ?? '');
-                    $label = trim((string)($row['descrizione'] ?? $row['descrizione_effettiva'] ?? $id));
                     if ($id === '') {
                         continue;
                     }
-                    $options[] = ['id' => $id, 'label' => $label ?: $id];
+                    $label = trim((string)($row['descrizione_effettiva'] ?? $row['descrizione'] ?? $id));
+                    if ($label === '') {
+                        $label = $id;
+                    }
+                    $externalUrl = trim((string)($row['external_url'] ?? '')) ?: null;
+                    $options[] = [
+                        'id' => $id,
+                        'label' => $label,
+                        'type' => $externalUrl ? 'external' : 'internal',
+                        'external_url' => $externalUrl,
+                    ];
                 }
                 if ($options !== []) {
-                    Logger::getInstance()->info('Tipologie frontoffice caricate dal DB', ['idDominio' => $idDominio, 'count' => count($options)]);
+                    $internalCount = count(array_filter($options, static fn ($opt) => ($opt['type'] ?? 'internal') === 'internal'));
+                    $externalCount = count($options) - $internalCount;
+                    Logger::getInstance()->info('Tipologie frontoffice caricate dal DB', [
+                        'idDominio' => $idDominio,
+                        'internal' => $internalCount,
+                        'external' => $externalCount,
+                    ]);
                 }
             } catch (\Throwable $e) {
                 Logger::getInstance()->warning('Impossibile caricare le tipologie per il frontoffice', ['error' => $e->getMessage()]);
@@ -56,16 +74,29 @@ if (!function_exists('frontoffice_load_service_options')) {
         if ($options === []) {
             Logger::getInstance()->warning('Tipologie frontoffice assenti dal DB: uso fallback statico', ['idDominio' => $idDominio]);
             $options = [
-                ['id' => 'SERV_MENSA', 'label' => 'Mensa e servizi scolastici'],
-                ['id' => 'SERV_NIDI', 'label' => "Nidi d'infanzia / rette asilo"],
-                ['id' => 'SERV_OCCUPAZIONE_SUOLO', 'label' => 'Occupazione suolo pubblico'],
-                ['id' => 'SERV_SANZIONI', 'label' => 'Sanzioni e contravvenzioni'],
-                ['id' => 'SERV_DIRITTI_SEGRETERIA', 'label' => 'Diritti di segreteria e certificati'],
-                ['id' => 'SERV_ALTRO', 'label' => 'Altro pagamento spontaneo'],
+                ['id' => 'SERV_MENSA', 'label' => 'Mensa e servizi scolastici', 'type' => 'internal', 'external_url' => null],
+                ['id' => 'SERV_NIDI', 'label' => "Nidi d'infanzia / rette asilo", 'type' => 'internal', 'external_url' => null],
+                ['id' => 'SERV_OCCUPAZIONE_SUOLO', 'label' => 'Occupazione suolo pubblico', 'type' => 'internal', 'external_url' => null],
+                ['id' => 'SERV_SANZIONI', 'label' => 'Sanzioni e contravvenzioni', 'type' => 'internal', 'external_url' => null],
+                ['id' => 'SERV_DIRITTI_SEGRETERIA', 'label' => 'Diritti di segreteria e certificati', 'type' => 'internal', 'external_url' => null],
+                ['id' => 'SERV_ALTRO', 'label' => 'Altro pagamento spontaneo', 'type' => 'internal', 'external_url' => null],
             ];
         }
 
+        usort($options, static fn ($a, $b) => strcasecmp((string)($a['label'] ?? ''), (string)($b['label'] ?? '')));
         return $options;
+    }
+}
+
+if (!function_exists('frontoffice_find_service_option')) {
+    function frontoffice_find_service_option(array $options, string $id): ?array
+    {
+        foreach ($options as $option) {
+            if (($option['id'] ?? null) === $id) {
+                return $option;
+            }
+        }
+        return null;
     }
 }
 
@@ -99,6 +130,37 @@ if (!function_exists('frontoffice_govpay_client_options')) {
                 : $key;
         }
         return $options;
+    }
+}
+
+if (!function_exists('frontoffice_pagamenti_api_client')) {
+    function frontoffice_pagamenti_api_client(): ?PagamentiPendenzeApi
+    {
+        $pagamentiUrl = frontoffice_env_value('GOVPAY_PAGAMENTI_URL', '');
+        if ($pagamentiUrl === '') {
+            Logger::getInstance()->warning('GOVPAY_PAGAMENTI_URL non impostata per il frontoffice');
+            return null;
+        }
+        if (!class_exists(PagamentiPendenzeApi::class)) {
+            Logger::getInstance()->warning('Client GovPay Pagamenti non disponibile nel frontoffice');
+            return null;
+        }
+
+        try {
+            $config = new PagamentiConfiguration();
+            $config->setHost(rtrim($pagamentiUrl, '/'));
+            if ($auth = frontoffice_basic_auth()) {
+                $config->setUsername($auth[0]);
+                $config->setPassword($auth[1]);
+            }
+            $client = new Client(frontoffice_govpay_client_options());
+            return new PagamentiPendenzeApi($client, $config);
+        } catch (\Throwable $e) {
+            Logger::getInstance()->warning('Impossibile istanziare il client GovPay Pagamenti', [
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
     }
 }
 
@@ -276,30 +338,261 @@ if (!function_exists('frontoffice_send_pendenza_to_backoffice')) {
 if (!function_exists('frontoffice_fetch_pagamenti_detail')) {
     function frontoffice_fetch_pagamenti_detail(string $idPendenza): ?array
     {
-        $pagamentiUrl = frontoffice_env_value('GOVPAY_PAGAMENTI_URL', '');
         $idA2A = frontoffice_env_value('ID_A2A', '');
-        if ($pagamentiUrl === '' || $idA2A === '' || $idPendenza === '') {
+        if ($idA2A === '' || $idPendenza === '') {
             return null;
         }
-        if (!class_exists(PagamentiPendenzeApi::class)) {
-            Logger::getInstance()->warning('Client GovPay Pagamenti non disponibile nel frontoffice');
+        $api = frontoffice_pagamenti_api_client();
+        if ($api === null) {
             return null;
         }
         try {
-            $config = new PagamentiConfiguration();
-            $config->setHost(rtrim($pagamentiUrl, '/'));
-            if ($auth = frontoffice_basic_auth()) {
-                $config->setUsername($auth[0]);
-                $config->setPassword($auth[1]);
-            }
-            $client = new Client(frontoffice_govpay_client_options());
-            $api = new PagamentiPendenzeApi($client, $config);
             $result = $api->getPendenza($idA2A, $idPendenza);
             return json_decode(json_encode($result, JSON_THROW_ON_ERROR), true, 512, JSON_THROW_ON_ERROR);
         } catch (\Throwable $e) {
             Logger::getInstance()->warning('Impossibile recuperare il dettaglio della pendenza da GovPay Pagamenti', ['error' => $e->getMessage()]);
             return null;
         }
+    }
+}
+
+if (!function_exists('frontoffice_normalize_avviso_code')) {
+    function frontoffice_normalize_avviso_code(string $value): string
+    {
+        $normalized = strtoupper(preg_replace('/[^0-9A-Za-z]/', '', $value));
+        return substr($normalized, 0, 35);
+    }
+}
+
+if (!function_exists('frontoffice_map_pendenza_state')) {
+    function frontoffice_map_pendenza_state(string $state): string
+    {
+        $code = strtoupper(trim($state));
+        switch ($code) {
+            case 'NON_ESEGUITA':
+                return 'Da pagare';
+            case 'ESEGUITA':
+                return 'Pagata';
+            case 'ESEGUITA_PARZIALE':
+                return 'Pagata parzialmente';
+            case 'ANNULLATA':
+                return 'Annullata';
+            case 'SCADUTA':
+                return 'Scaduta';
+            case 'ANOMALA':
+                return 'In verifica';
+            default:
+                return 'Stato sconosciuto';
+        }
+    }
+}
+
+if (!function_exists('frontoffice_is_pendenza_payable')) {
+    function frontoffice_is_pendenza_payable(string $state): bool
+    {
+        $code = strtoupper(trim($state));
+        return in_array($code, ['NON_ESEGUITA', 'ESEGUITA_PARZIALE'], true);
+    }
+}
+
+if (!function_exists('frontoffice_build_avviso_preview')) {
+    function frontoffice_build_avviso_preview(array $pendenza, string $idDominio): array
+    {
+        $numeroAvviso = trim((string)($pendenza['numeroAvviso'] ?? ''));
+        $downloadUrl = ($numeroAvviso !== '' && $idDominio !== '')
+            ? '/avvisi/' . rawurlencode($idDominio) . '/' . rawurlencode($numeroAvviso)
+            : null;
+        $state = strtoupper((string)($pendenza['stato'] ?? ''));
+        $importo = $pendenza['importo'] ?? null;
+
+        return [
+            'numero_avviso' => $numeroAvviso,
+            'importo' => is_numeric($importo) ? (float)$importo : null,
+            'causale' => trim((string)($pendenza['causale'] ?? '')),
+            'id_pendenza' => (string)($pendenza['idPendenza'] ?? ''),
+            'id_a2a' => (string)($pendenza['idA2A'] ?? ''),
+            'data_validita' => $pendenza['dataValidita'] ?? null,
+            'data_scadenza' => $pendenza['dataScadenza'] ?? null,
+            'soggetto_pagatore' => $pendenza['soggettoPagatore'] ?? null,
+            'stato' => [
+                'code' => $state,
+                'label' => frontoffice_map_pendenza_state($state),
+            ],
+            'is_payable' => frontoffice_is_pendenza_payable($state),
+            'download_url' => $downloadUrl,
+            'voci' => $pendenza['voci'] ?? [],
+            'id_dominio' => $idDominio,
+            'checkout_url' => frontoffice_env_value(
+                'FRONTOFFICE_PAGOPA_CHECKOUT_URL',
+                'https://checkout.pagopa.it/inserisci-dati-avviso'
+            ),
+        ];
+    }
+}
+
+if (!function_exists('frontoffice_lookup_pagopa_avviso')) {
+    function frontoffice_lookup_pagopa_avviso(string $numeroAvviso, string $codiceFiscale): array
+    {
+        $idDominio = frontoffice_env_value('ID_DOMINIO', '');
+        if ($idDominio === '') {
+            return [
+                'success' => false,
+                'errors' => ['Configurazione mancante: ID_DOMINIO non impostato.'],
+            ];
+        }
+
+        $api = frontoffice_pagamenti_api_client();
+        if ($api === null) {
+            return [
+                'success' => false,
+                'errors' => ['Al momento non riusciamo a interrogare il sistema dei pagamenti. Riprova più tardi.'],
+            ];
+        }
+
+        Logger::getInstance()->info('Ricerca avviso PagoPA avviata', [
+            'idDominio' => $idDominio,
+            'numeroAvviso' => $numeroAvviso,
+            'codiceFiscale' => $codiceFiscale,
+        ]);
+
+        $normalizedAvviso = frontoffice_normalize_avviso_code($numeroAvviso);
+
+        try {
+            $result = $api->findPendenze(
+                1,
+            10,
+                null,
+                $idDominio,
+                null,
+                null,
+            $normalizedAvviso,
+                null,
+                null,
+                $codiceFiscale,
+                null,
+                null,
+                null,
+                null,
+                false,
+                true,
+                true
+            );
+            $data = json_decode(json_encode($result, JSON_THROW_ON_ERROR), true, 512, JSON_THROW_ON_ERROR);
+        } catch (\Throwable $e) {
+            Logger::getInstance()->warning('Errore durante la ricerca dell\'avviso PagoPA', [
+                'codiceAvviso' => $numeroAvviso,
+                'error' => Logger::sanitizeErrorForDisplay($e->getMessage()),
+            ]);
+            return [
+                'success' => false,
+                'errors' => ['Al momento non riusciamo a interrogare il sistema dei pagamenti. Riprova più tardi.'],
+            ];
+        }
+
+        $risultati = $data['risultati'] ?? [];
+        $loggerPayload = [
+            'numRisultati' => $data['numRisultati'] ?? null,
+            'risultatiPerPagina' => $data['risultatiPerPagina'] ?? null,
+            'pagina' => $data['pagina'] ?? null,
+            'risultatiCount' => is_array($risultati) ? count($risultati) : 0,
+            'requestedAvviso' => $normalizedAvviso,
+        ];
+        Logger::getInstance()->info('Risposta GovPay Pagamenti per ricerca avviso', $loggerPayload);
+
+        $pendenza = null;
+        foreach ($risultati as $candidate) {
+            $candidateAvviso = frontoffice_normalize_avviso_code((string)($candidate['numeroAvviso'] ?? ''));
+            if ($candidateAvviso !== '' && $candidateAvviso === $normalizedAvviso) {
+                $pendenza = $candidate;
+                break;
+            }
+        }
+        if (!$pendenza) {
+            Logger::getInstance()->info('Nessun avviso corrispondente trovato dal frontoffice', $loggerPayload);
+            return [
+                'success' => false,
+                'errors' => ['Nessun avviso trovato con i dati inseriti.'],
+            ];
+        }
+
+        $payerId = strtoupper((string)($pendenza['soggettoPagatore']['identificativo'] ?? ''));
+        if ($payerId !== '' && $payerId !== strtoupper($codiceFiscale)) {
+            Logger::getInstance()->warning('Codice fiscale pagatore non coincide con l\'input', [
+                'pagatore' => $payerId,
+                'codiceFiscaleInput' => $codiceFiscale,
+                'numeroAvviso' => $numeroAvviso,
+            ]);
+            return [
+                'success' => false,
+                'errors' => ['Il codice fiscale indicato non coincide con il soggetto pagatore dell\'avviso.'],
+            ];
+        }
+
+        $state = strtoupper((string)($pendenza['stato'] ?? ''));
+        if (!frontoffice_is_pendenza_payable($state) && $state !== 'ESEGUITA') {
+            Logger::getInstance()->info('Avviso trovato ma non pagabile/pagato', [
+                'numeroAvviso' => $numeroAvviso,
+                'stato' => $state,
+            ]);
+            return [
+                'success' => false,
+                'errors' => ['Nessun avviso trovato con i dati inseriti.'],
+            ];
+        }
+
+        Logger::getInstance()->info('Avviso PagoPA recuperato dal frontoffice', [
+            'numeroAvviso' => $numeroAvviso,
+            'idPendenza' => $pendenza['idPendenza'] ?? null,
+            'stato' => $state,
+        ]);
+
+        return [
+            'success' => true,
+            'preview' => frontoffice_build_avviso_preview($pendenza, $idDominio),
+            'pendenza' => $pendenza,
+        ];
+    }
+}
+
+if (!function_exists('frontoffice_process_avviso_form')) {
+    function frontoffice_process_avviso_form(array $data): array
+    {
+        $codiceAvviso = frontoffice_normalize_avviso_code((string)($data['codiceAvviso'] ?? ''));
+        $codiceFiscale = strtoupper(trim((string)($data['codiceFiscale'] ?? '')));
+        $formData = [
+            'codiceAvviso' => $codiceAvviso,
+            'codiceFiscale' => $codiceFiscale,
+        ];
+
+        $errors = [];
+        if ($codiceAvviso === '' || strlen($codiceAvviso) < 13) {
+            $errors[] = 'Inserisci un codice avviso valido (almeno 13 caratteri alfanumerici).';
+        }
+
+        if ($codiceFiscale === '') {
+            $errors[] = 'Il codice fiscale del pagatore è obbligatorio.';
+        } else {
+            $validation = ValidationService::validateCodiceFiscale($codiceFiscale, '', '');
+            if (
+                !$validation['format_ok']
+                || !$validation['check_ok']
+                || !$validation['valid']
+            ) {
+                $errors[] = $validation['message'] ?? 'Codice fiscale non valido.';
+            }
+        }
+
+        if ($errors) {
+            return [
+                'success' => false,
+                'errors' => $errors,
+                'form_data' => $formData,
+            ];
+        }
+
+        $lookup = frontoffice_lookup_pagopa_avviso($codiceAvviso, $codiceFiscale);
+        $lookup['form_data'] = $formData;
+        return $lookup;
     }
 }
 
@@ -316,6 +609,11 @@ if (!function_exists('frontoffice_process_spontaneous_request')) {
         $idTipo = trim((string)($data['idTipoPendenza'] ?? ''));
         if ($idTipo === '' || !isset($serviceMap[$idTipo])) {
             $errors[] = 'Seleziona il servizio da pagare.';
+        } else {
+            $selectedOption = $serviceMap[$idTipo];
+            if (($selectedOption['type'] ?? 'internal') !== 'internal') {
+                $errors[] = 'La tipologia selezionata non può essere compilata su questo portale.';
+            }
         }
 
         $causale = trim((string)($data['causale'] ?? ''));
@@ -531,7 +829,9 @@ foreach ($faviconCandidates as $candidate) {
 
 $supportEmail = 'pagamenti@' . preg_replace('/[^a-z0-9]+/', '', strtolower($entityName ?: 'ente')) . '.it';
 
-$serviceOptions = frontoffice_load_service_options();
+$serviceCatalog = frontoffice_load_service_options();
+$serviceInternalOptions = array_values(array_filter($serviceCatalog, static fn ($opt) => ($opt['type'] ?? 'internal') === 'internal'));
+$serviceExternalOptions = array_values(array_filter($serviceCatalog, static fn ($opt) => ($opt['type'] ?? 'internal') === 'external'));
 
 $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
 $requestUri = (string) ($_SERVER['REQUEST_URI'] ?? '/');
@@ -546,35 +846,112 @@ $routes = [
         'template' => 'home.html.twig',
         'context' => [],
     ],
-    '/pagamento-spontaneo' => static function () use ($method, $serviceOptions, $env): array {
-        $baseContext = [
-            'service_options' => $serviceOptions,
-            'default_year' => (int) date('Y'),
-            'pay_portal_url' => $env('FRONTOFFICE_PAGOPA_CHECKOUT_URL', 'https://checkout.pagopa.it/'),
-        ];
-        if ($method === 'POST') {
-            $result = frontoffice_process_spontaneous_request($_POST, $serviceOptions);
-            $baseContext = array_merge($baseContext, $result);
+    '/pagamento-spontaneo' => static function () use ($method, $serviceCatalog, $serviceInternalOptions, $serviceExternalOptions, $env): array {
+        $defaultYear = (int) date('Y');
+        $payPortalUrl = $env('FRONTOFFICE_PAGOPA_CHECKOUT_URL', 'https://checkout.pagopa.it/');
+        $selectedId = $method === 'POST'
+            ? trim((string)($_POST['idTipoPendenza'] ?? ''))
+            : trim((string)($_GET['tipologia'] ?? ''));
+
+        $selectedService = $selectedId !== ''
+            ? frontoffice_find_service_option($serviceCatalog, $selectedId)
+            : null;
+        $selectionError = null;
+
+        if ($method !== 'POST' && $selectedService && ($selectedService['type'] ?? 'internal') !== 'internal') {
+            $target = trim((string)($selectedService['external_url'] ?? ''));
+            if ($target !== '') {
+                header('Location: ' . $target, true, 302);
+                exit;
+            }
+            Logger::getInstance()->warning('Tipologia esterna priva di URL', ['id' => $selectedService['id']]);
+            $selectionError = 'La tipologia selezionata non è disponibile al momento.';
+            $selectedService = null;
         }
+
+        $showForm = $method === 'POST' || ($selectedService && ($selectedService['type'] ?? 'internal') === 'internal');
+
+        if (!$showForm) {
+            return [
+                'template' => 'pagamenti/spontaneo-list.html.twig',
+                'context' => [
+                    'internal_services' => $serviceInternalOptions,
+                    'external_services' => $serviceExternalOptions,
+                    'selection_error' => $selectionError ?? ($selectedId !== '' ? 'La tipologia selezionata non è disponibile.' : null),
+                ],
+            ];
+        }
+
+        $baseContext = [
+            'service_options' => $serviceInternalOptions,
+            'default_year' => $defaultYear,
+            'pay_portal_url' => $payPortalUrl,
+            'selected_service' => $selectedService,
+        ];
+
+        if ($method !== 'POST' && $selectedService) {
+            $baseContext['form_data'] = array_merge(['idTipoPendenza' => $selectedService['id']], $baseContext['form_data'] ?? []);
+        }
+
+        if ($method === 'POST') {
+            $result = frontoffice_process_spontaneous_request($_POST, $serviceInternalOptions);
+            $baseContext = array_merge($baseContext, $result);
+            $resolvedId = (string)($baseContext['form_data']['idTipoPendenza'] ?? $selectedId);
+            if ($resolvedId !== '') {
+                $baseContext['selected_service'] = frontoffice_find_service_option($serviceCatalog, $resolvedId);
+            }
+            if (!empty($baseContext['selected_service'])) {
+                $baseContext['form_data']['idTipoPendenza'] = $baseContext['selected_service']['id'];
+            }
+        } else {
+            $baseContext['form_data'] = $baseContext['form_data'] ?? ['idTipoPendenza' => $selectedService['id'] ?? ''];
+        }
+
         return [
             'template' => 'pagamenti/spontaneo.html.twig',
             'context' => $baseContext,
         ];
     },
     '/pagamento-avviso' => static function () use ($method): array {
-        $isPost = $method === 'POST';
+        if ($method === 'POST') {
+            $result = frontoffice_process_avviso_form($_POST);
+            if (!empty($result['success'])) {
+                return [
+                    'template' => 'pagamenti/avviso-preview.html.twig',
+                    'context' => [
+                        'avviso_preview' => $result['preview'] ?? [],
+                        'pendenza' => $result['pendenza'] ?? [],
+                        'back_url' => '/pagamento-avviso',
+                        'search_params' => $result['form_data'] ?? [],
+                    ],
+                ];
+            }
+
+            $errors = $result['errors'] ?? ['Non è stato possibile verificare l\'avviso.'];
+            $message = implode(' ', array_unique($errors));
+
+            return [
+                'template' => 'pagamenti/avviso.html.twig',
+                'context' => [
+                    'form_submitted' => true,
+                    'form_data' => $result['form_data'] ?? $_POST,
+                    'form_errors' => $errors,
+                    'form_feedback' => [
+                        'type' => 'danger',
+                        'title' => 'Verifica non riuscita',
+                        'message' => $message,
+                    ],
+                ],
+            ];
+        }
+
         return [
             'template' => 'pagamenti/avviso.html.twig',
             'context' => [
-                'form_submitted' => $isPost,
-                'form_data' => $isPost ? $_POST : [],
-                'form_feedback' => $isPost
-                    ? [
-                        'type' => 'success',
-                        'title' => 'Avviso trovato',
-                        'message' => 'Stiamo verificando la posizione. Presto verrai reindirizzato al portale PagoPA per concludere il pagamento.',
-                    ]
-                    : null,
+                'form_submitted' => false,
+                'form_data' => [],
+                'form_errors' => [],
+                'form_feedback' => null,
             ],
         ];
     },

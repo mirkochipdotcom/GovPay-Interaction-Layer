@@ -466,8 +466,8 @@ class PendenzaArchivio implements ModelInterface, ArrayAccess, \JsonSerializable
             $invalidProperties[] = "invalid value for 'importo', must be bigger than or equal to 0.";
         }
 
-        if (!is_null($this->container['numero_avviso']) && !preg_match("/[0-9]18/", $this->container['numero_avviso'])) {
-            $invalidProperties[] = "invalid value for 'numero_avviso', must be conform to the pattern /[0-9]18/.";
+        if (!is_null($this->container['numero_avviso']) && !preg_match("/^[0-9]{18}$/", $this->container['numero_avviso'])) {
+            $invalidProperties[] = "invalid value for 'numero_avviso', must be conform to the pattern /^[0-9]{18}$/.";
         }
 
         if (!is_null($this->container['direzione']) && (mb_strlen($this->container['direzione']) > 35)) {
@@ -778,8 +778,8 @@ class PendenzaArchivio implements ModelInterface, ArrayAccess, \JsonSerializable
             throw new \InvalidArgumentException('non-nullable numero_avviso cannot be null');
         }
 
-        if ((!preg_match("/[0-9]18/", ObjectSerializer::toString($numero_avviso)))) {
-            throw new \InvalidArgumentException("invalid value for \$numero_avviso when calling PendenzaArchivio., must conform to the pattern /[0-9]18/.");
+        if ((!preg_match("/^[0-9]{18}$/", ObjectSerializer::toString($numero_avviso)))) {
+            throw new \InvalidArgumentException("invalid value for \$numero_avviso when calling PendenzaArchivio., must conform to the pattern /^[0-9]{18}$/.");
         }
 
         $this->container['numero_avviso'] = $numero_avviso;

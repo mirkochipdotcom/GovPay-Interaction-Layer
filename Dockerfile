@@ -15,7 +15,7 @@ WORKDIR /app
 # ----------------------------------------------------------------------
 
 # Variabile per il tag di Bootstrap Italia
-ARG BOOTSTRAP_TAG="v2.17.0"
+ARG BOOTSTRAP_TAG="v2.17.1"
 
 # Variabili per Font Awesome
 ARG FA_VERSION="7.1.0"
@@ -157,8 +157,10 @@ RUN ln -s /var/www/html/backoffice/src/bootstrap /var/www/html/bootstrap \
     && ln -s /var/www/html/backoffice/templates /var/www/html/templates
 COPY --from=asset_builder /app/chartjs-dist/ /var/www/html/public/assets/chartjs/
 RUN cp -r /var/www/html/backoffice/src/public/. /var/www/html/public/ || true
-RUN chown -R www-app:www-data /var/www/html
+RUN mkdir -p /var/www/html/backoffice/storage/logs \
+    && chown -R www-app:www-data /var/www/html
 
 FROM runtime-base AS runtime-frontoffice
 COPY frontoffice/ /var/www/html/frontoffice/
-RUN chown -R www-app:www-data /var/www/html
+RUN mkdir -p /var/www/html/frontoffice/storage/logs \
+    && chown -R www-app:www-data /var/www/html
