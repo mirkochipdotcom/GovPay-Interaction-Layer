@@ -4,6 +4,7 @@
 
 {% set old = form_data|default({}) %}
 {% set payer = old.soggettoPagatore|default({}) %}
+{% set selected = selected_service|default(null) %}
 
 {% block head %}
   <style>
@@ -49,6 +50,16 @@
     .form-check-inline .form-check-input {
       margin-right: 0.35rem;
     }
+    .service-pill {
+      border: 1px solid #d9e2ef;
+      border-radius: 18px;
+      padding: 1rem 1.5rem;
+      background: #f6f8fb;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
   </style>
 {% endblock %}
 
@@ -66,6 +77,9 @@
           <p class="text-uppercase small mb-2 text-white-50">Servizi PagoPA</p>
           <h1 class="display-6 fw-semibold mb-3">Genera un avviso PagoPA per un pagamento spontaneo</h1>
           <p class="mb-0 lead text-white-75">Compila il modulo con i dati del servizio e del soggetto pagatore. L'importo verra' validato dal personale dell'Ente prima dell'emissione dell'avviso digitale.</p>
+          {% if selected %}
+            <p class="mt-3 mb-0 text-white-75">Servizio selezionato: <span class="fw-semibold text-white">{{ selected.label }}</span></p>
+          {% endif %}
         </div>
       </div>
     </div>
@@ -143,16 +157,30 @@
               {% endif %}
 
               <div class="row g-3">
-                <div class="col-md-6">
-                  <label for="idTipoPendenza" class="form-label">Servizio da pagare *</label>
-                  <select class="form-select" id="idTipoPendenza" name="idTipoPendenza" required>
-                    <option value="">Seleziona</option>
-                    {% for option in service_options %}
-                      <option value="{{ option.id }}" {% if old.idTipoPendenza|default('') == option.id %}selected{% endif %}>{{ option.label }}</option>
-                    {% endfor %}
-                  </select>
-                  <div class="form-text">Scegli la voce corrispondente al pagamento che vuoi generare.</div>
-                </div>
+                {% if selected %}
+                  <div class="col-12">
+                    <label class="form-label">Servizio da pagare *</label>
+                    <div class="service-pill">
+                      <div>
+                        <div class="text-muted text-uppercase small">Tipologia selezionata</div>
+                        <div class="fw-semibold">{{ selected.label }}</div>
+                      </div>
+                      <a class="btn btn-outline-secondary btn-sm" href="/pagamento-spontaneo">Cambia servizio</a>
+                    </div>
+                    <input type="hidden" id="idTipoPendenza" name="idTipoPendenza" value="{{ selected.id }}">
+                  </div>
+                {% else %}
+                  <div class="col-md-6">
+                    <label for="idTipoPendenza" class="form-label">Servizio da pagare *</label>
+                    <select class="form-select" id="idTipoPendenza" name="idTipoPendenza" required>
+                      <option value="">Seleziona</option>
+                      {% for option in service_options %}
+                        <option value="{{ option.id }}" {% if old.idTipoPendenza|default('') == option.id %}selected{% endif %}>{{ option.label }}</option>
+                      {% endfor %}
+                    </select>
+                    <div class="form-text">Scegli la voce corrispondente al pagamento che vuoi generare.</div>
+                  </div>
+                {% endif %}
                 <div class="col-md-3">
                   {% set selected_year = old.annoRiferimento|default(default_year|default('now'|date('Y'))) %}
                   {% set start_year = (default_year|default('now'|date('Y'))) + 1 %}

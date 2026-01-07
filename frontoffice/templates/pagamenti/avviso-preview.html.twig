@@ -1,0 +1,227 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Anteprima avviso PagoPA - {{ app_entity.name }}{% endblock %}
+
+{% set avviso = avviso_preview|default({}) %}
+{% set pagatore = avviso.soggetto_pagatore|default({}) %}
+{% set voci = avviso.voci|default([]) %}
+
+{% block head %}
+  <style>
+    body { background: #f4f6fb; }
+    .page-hero {
+      background: radial-gradient(circle at top left, #03224e 0%, #073b88 45%, #0b63c6 100%);
+      color: #fff;
+      padding: 3.5rem 0 2rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .page-hero::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.08), transparent 55%);
+    }
+    .page-hero > * { position: relative; z-index: 1; }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      border-radius: 999px;
+      padding: 0.45rem 1rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      background: rgba(255,255,255,0.15);
+      color: #fff;
+    }
+    .status-pill.status-ok { background: rgba(55,219,151,0.2); color: #1ef29f; }
+    .status-pill.status-warn { background: rgba(255,193,7,0.25); color: #ffe082; }
+    .status-pill.status-ko { background: rgba(255,82,82,0.25); color: #ffb3b3; }
+    .summary-card {
+      border: none;
+      border-radius: 28px;
+      box-shadow: 0 35px 65px rgba(8,29,73,0.14);
+      background: #fff;
+    }
+    .metric-chip {
+      border-radius: 18px;
+      background: #f4f7ff;
+      padding: 1rem 1.25rem;
+      border: 1px solid #dfe7ff;
+    }
+    .metric-chip .label { text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.08em; color: #6b7a99; }
+    .metric-chip .value { font-size: 1.3rem; font-weight: 600; color: #0e1a3a; }
+    .actions-grid .btn { min-width: 220px; }
+    .voci-table thead { text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.08em; color: #7c889f; }
+    .voci-table tbody tr { border-color: #edf0f7; }
+    .voci-table .importo { font-weight: 600; color: #0d2742; }
+    .support-card {
+      border-radius: 24px;
+      background: #03132f;
+      color: #e2ecff;
+      padding: 2rem;
+    }
+    .support-card a { color: #7bdcff; }
+    .timeline-step { border-left: 3px solid #0d63c7; padding-left: 1rem; margin-left: 0.5rem; }
+  </style>
+{% endblock %}
+
+{% block content %}
+  <section class="page-hero">
+    <div class="container-xxl">
+      <nav aria-label="Percorso" class="mb-3">
+        <ol class="breadcrumb mb-0">
+          <li class="breadcrumb-item"><a href="/">Home</a></li>
+          <li class="breadcrumb-item"><a href="/pagamento-avviso">Paga un avviso</a></li>
+          <li class="breadcrumb-item active" aria-current="page">Anteprima avviso</li>
+        </ol>
+      </nav>
+      <div class="d-flex flex-wrap align-items-center gap-3">
+        <div>
+          <p class="text-uppercase small mb-2 text-white-50">Avviso PagoPA</p>
+          <h1 class="display-6 fw-semibold mb-1">Codice {{ avviso.numero_avviso|default('—') }}</h1>
+          <p class="lead text-white-75 mb-0">Visualizza i dettagli dell'avviso prima di procedere con la stampa o il pagamento online.</p>
+        </div>
+        {% set status_code = avviso.stato.code|default('') %}
+        {% set status_class = status_code in ['NON_ESEGUITA','ESEGUITA_PARZIALE'] ? 'status-ok' : (status_code in ['SCADUTA','ANOMALA'] ? 'status-warn' : 'status-ko') %}
+        <span class="status-pill {{ status_class }}">
+          <svg class="icon icon-sm"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-check"></use></svg>
+          {{ avviso.stato.label|default('Stato sconosciuto') }}
+        </span>
+      </div>
+    </div>
+  </section>
+
+  <section class="py-5">
+    <div class="container-xxl">
+      <div class="row g-4">
+        <div class="col-lg-8">
+          <div class="card summary-card p-4 p-lg-5 mb-4">
+            <div class="d-flex flex-wrap gap-3 mb-4">
+              <div class="metric-chip">
+                <div class="label">Importo dovuto</div>
+                <div class="value">
+                  {% if avviso.importo is not null %}
+                    € {{ avviso.importo|number_format(2, ',', '.') }}
+                  {% else %}
+                    —
+                  {% endif %}
+                </div>
+              </div>
+              <div class="metric-chip">
+                <div class="label">Data scadenza</div>
+                <div class="value">
+                  {% if avviso.data_scadenza %}
+                    {{ avviso.data_scadenza|date('d/m/Y') }}
+                  {% else %}
+                    Non prevista
+                  {% endif %}
+                </div>
+              </div>
+              <div class="metric-chip">
+                <div class="label">Identificativo pendenza</div>
+                <div class="value small text-uppercase">{{ avviso.id_pendenza|default('—') }}</div>
+              </div>
+            </div>
+
+            <div class="row g-4 mb-4">
+              <div class="col-md-6">
+                <div class="text-muted text-uppercase small mb-1">Causale</div>
+                <p class="fs-6 mb-0">{{ avviso.causale|default('—') }}</p>
+              </div>
+              <div class="col-md-6">
+                <div class="text-muted text-uppercase small mb-1">Pagatore</div>
+                <p class="mb-0">
+                  <strong>{{ pagatore.anagrafica|default('—') }}</strong><br>
+                  <span class="text-muted">{{ pagatore.identificativo|default('') }}</span>
+                </p>
+              </div>
+            </div>
+
+            {% if not avviso.is_payable %}
+              <div class="alert alert-warning" role="status">
+                Questo avviso risulta {{ avviso.stato.label|lower }}. Non sarà possibile avviare il pagamento online, ma puoi comunque scaricare la copia dell'avviso.
+              </div>
+            {% endif %}
+
+            <div class="actions-grid d-flex flex-wrap gap-3">
+              {% if avviso.download_url %}
+                <a class="btn btn-primary btn-lg" href="{{ avviso.download_url }}" target="_blank" rel="noopener">Scarica avviso (PDF)</a>
+              {% else %}
+                <button class="btn btn-primary btn-lg" type="button" disabled>PDF non disponibile</button>
+              {% endif %}
+              {% if avviso.is_payable and avviso.checkout_url %}
+                <a class="btn btn-outline-primary btn-lg" href="{{ avviso.checkout_url }}" target="_blank" rel="noopener">Paga su pagoPA</a>
+              {% endif %}
+              {% if back_url|default('') %}
+                <a class="btn btn-link text-decoration-none" href="{{ back_url }}">Cerca un altro avviso</a>
+              {% endif %}
+            </div>
+          </div>
+
+          {% if voci %}
+            <div class="card summary-card p-4 mb-4">
+              <div class="d-flex align-items-center justify-content-between mb-3">
+                <h2 class="h5 mb-0">Dettaglio voci</h2>
+                <span class="text-muted small">{{ voci|length }} voce{{ voci|length > 1 ? 'i' : '' }}</span>
+              </div>
+              <div class="table-responsive">
+                <table class="table voci-table align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th scope="col">Descrizione</th>
+                      <th scope="col" class="text-end">Importo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for voce in voci %}
+                      <tr>
+                        <td>{{ voce.descrizione|default('—') }}</td>
+                        <td class="text-end importo">
+                          {% if voce.importo is defined %}
+                            € {{ voce.importo|number_format(2, ',', '.') }}
+                          {% else %}
+                            —
+                          {% endif %}
+                        </td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          {% endif %}
+        </div>
+
+        <div class="col-lg-4">
+          <div class="card summary-card p-4 mb-4">
+            <h2 class="h5 mb-3">Prossimi passaggi</h2>
+            <div class="timeline-step mb-3">
+              <strong>1. Stampa o salva il PDF</strong>
+              <p class="mb-0 small text-muted">L'avviso contiene tutti i dati necessari per il pagamento presso un PSP.</p>
+            </div>
+            <div class="timeline-step mb-3">
+              <strong>2. Avvia il pagamento online</strong>
+              <p class="mb-0 small text-muted">Verrai portato sul portale pagoPA per inserire il codice avviso e scegliere il canale preferito.</p>
+            </div>
+            <div class="timeline-step">
+              <strong>3. Conserva la ricevuta</strong>
+              <p class="mb-0 small text-muted">Riceverai la ricevuta digitale all'indirizzo email associato all'avviso.</p>
+            </div>
+          </div>
+          <div class="support-card">
+            <p class="text-uppercase small mb-2">Serve assistenza?</p>
+            <h3 class="h5 mb-3">Contatta {{ app_entity.name }}</h3>
+            <ul class="list-unstyled mb-0 small">
+              <li><strong>Email:</strong> <a href="mailto:{{ support_email }}">{{ support_email }}</a></li>
+              <li><strong>Telefono:</strong> {{ support_phone }} ({{ support_hours }})</li>
+              <li><strong>Sede:</strong> {{ support_location|raw }}</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+{% endblock %}
