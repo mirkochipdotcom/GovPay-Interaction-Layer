@@ -276,6 +276,12 @@
         {% endif %}
   {% elseif currentTab == 'tipologie' %}
         <h2 class="h5">Tipologie di entrata del dominio</h2>
+        {% if current_user and current_user.role == 'superadmin' %}
+          <form method="post" action="/configurazione/tipologie/descrizione-estesa/copia-da-tassonomia" class="mb-3">
+            <button type="submit" class="btn btn-sm btn-outline-primary" onclick="return confirm('Compilare le descrizioni estese vuote usando la tassonomia PagoPA? Operazione non reversibile automaticamente.')">Compila descrizioni estese vuote da tassonomia PagoPA</button>
+            <div class="form-text">Usa `TASSONOMIE_PAGOPA` e il campo "DESCRIZIONE TIPO SERVIZIO". Popola solo dove la descrizione estesa è vuota.</div>
+          </form>
+        {% endif %}
         {% set elenco = entrate.risultati|default([]) %}
         {% if elenco and elenco|length > 0 %}
           <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
@@ -289,9 +295,11 @@
               {% for e in elenco %}
               {% set idEnt = e.idEntrata|default(e.tipoEntrata.idEntrata|default('')) %}
               {% set descrLocaleMap = entrate._descr_map|default({}) %}
+              {% set descrEstesaMap = entrate._descr_estesa_map|default({}) %}
               {% set descrEffMap = entrate._descr_eff_map|default({}) %}
               {% set descrBackoffice = e.tipoEntrata.descrizione|default(idEnt|default('Tipologia')) %}
               {% set descrLocale = descrLocaleMap[idEnt]|default(null) %}
+              {% set descrEstesa = descrEstesaMap[idEnt]|default('') %}
               {% set descrEff = descrEffMap[idEnt]|default(descrBackoffice) %}
               {% set descr = descrEff %}
               {% set eid = 'entrata_' ~ (e.idEntrata|default(loop.index)) %}
@@ -391,6 +399,29 @@
                             {% if descrLocale is not null %}
                               <form method="post" action="/configurazione/tipologie/{{ idEnt }}/descrizione/restore" class="m-0 pt-4">
                                 <button type="submit" class="btn btn-sm btn-outline-secondary" onclick="return confirm('Sei sicuro di voler ripristinare la descrizione originale da GovPay?')">Ripristina GovPay</button>
+                              </form>
+                            {% endif %}
+                          </div>
+                        </div>
+                      </div>
+                    {% endif %}
+                    {% if current_user and current_user.role == 'superadmin' and idEnt %}
+                      <div class="row g-3 small mt-1">
+                        <div class="col-md-12">
+                          <div class="d-flex align-items-start gap-2 flex-wrap">
+                            <form method="post" action="/configurazione/tipologie/{{ idEnt }}/descrizione-estesa" class="d-flex align-items-start gap-2 flex-wrap m-0">
+                              <div class="flex-grow-1" style="min-width:260px">
+                                <label for="descrestesa_{{ eid }}" class="text-muted">Descrizione estesa (locale)</label>
+                                <textarea id="descrestesa_{{ eid }}" name="descrizione_estesa" class="form-control form-control-sm" rows="2" placeholder="Testo aggiuntivo (es. istruzioni/nota)" style="max-width:680px">{{ descrEstesa }}</textarea>
+                                <div class="form-text">Campo locale (non arriva da GovPay). Se vuoto viene rimosso.</div>
+                              </div>
+                              <div class="pt-4">
+                                <button type="submit" class="btn btn-sm btn-primary">Salva descrizione estesa</button>
+                              </div>
+                            </form>
+                            {% if descrEstesa is not empty %}
+                              <form method="post" action="/configurazione/tipologie/{{ idEnt }}/descrizione-estesa/restore" class="m-0 pt-4">
+                                <button type="submit" class="btn btn-sm btn-outline-secondary" onclick="return confirm('Rimuovere la descrizione estesa per questa tipologia?')">Rimuovi</button>
                               </form>
                             {% endif %}
                           </div>
@@ -708,6 +739,10 @@
                 <input type="text" id="tipologiaDescrizione" name="descrizione" class="form-control" placeholder="Es. Pagamenti Imu" autocomplete="off" required>
               </div>
               <div class="col-md-5">
+                <label for="tipologiaDescrizioneEstesa" class="form-label small text-muted mb-1">Descrizione estesa (opzionale)</label>
+                <input type="text" id="tipologiaDescrizioneEstesa" name="descrizione_estesa" class="form-control" placeholder="Testo aggiuntivo (opzionale)" autocomplete="off">
+              </div>
+              <div class="col-md-5">
                 <label for="tipologiaUrl" class="form-label small text-muted mb-1">URL destinazione</label>
                 <input type="url" id="tipologiaUrl" name="url" class="form-control" placeholder="https://..." inputmode="url" required>
                 <div class="form-text">Inserisci un URL completo comprensivo di protocollo (http/https).</div>
@@ -726,6 +761,7 @@
               <thead class="table-light">
                 <tr>
                   <th scope="col">Descrizione</th>
+                  <th scope="col">Descrizione estesa</th>
                   <th scope="col">URL</th>
                   <th scope="col" class="text-nowrap">Ultima modifica</th>
                   <th scope="col" class="text-end">Azioni</th>
@@ -734,9 +770,16 @@
               <tbody>
                 {% for tipo in tipi %}
                   <tr>
-                    <td>{{ tipo.descrizione }}</td>
-                    <td class="font-monospace small">
-                      <a href="{{ tipo.url }}" target="_blank" rel="noopener">{{ tipo.url }}</a>
+                    <td style="min-width:220px">
+                      <form method="post" action="/configurazione/tipologie-esterne/{{ tipo.id }}/update" class="m-0">
+                        <input type="text" name="descrizione" value="{{ tipo.descrizione }}" class="form-control form-control-sm" required>
+                    </td>
+                    <td style="min-width:240px">
+                        <input type="text" name="descrizione_estesa" value="{{ tipo.descrizione_estesa|default('') }}" class="form-control form-control-sm" placeholder="(opzionale)">
+                    </td>
+                    <td class="font-monospace small" style="min-width:260px">
+                        <input type="url" name="url" value="{{ tipo.url }}" class="form-control form-control-sm" required>
+                        <div class="form-text"><a href="{{ tipo.url }}" target="_blank" rel="noopener">Apri</a></div>
                     </td>
                     <td class="small text-muted">
                       {% if tipo.updated_at %}
@@ -746,6 +789,8 @@
                       {% endif %}
                     </td>
                     <td class="text-end">
+                      <button type="submit" class="btn btn-sm btn-primary me-1">Salva</button>
+                      </form>
                       <form method="post" action="/configurazione/tipologie-esterne/{{ tipo.id }}/delete" class="d-inline">
                         <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Rimuovere la tipologia esterna \"{{ tipo.descrizione|e('js') }}\"?');">Elimina</button>
                       </form>

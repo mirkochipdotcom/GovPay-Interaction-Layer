@@ -36,6 +36,8 @@ $statements = [
         id_dominio VARCHAR(64) NOT NULL,
     id_entrata VARCHAR(128) NOT NULL,
     descrizione VARCHAR(255) NULL,
+    descrizione_locale VARCHAR(255) NULL,
+    descrizione_estesa TEXT NULL,
     iban_accredito VARCHAR(34) NULL,
     codice_contabilita VARCHAR(128) NULL,
     tipo_bollo VARCHAR(16) NULL,
@@ -54,6 +56,7 @@ $statements = [
     "CREATE TABLE IF NOT EXISTS tipologie_pagamento_esterne (
         id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
         descrizione VARCHAR(255) NOT NULL,
+        descrizione_estesa TEXT NULL,
         url VARCHAR(500) NOT NULL,
         created_at DATETIME NOT NULL,
         updated_at DATETIME NOT NULL
@@ -100,6 +103,29 @@ try {
     if (!$has) {
         $pdo->exec("ALTER TABLE entrate_tipologie ADD COLUMN descrizione_locale VARCHAR(255) NULL AFTER descrizione");
         echo "Added column descrizione_locale to entrate_tipologie\n";
+    }
+} catch (Throwable $e) {
+    // non fatale
+}
+
+// Campo descrizione estesa (testo lungo locale)
+try {
+    $stmt = $pdo->query("SHOW COLUMNS FROM entrate_tipologie LIKE 'descrizione_estesa'");
+    $has = $stmt ? $stmt->fetch() : false;
+    if (!$has) {
+        $pdo->exec("ALTER TABLE entrate_tipologie ADD COLUMN descrizione_estesa TEXT NULL AFTER descrizione_locale");
+        echo "Added column descrizione_estesa to entrate_tipologie\n";
+    }
+} catch (Throwable $e) {
+    // non fatale
+}
+
+try {
+    $stmt = $pdo->query("SHOW COLUMNS FROM tipologie_pagamento_esterne LIKE 'descrizione_estesa'");
+    $has = $stmt ? $stmt->fetch() : false;
+    if (!$has) {
+        $pdo->exec("ALTER TABLE tipologie_pagamento_esterne ADD COLUMN descrizione_estesa TEXT NULL AFTER descrizione");
+        echo "Added column descrizione_estesa to tipologie_pagamento_esterne\n";
     }
 } catch (Throwable $e) {
     // non fatale

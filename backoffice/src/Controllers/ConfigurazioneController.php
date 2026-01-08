@@ -394,6 +394,7 @@ class ConfigurazioneController
                                         $ovrMap = [];
                                         $urlMap = [];
                                         $descrMap = [];
+                                        $descrEstesaMap = [];
                                         $descrEffMap = [];
                                         foreach ($entrateEff as $r) {
                                             $idE = $r['id_entrata'];
@@ -401,6 +402,7 @@ class ConfigurazioneController
                                             $ovrMap[$idE] = isset($r['override_locale']) ? ((int)$r['override_locale'] === 1 ? 1 : 0) : null;
                                             $urlMap[$idE] = $r['external_url'] ?? null;
                                             $descrMap[$idE] = $r['descrizione_locale'] ?? null;
+                                            $descrEstesaMap[$idE] = $r['descrizione_estesa'] ?? null;
                                             $descrEffMap[$idE] = $r['descrizione_effettiva'] ?? ($r['descrizione'] ?? null);
                                             $registerTipologiaCode($extractValue($r, ['codice_contabilita', 'codiceContabilita']));
                                             $registerTipologiaCode($extractValue($r, ['id_entrata', 'idEntrata']));
@@ -409,6 +411,7 @@ class ConfigurazioneController
                                         $entrateArr['_override_map'] = $ovrMap;
                                         $entrateArr['_exturl_map'] = $urlMap;
                                         $entrateArr['_descr_map'] = $descrMap;
+                                        $entrateArr['_descr_estesa_map'] = $descrEstesaMap;
                                         $entrateArr['_descr_eff_map'] = $descrEffMap;
                                     }
                                 } catch (\Throwable $e) {
@@ -818,6 +821,7 @@ class ConfigurazioneController
 
         $data = (array)($request->getParsedBody() ?? []);
         $descrizione = trim((string)($data['descrizione'] ?? ''));
+        $descrizioneEstesa = trim((string)($data['descrizione_estesa'] ?? ''));
         $url = trim((string)($data['url'] ?? ''));
 
         if ($descrizione === '' || $url === '') {
@@ -832,7 +836,7 @@ class ConfigurazioneController
 
         try {
             $repo = new ExternalPaymentTypeRepository();
-            $repo->create($descrizione, $url);
+            $repo->create($descrizione, $descrizioneEstesa !== '' ? $descrizioneEstesa : null, $url);
             $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Tipologia esterna salvata'];
         } catch (\Throwable $e) {
             $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Errore salvataggio tipologia esterna: ' . $e->getMessage()];
@@ -860,6 +864,44 @@ class ConfigurazioneController
             $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Tipologia esterna rimossa'];
         } catch (\Throwable $e) {
             $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Errore eliminazione tipologia esterna: ' . $e->getMessage()];
+        }
+
+        return $this->redirectToTab($response, 'tipologie_esterne');
+    }
+
+    public function updateExternalPaymentType(Request $request, Response $response, array $args): Response
+    {
+        if (!$this->isSuperadmin()) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Accesso negato'];
+            return $this->redirectToTab($response, 'tipologie_esterne');
+        }
+
+        $id = isset($args['id']) ? (int)$args['id'] : 0;
+        if ($id <= 0) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'ID tipologia non valido'];
+            return $this->redirectToTab($response, 'tipologie_esterne');
+        }
+
+        $data = (array)($request->getParsedBody() ?? []);
+        $descrizione = trim((string)($data['descrizione'] ?? ''));
+        $descrizioneEstesa = trim((string)($data['descrizione_estesa'] ?? ''));
+        $url = trim((string)($data['url'] ?? ''));
+
+        if ($descrizione === '' || $url === '') {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Compila descrizione e URL'];
+            return $this->redirectToTab($response, 'tipologie_esterne');
+        }
+        if (!filter_var($url, FILTER_VALIDATE_URL)) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'URL non valido'];
+            return $this->redirectToTab($response, 'tipologie_esterne');
+        }
+
+        try {
+            $repo = new ExternalPaymentTypeRepository();
+            $repo->update($id, $descrizione, $descrizioneEstesa !== '' ? $descrizioneEstesa : null, $url);
+            $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Tipologia esterna aggiornata'];
+        } catch (\Throwable $e) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Errore aggiornamento tipologia esterna: ' . $e->getMessage()];
         }
 
         return $this->redirectToTab($response, 'tipologie_esterne');
@@ -1385,6 +1427,241 @@ class ConfigurazioneController
             $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Errore ripristino descrizione: ' . $e->getMessage()];
             Logger::getInstance()->error('Errore ripristino descrizione tipologia', ['id_dominio' => $idDominio, 'id_entrata' => $idEntrata, 'user_id' => $_SESSION['user']['id'] ?? null, 'error' => $e->getMessage()]);
         }
+        return $this->redirectToTab($response, 'tipologie');
+    }
+
+    public function updateTipologiaDescrizioneEstesa(Request $request, Response $response, array $args): Response
+    {
+        if (!$this->isSuperadmin()) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Accesso negato'];
+            return $this->redirectToTab($response, 'tipologie');
+        }
+        $idEntrata = $args['idEntrata'] ?? '';
+        $idDominio = getenv('ID_DOMINIO') ?: '';
+        if ($idEntrata === '' || $idDominio === '') {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Parametri mancanti'];
+            return $this->redirectToTab($response, 'tipologie');
+        }
+
+        $data = (array)($request->getParsedBody() ?? []);
+        $descr = trim((string)($data['descrizione_estesa'] ?? ''));
+
+        if ($descr !== '' && mb_strlen($descr) > 4000) {
+            $descr = mb_substr($descr, 0, 4000);
+        }
+
+        try {
+            $repo = new EntrateRepository();
+            $repo->updateDescrizioneEstesa($idDominio, $idEntrata, $descr !== '' ? $descr : null);
+            $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Descrizione estesa aggiornata'];
+            Logger::getInstance()->info('Tipologia descrizione_estesa aggiornata', ['id_dominio' => $idDominio, 'id_entrata' => $idEntrata, 'user_id' => $_SESSION['user']['id'] ?? null]);
+        } catch (\Throwable $e) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Errore aggiornamento descrizione estesa: ' . $e->getMessage()];
+            Logger::getInstance()->error('Errore aggiornamento descrizione_estesa tipologia', ['id_dominio' => $idDominio, 'id_entrata' => $idEntrata, 'user_id' => $_SESSION['user']['id'] ?? null, 'error' => $e->getMessage()]);
+        }
+
+        return $this->redirectToTab($response, 'tipologie');
+    }
+
+    public function restoreTipologiaDescrizioneEstesa(Request $request, Response $response, array $args): Response
+    {
+        if (!$this->isSuperadmin()) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Accesso negato'];
+            return $this->redirectToTab($response, 'tipologie');
+        }
+        $idEntrata = $args['idEntrata'] ?? '';
+        $idDominio = getenv('ID_DOMINIO') ?: '';
+        if ($idEntrata === '' || $idDominio === '') {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Parametri mancanti'];
+            return $this->redirectToTab($response, 'tipologie');
+        }
+
+        try {
+            $repo = new EntrateRepository();
+            $affected = $repo->clearDescrizioneEstesa($idDominio, $idEntrata);
+            if ($affected > 0) {
+                $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Descrizione estesa rimossa'];
+                Logger::getInstance()->info('Tipologia descrizione_estesa rimossa', ['id_dominio' => $idDominio, 'id_entrata' => $idEntrata, 'user_id' => $_SESSION['user']['id'] ?? null]);
+            } else {
+                $_SESSION['flash'][] = ['type' => 'info', 'text' => 'Nessuna descrizione estesa trovata da cancellare'];
+                Logger::getInstance()->warning('Restore descrizione_estesa nessuna riga aggiornata', ['id_dominio' => $idDominio, 'id_entrata' => $idEntrata, 'user_id' => $_SESSION['user']['id'] ?? null]);
+            }
+        } catch (\Throwable $e) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Errore rimozione descrizione estesa: ' . $e->getMessage()];
+            Logger::getInstance()->error('Errore rimozione descrizione_estesa tipologia', ['id_dominio' => $idDominio, 'id_entrata' => $idEntrata, 'user_id' => $_SESSION['user']['id'] ?? null, 'error' => $e->getMessage()]);
+        }
+
+        return $this->redirectToTab($response, 'tipologie');
+    }
+
+    public function copyTipologieDescrizioneEstesaFromTassonomie(Request $request, Response $response): Response
+    {
+        if (!$this->isSuperadmin()) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Accesso negato'];
+            return $this->redirectToTab($response, 'tipologie');
+        }
+
+        $idDominio = getenv('ID_DOMINIO') ?: '';
+        $tassonomieUrl = getenv('TASSONOMIE_PAGOPA') ?: '';
+        if ($idDominio === '' || $tassonomieUrl === '') {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'ID_DOMINIO o TASSONOMIE_PAGOPA non impostati'];
+            return $this->redirectToTab($response, 'tipologie');
+        }
+
+        $normalizeTipologiaCode = static function (?string $code): ?string {
+            if ($code === null) {
+                return null;
+            }
+            $code = trim($code);
+            if ($code === '') {
+                return null;
+            }
+            if (str_contains($code, '/')) {
+                $parts = array_values(array_filter(explode('/', $code), static fn($segment) => $segment !== null && $segment !== ''));
+                if (!empty($parts)) {
+                    $code = (string)end($parts);
+                }
+            }
+            $sanitized = preg_replace('/[^A-Za-z0-9\-_.]/', '', $code);
+            if (!is_string($sanitized) || $sanitized === '') {
+                return null;
+            }
+            return mb_strtoupper($sanitized, 'UTF-8');
+        };
+
+        $rawUpperCode = static function (?string $code): ?string {
+            if ($code === null) {
+                return null;
+            }
+            $code = trim($code);
+            if ($code === '') {
+                return null;
+            }
+            return mb_strtoupper($code, 'UTF-8');
+        };
+
+        try {
+            $http = new \GuzzleHttp\Client(['timeout' => 15]);
+            $resp = $http->request('GET', $tassonomieUrl, [
+                'headers' => ['Accept' => 'application/json'],
+                'http_errors' => false,
+            ]);
+
+            $status = $resp->getStatusCode();
+            if ($status < 200 || $status >= 300) {
+                $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Errore HTTP ' . $status . ' dal catalogo tassonomie'];
+                return $this->redirectToTab($response, 'tipologie');
+            }
+
+            $raw = (string)$resp->getBody();
+            $rows = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+            if (!is_array($rows)) {
+                throw new \RuntimeException('Formato tassonomie inatteso: JSON non è un array');
+            }
+
+            $descrByCode = [];
+            foreach ($rows as $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+                $catalogCode = trim((string)($entry['DATI SPECIFICI INCASSO'] ?? ''));
+                $descrizioneServizio = trim((string)($entry['DESCRIZIONE TIPO SERVIZIO'] ?? ''));
+                if ($catalogCode === '' || $descrizioneServizio === '') {
+                    continue;
+                }
+                $norm = $normalizeTipologiaCode($catalogCode);
+                if ($norm !== null && !isset($descrByCode[$norm])) {
+                    $descrByCode[$norm] = $descrizioneServizio;
+                }
+                $rawUpper = $rawUpperCode($catalogCode);
+                if ($rawUpper !== null && !isset($descrByCode[$rawUpper])) {
+                    $descrByCode[$rawUpper] = $descrizioneServizio;
+                }
+            }
+
+            if (empty($descrByCode)) {
+                $_SESSION['flash'][] = ['type' => 'warning', 'text' => 'Nessuna descrizione trovata nella tassonomia (DESCRIZIONE TIPO SERVIZIO)'];
+                return $this->redirectToTab($response, 'tipologie');
+            }
+
+            $repo = new EntrateRepository();
+            $tipologie = $repo->listByDominio($idDominio);
+
+            $toUpdate = [];
+            $skippedWithValue = 0;
+            $notMatched = 0;
+
+            foreach ($tipologie as $t) {
+                if (!is_array($t)) {
+                    continue;
+                }
+
+                $idEntrata = (string)($t['id_entrata'] ?? '');
+                if ($idEntrata === '') {
+                    continue;
+                }
+
+                $current = (string)($t['descrizione_estesa'] ?? '');
+                if (trim($current) !== '') {
+                    $skippedWithValue++;
+                    continue;
+                }
+
+                $candidates = [];
+                $codiceContabilita = (string)($t['codice_contabilita'] ?? '');
+
+                foreach ([$idEntrata, $codiceContabilita] as $candidateCode) {
+                    if ($candidateCode === '') {
+                        continue;
+                    }
+                    $n = $normalizeTipologiaCode($candidateCode);
+                    if ($n !== null) {
+                        $candidates[] = $n;
+                    }
+                    $r = $rawUpperCode($candidateCode);
+                    if ($r !== null) {
+                        $candidates[] = $r;
+                    }
+                }
+
+                $found = null;
+                foreach ($candidates as $key) {
+                    if (isset($descrByCode[$key])) {
+                        $found = $descrByCode[$key];
+                        break;
+                    }
+                }
+
+                if ($found === null) {
+                    $notMatched++;
+                    continue;
+                }
+
+                if (mb_strlen($found) > 4000) {
+                    $found = mb_substr($found, 0, 4000);
+                }
+
+                $toUpdate[$idEntrata] = $found;
+            }
+
+            $updated = $repo->bulkFillDescrizioneEstesaIfEmpty($idDominio, $toUpdate);
+            $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Descrizioni estese compilate: ' . $updated . ' (già valorizzate: ' . $skippedWithValue . ', senza match: ' . $notMatched . ')'];
+            Logger::getInstance()->info('Bulk fill descrizione_estesa da tassonomie', [
+                'id_dominio' => $idDominio,
+                'updated' => $updated,
+                'skipped_with_value' => $skippedWithValue,
+                'not_matched' => $notMatched,
+                'user_id' => $_SESSION['user']['id'] ?? null,
+            ]);
+        } catch (\Throwable $e) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Errore copia descrizioni da tassonomia: ' . $e->getMessage()];
+            Logger::getInstance()->error('Errore bulk fill descrizione_estesa da tassonomie', [
+                'id_dominio' => $idDominio,
+                'user_id' => $_SESSION['user']['id'] ?? null,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
         return $this->redirectToTab($response, 'tipologie');
     }
 

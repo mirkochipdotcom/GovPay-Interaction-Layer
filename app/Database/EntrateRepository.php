@@ -82,7 +82,7 @@ class EntrateRepository
      */
     public function findDetails(string $idDominio, string $idEntrata): ?array
     {
-        $stmt = $this->pdo->prepare('SELECT id_entrata, descrizione, descrizione_locale, iban_accredito, codice_contabilita, tipo_bollo, tipo_contabilita, abilitato_backoffice, override_locale, external_url, COALESCE(descrizione_locale, descrizione) AS descrizione_effettiva FROM entrate_tipologie WHERE id_dominio = :dom AND id_entrata = :ent LIMIT 1');
+        $stmt = $this->pdo->prepare('SELECT id_entrata, descrizione, descrizione_locale, descrizione_estesa, iban_accredito, codice_contabilita, tipo_bollo, tipo_contabilita, abilitato_backoffice, override_locale, external_url, COALESCE(descrizione_locale, descrizione) AS descrizione_effettiva FROM entrate_tipologie WHERE id_dominio = :dom AND id_entrata = :ent LIMIT 1');
         $stmt->execute([':dom' => $idDominio, ':ent' => $idEntrata]);
         $row = $stmt->fetch();
         return $row ?: null;
@@ -94,7 +94,7 @@ class EntrateRepository
      */
     public function listByDominio(string $idDominio): array
     {
-    $stmt = $this->pdo->prepare('SELECT id_entrata, descrizione, descrizione_locale, COALESCE(descrizione_locale, descrizione) AS descrizione_effettiva, iban_accredito, codice_contabilita, tipo_contabilita, abilitato_backoffice, override_locale, external_url FROM entrate_tipologie WHERE id_dominio = :id ORDER BY id_entrata ASC');
+    $stmt = $this->pdo->prepare('SELECT id_entrata, descrizione, descrizione_locale, descrizione_estesa, COALESCE(descrizione_locale, descrizione) AS descrizione_effettiva, iban_accredito, codice_contabilita, tipo_contabilita, abilitato_backoffice, override_locale, external_url FROM entrate_tipologie WHERE id_dominio = :id ORDER BY id_entrata ASC');
         $stmt->execute([':id' => $idDominio]);
         return $stmt->fetchAll();
     }
@@ -170,6 +170,69 @@ class EntrateRepository
             ':ent' => $idEntrata,
         ]);
         return $stmt->rowCount();
+    }
+
+    /** Aggiorna la descrizione estesa (testo lungo locale) della tipologia. */
+    public function updateDescrizioneEstesa(string $idDominio, string $idEntrata, ?string $descrizioneEstesa): void
+    {
+        $sql = 'UPDATE entrate_tipologie SET descrizione_estesa = :descrizione, updated_at = :now WHERE id_dominio = :dom AND id_entrata = :ent';
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([
+            ':descrizione' => ($descrizioneEstesa === null || trim($descrizioneEstesa) === '') ? null : $descrizioneEstesa,
+            ':now' => date('Y-m-d H:i:s'),
+            ':dom' => $idDominio,
+            ':ent' => $idEntrata,
+        ]);
+    }
+
+    /** Rimuove la descrizione estesa (set NULL). */
+    public function clearDescrizioneEstesa(string $idDominio, string $idEntrata): int
+    {
+        $sql = 'UPDATE entrate_tipologie SET descrizione_estesa = NULL, updated_at = :now WHERE id_dominio = :dom AND id_entrata = :ent';
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([
+            ':now' => date('Y-m-d H:i:s'),
+            ':dom' => $idDominio,
+            ':ent' => $idEntrata,
+        ]);
+        return $stmt->rowCount();
+    }
+
+    /**
+     * Popola descrizione_estesa solo dove è vuota (NULL o stringa vuota).
+     * @param array<string,string> $descrizioniByIdEntrata mappa id_entrata => descrizione_estesa
+     * @return int numero righe aggiornate
+     */
+    public function bulkFillDescrizioneEstesaIfEmpty(string $idDominio, array $descrizioniByIdEntrata): int
+    {
+        if (empty($descrizioniByIdEntrata)) {
+            return 0;
+        }
+
+        $sql = 'UPDATE entrate_tipologie
+                SET descrizione_estesa = :descrizione, updated_at = :now
+                WHERE id_dominio = :dom AND id_entrata = :ent
+                  AND (descrizione_estesa IS NULL OR descrizione_estesa = "")';
+        $stmt = $this->pdo->prepare($sql);
+        $now = date('Y-m-d H:i:s');
+        $updated = 0;
+
+        foreach ($descrizioniByIdEntrata as $idEntrata => $descrizione) {
+            $idEntrata = (string)$idEntrata;
+            $descrizione = trim((string)$descrizione);
+            if ($idEntrata === '' || $descrizione === '') {
+                continue;
+            }
+            $stmt->execute([
+                ':descrizione' => $descrizione,
+                ':now' => $now,
+                ':dom' => $idDominio,
+                ':ent' => $idEntrata,
+            ]);
+            $updated += $stmt->rowCount();
+        }
+
+        return $updated;
     }
 
 }
