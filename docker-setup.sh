@@ -321,14 +321,20 @@ prompt             = no
 distinguished_name = dn
 req_extensions     = v3_req
 
+# Definizione OID custom/alias (massima compatibilità tra versioni OpenSSL)
+oid_section        = new_oids
+
+[ new_oids ]
+organizationIdentifier = 2.5.4.97
+uri = 2.5.4.83
+
 [ dn ]
 C  = ${SPID_CERT_C}
 L  = ${SPID_CERT_L}
 O  = ${SPID_CERT_O}
 CN = ${SPID_CERT_CN}
-# Usiamo gli OID numerici per massima compatibilità tra versioni di OpenSSL.
-2.5.4.97 = ${SPID_CERT_ORG_ID}
-2.5.4.83 = ${SPID_CERT_URI}
+organizationIdentifier = ${SPID_CERT_ORG_ID}
+uri = ${SPID_CERT_URI}
 
 [ v3_req ]
 basicConstraints = CA:FALSE

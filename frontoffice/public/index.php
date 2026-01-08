@@ -268,6 +268,20 @@ if (!function_exists('frontoffice_spid_metadata_certificate_b64')) {
     }
 }
 
+if (!function_exists('frontoffice_spid_metadata_certificate_candidates')) {
+    function frontoffice_spid_metadata_certificate_candidates(): array
+    {
+        $root = frontoffice_spid_cie_root();
+        if ($root === '') {
+            return [];
+        }
+        return [
+            rtrim($root, '/\\') . '/vendor/simplesamlphp/simplesamlphp/cert/spid.crt',
+            rtrim($root, '/\\') . '/cert/spid.crt',
+        ];
+    }
+}
+
 $env = static function (string $key, ?string $default = null): string {
     return frontoffice_env_value($key, $default);
 };
@@ -1284,7 +1298,17 @@ $routes = [
         if ($certB64 === null) {
             http_response_code(500);
             header('Content-Type: text/plain; charset=UTF-8');
-            echo "SPID metadata certificate not available";
+            $root = frontoffice_spid_cie_root();
+            $candidates = frontoffice_spid_metadata_certificate_candidates();
+            echo "SPID metadata certificate not available\n";
+            echo "SPID_CIE_ROOT: " . ($root !== '' ? $root : '(empty)') . "\n";
+            if ($candidates !== []) {
+                echo "Checked paths:\n";
+                foreach ($candidates as $path) {
+                    echo "- " . $path . (is_file($path) ? " (exists)" : " (missing)") . "\n";
+                }
+            }
+            echo "\nFix: ensure SPID/CIE runtime setup ran (spid-cie-php installed + SimpleSAMLphp cert generated).\n";
             exit;
         }
 
