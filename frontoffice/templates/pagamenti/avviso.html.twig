@@ -58,7 +58,7 @@
           </nav>
           <p class="text-uppercase small mb-2 text-white-50">Pagamenti PagoPA</p>
           <h1 class="display-6 fw-semibold mb-3">Inserisci il codice avviso PagoPA e paga in sicurezza</h1>
-          <p class="mb-0 lead text-white-75">Servono il codice avviso (IUV) riportato sul documento ricevuto e il codice fiscale del soggetto debitore. Il sistema verifichera' lo stato e ti portera' sul portale PagoPA.</p>
+          <p class="mb-0 lead text-white-75">Servono il codice avviso (IUV) riportato sul documento ricevuto e il codice fiscale o la partita IVA del soggetto debitore. Il sistema verifichera' lo stato e ti portera' sul portale PagoPA.</p>
         </div>
       </div>
     </div>
@@ -92,11 +92,21 @@
                   <div class="form-text">Lo trovi sul bollettino o sulla comunicazione inviata dall'ente.</div>
                 </div>
                 <div class="col-12">
-                  <label for="codiceFiscale" class="form-label">Codice fiscale del soggetto pagatore *</label>
-                  <input type="text" class="form-control" id="codiceFiscale" name="codiceFiscale" value="{{ old.codiceFiscale|default('') }}" maxlength="16" required placeholder="RSSMRA00A01H501Z">
-                  <div class="form-text">Inserisci il codice fiscale di chi deve pagare l'avviso (persona fisica o intestatario impresa).</div>
+                  <label for="codiceFiscale" class="form-label">Codice fiscale / Partita IVA del soggetto pagatore *</label>
+                  <input type="text" class="form-control" id="codiceFiscale" name="codiceFiscale" value="{{ old.codiceFiscale|default('') }}" maxlength="16" required placeholder="RSSMRA00A01H501Z oppure 01234567890">
+                  <div class="form-text">Inserisci il codice fiscale (16 caratteri) oppure la partita IVA (11 cifre) del soggetto pagatore.</div>
                 </div>
               </div>
+
+              <script>
+                (function(){
+                  const cf = document.getElementById('codiceFiscale');
+                  if(!cf) return;
+                  const up = function(){ cf.value = (cf.value || '').toUpperCase(); };
+                  cf.addEventListener('input', up);
+                  cf.addEventListener('blur', up);
+                })();
+              </script>
 
               <div class="alert alert-info mt-4" role="note">
                 <p class="mb-1 fw-semibold">Cosa succede dopo</p>
@@ -117,7 +127,7 @@
         <div class="col-lg-4">
           <div class="summary-card p-4 mb-4">
             <div class="icon-wrapper">
-              <svg class="icon"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-bill"></use></svg>
+              <svg class="icon"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-card"></use></svg>
             </div>
             <h3 class="fw-semibold">Hai perso l'avviso?</h3>
             <p class="text-muted mb-2">Puoi richiederne una copia scrivendo agli uffici oppure generare un nuovo pagamento spontaneo.</p>

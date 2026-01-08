@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 use App\Database\EntrateRepository;
+use App\Database\ExternalPaymentTypeRepository;
 use App\Logger;
 use App\Services\ValidationService;
 use GovPay\Pagamenti\Api\PendenzeApi as PagamentiPendenzeApi;
@@ -32,6 +33,8 @@ if (!function_exists('frontoffice_load_service_options')) {
     function frontoffice_load_service_options(): array
     {
         $options = [];
+        $internalOptions = [];
+        $externalOptions = [];
         $idDominio = frontoffice_env_value('ID_DOMINIO', '');
         if ($idDominio !== '') {
             try {
@@ -50,16 +53,18 @@ if (!function_exists('frontoffice_load_service_options')) {
                         $label = $id;
                     }
                     $externalUrl = trim((string)($row['external_url'] ?? '')) ?: null;
-                    $options[] = [
+                    $descrizioneEstesa = trim((string)($row['descrizione_estesa'] ?? ''));
+                    $internalOptions[] = [
                         'id' => $id,
                         'label' => $label,
                         'type' => $externalUrl ? 'external' : 'internal',
                         'external_url' => $externalUrl,
+                        'descrizione_estesa' => $descrizioneEstesa !== '' ? $descrizioneEstesa : null,
                     ];
                 }
-                if ($options !== []) {
-                    $internalCount = count(array_filter($options, static fn ($opt) => ($opt['type'] ?? 'internal') === 'internal'));
-                    $externalCount = count($options) - $internalCount;
+                if ($internalOptions !== []) {
+                    $internalCount = count(array_filter($internalOptions, static fn ($opt) => ($opt['type'] ?? 'internal') === 'internal'));
+                    $externalCount = count($internalOptions) - $internalCount;
                     Logger::getInstance()->info('Tipologie frontoffice caricate dal DB', [
                         'idDominio' => $idDominio,
                         'internal' => $internalCount,
@@ -71,15 +76,50 @@ if (!function_exists('frontoffice_load_service_options')) {
             }
         }
 
+        // Tipologie di pagamento esterne (catalogo locale) - sempre indipendenti dal dominio
+        try {
+            $repoExternal = new ExternalPaymentTypeRepository();
+            $rows = $repoExternal->listAll();
+            foreach ($rows as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+                $id = (string)($row['id'] ?? '');
+                if ($id === '') {
+                    continue;
+                }
+                $label = trim((string)($row['descrizione'] ?? ''));
+                if ($label === '') {
+                    $label = 'Servizio esterno ' . $id;
+                }
+                $url = trim((string)($row['url'] ?? ''));
+                if ($url === '') {
+                    continue;
+                }
+                $descrizioneEstesa = trim((string)($row['descrizione_estesa'] ?? ''));
+                $externalOptions[] = [
+                    'id' => 'EXT:' . $id,
+                    'label' => $label,
+                    'type' => 'external',
+                    'external_url' => $url,
+                    'descrizione_estesa' => $descrizioneEstesa !== '' ? $descrizioneEstesa : null,
+                ];
+            }
+        } catch (\Throwable $e) {
+            Logger::getInstance()->warning('Impossibile caricare le tipologie esterne per il frontoffice', ['error' => $e->getMessage()]);
+        }
+
+        $options = array_merge($internalOptions, $externalOptions);
+
         if ($options === []) {
             Logger::getInstance()->warning('Tipologie frontoffice assenti dal DB: uso fallback statico', ['idDominio' => $idDominio]);
             $options = [
-                ['id' => 'SERV_MENSA', 'label' => 'Mensa e servizi scolastici', 'type' => 'internal', 'external_url' => null],
-                ['id' => 'SERV_NIDI', 'label' => "Nidi d'infanzia / rette asilo", 'type' => 'internal', 'external_url' => null],
-                ['id' => 'SERV_OCCUPAZIONE_SUOLO', 'label' => 'Occupazione suolo pubblico', 'type' => 'internal', 'external_url' => null],
-                ['id' => 'SERV_SANZIONI', 'label' => 'Sanzioni e contravvenzioni', 'type' => 'internal', 'external_url' => null],
-                ['id' => 'SERV_DIRITTI_SEGRETERIA', 'label' => 'Diritti di segreteria e certificati', 'type' => 'internal', 'external_url' => null],
-                ['id' => 'SERV_ALTRO', 'label' => 'Altro pagamento spontaneo', 'type' => 'internal', 'external_url' => null],
+                ['id' => 'SERV_MENSA', 'label' => 'Mensa e servizi scolastici', 'type' => 'internal', 'external_url' => null, 'descrizione_estesa' => null],
+                ['id' => 'SERV_NIDI', 'label' => "Nidi d'infanzia / rette asilo", 'type' => 'internal', 'external_url' => null, 'descrizione_estesa' => null],
+                ['id' => 'SERV_OCCUPAZIONE_SUOLO', 'label' => 'Occupazione suolo pubblico', 'type' => 'internal', 'external_url' => null, 'descrizione_estesa' => null],
+                ['id' => 'SERV_SANZIONI', 'label' => 'Sanzioni e contravvenzioni', 'type' => 'internal', 'external_url' => null, 'descrizione_estesa' => null],
+                ['id' => 'SERV_DIRITTI_SEGRETERIA', 'label' => 'Diritti di segreteria e certificati', 'type' => 'internal', 'external_url' => null, 'descrizione_estesa' => null],
+                ['id' => 'SERV_ALTRO', 'label' => 'Altro pagamento spontaneo', 'type' => 'internal', 'external_url' => null, 'descrizione_estesa' => null],
             ];
         }
 
@@ -237,9 +277,18 @@ if (!function_exists('frontoffice_prepare_payer')) {
         if (!in_array($type, ['F', 'G'], true)) {
             $type = 'F';
         }
+
+        $upper = static function (string $value): string {
+            $value = trim($value);
+            if ($value === '') {
+                return '';
+            }
+            return function_exists('mb_strtoupper') ? mb_strtoupper($value, 'UTF-8') : strtoupper($value);
+        };
+
         $ident = strtoupper(preg_replace('/\s+/', '', (string)($raw['identificativo'] ?? '')));
-        $surname = trim((string)($raw['anagrafica'] ?? ''));
-        $name = trim((string)($raw['nome'] ?? ''));
+        $surname = $upper((string)($raw['anagrafica'] ?? ''));
+        $name = $upper((string)($raw['nome'] ?? ''));
         $anagrafica = $type === 'G' ? $surname : trim(($name !== '' ? $name . ' ' : '') . $surname);
         if ($anagrafica === '') {
             $anagrafica = $surname;
@@ -452,7 +501,7 @@ if (!function_exists('frontoffice_lookup_pagopa_avviso')) {
         Logger::getInstance()->info('Ricerca avviso PagoPA avviata', [
             'idDominio' => $idDominio,
             'numeroAvviso' => $numeroAvviso,
-            'codiceFiscale' => $codiceFiscale,
+            'identificativoPagatore' => $codiceFiscale,
         ]);
 
         $normalizedAvviso = frontoffice_normalize_avviso_code($numeroAvviso);
@@ -517,14 +566,14 @@ if (!function_exists('frontoffice_lookup_pagopa_avviso')) {
 
         $payerId = strtoupper((string)($pendenza['soggettoPagatore']['identificativo'] ?? ''));
         if ($payerId !== '' && $payerId !== strtoupper($codiceFiscale)) {
-            Logger::getInstance()->warning('Codice fiscale pagatore non coincide con l\'input', [
+            Logger::getInstance()->warning('Identificativo pagatore non coincide con l\'input', [
                 'pagatore' => $payerId,
-                'codiceFiscaleInput' => $codiceFiscale,
+                'identificativoInput' => $codiceFiscale,
                 'numeroAvviso' => $numeroAvviso,
             ]);
             return [
                 'success' => false,
-                'errors' => ['Il codice fiscale indicato non coincide con il soggetto pagatore dell\'avviso.'],
+                'errors' => ['Il codice fiscale o la partita IVA indicata non coincide con il soggetto pagatore dell\'avviso.'],
             ];
         }
 
@@ -558,10 +607,17 @@ if (!function_exists('frontoffice_process_avviso_form')) {
     function frontoffice_process_avviso_form(array $data): array
     {
         $codiceAvviso = frontoffice_normalize_avviso_code((string)($data['codiceAvviso'] ?? ''));
-        $codiceFiscale = strtoupper(trim((string)($data['codiceFiscale'] ?? '')));
+        $rawIdentificativo = (string)($data['codiceFiscale'] ?? '');
+        $identificativo = strtoupper(preg_replace('/\s+/', '', trim($rawIdentificativo)));
+        $identificativoDigits = preg_replace('/\D+/', '', $identificativo);
+
+        $lookupIdentificativo = $identificativo;
+        if ($identificativoDigits !== '' && strlen($identificativoDigits) === 11) {
+            $lookupIdentificativo = $identificativoDigits;
+        }
         $formData = [
             'codiceAvviso' => $codiceAvviso,
-            'codiceFiscale' => $codiceFiscale,
+            'codiceFiscale' => $lookupIdentificativo,
         ];
 
         $errors = [];
@@ -569,17 +625,20 @@ if (!function_exists('frontoffice_process_avviso_form')) {
             $errors[] = 'Inserisci un codice avviso valido (almeno 13 caratteri alfanumerici).';
         }
 
-        if ($codiceFiscale === '') {
-            $errors[] = 'Il codice fiscale del pagatore è obbligatorio.';
-        } else {
-            $validation = ValidationService::validateCodiceFiscale($codiceFiscale, '', '');
-            if (
-                !$validation['format_ok']
-                || !$validation['check_ok']
-                || !$validation['valid']
-            ) {
+        if ($identificativo === '') {
+            $errors[] = 'Il codice fiscale o la partita IVA del pagatore è obbligatorio.';
+        } elseif (preg_match('/^[A-Z0-9]{16}$/', $identificativo) === 1) {
+            $validation = ValidationService::validateCodiceFiscale($identificativo, '', '');
+            if (!$validation['format_ok'] || !$validation['check_ok'] || !$validation['valid']) {
                 $errors[] = $validation['message'] ?? 'Codice fiscale non valido.';
             }
+        } elseif ($identificativoDigits !== '' && strlen($identificativoDigits) === 11) {
+            $validation = ValidationService::validatePartitaIva($identificativoDigits);
+            if (!$validation['valid']) {
+                $errors[] = $validation['message'] ?? 'Partita IVA non valida.';
+            }
+        } else {
+            $errors[] = 'Inserisci un codice fiscale (16 caratteri) o una partita IVA (11 cifre) valida.';
         }
 
         if ($errors) {
@@ -590,7 +649,7 @@ if (!function_exists('frontoffice_process_avviso_form')) {
             ];
         }
 
-        $lookup = frontoffice_lookup_pagopa_avviso($codiceAvviso, $codiceFiscale);
+        $lookup = frontoffice_lookup_pagopa_avviso($codiceAvviso, $lookupIdentificativo);
         $lookup['form_data'] = $formData;
         return $lookup;
     }
@@ -689,6 +748,9 @@ if (!function_exists('frontoffice_process_spontaneous_request')) {
             return $context;
         }
 
+        // Scadenza automatica: oggi + 15 giorni (trasparente per l'utente)
+        $dataScadenza = (new \DateTimeImmutable('today'))->modify('+15 days')->format('Y-m-d');
+
         $payload = [
             'idTipoPendenza' => $idTipo,
             'idDominio' => $idDominio,
@@ -698,6 +760,7 @@ if (!function_exists('frontoffice_process_spontaneous_request')) {
             'soggettoPagatore' => frontoffice_prepare_payer($payerRaw),
             'voci' => frontoffice_build_voci($idDominio, $idTipo, $causale, $importo),
             'dataValidita' => date('Y-m-d'),
+            'dataScadenza' => $dataScadenza,
         ];
 
         $note = trim((string)($data['noteRichiedente'] ?? ''));
@@ -729,7 +792,7 @@ if (!function_exists('frontoffice_process_spontaneous_request')) {
             'importo' => $importo,
             'causale' => $causale,
             'download_url' => $downloadUrl,
-            'data_scadenza' => $detail['dataScadenza'] ?? null,
+            'data_scadenza' => $detail['dataScadenza'] ?? $dataScadenza,
             'soggetto_pagatore' => $payload['soggettoPagatore'],
         ];
 
@@ -875,8 +938,10 @@ $routes = [
             return [
                 'template' => 'pagamenti/spontaneo-list.html.twig',
                 'context' => [
-                    'internal_services' => $serviceInternalOptions,
-                    'external_services' => $serviceExternalOptions,
+                    // Lista unica ordinata alfabeticamente (frontoffice_load_service_options() ritorna gia' A->Z)
+                    // Manteniamo la caratterizzazione grafica tramite service.type (internal/external)
+                    'internal_services' => $serviceCatalog,
+                    'external_services' => [],
                     'selection_error' => $selectionError ?? ($selectedId !== '' ? 'La tipologia selezionata non è disponibile.' : null),
                 ],
             ];

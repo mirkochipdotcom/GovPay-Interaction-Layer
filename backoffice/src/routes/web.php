@@ -214,6 +214,12 @@ return function (App $app, Twig $twig): void {
         return $controller->deleteExternalPaymentType($request, $response, $args);
     });
 
+    // Tipologie di pagamento esterne - aggiorna
+    $app->post('/configurazione/tipologie-esterne/{id}/update', function($request, $response, $args) use ($twig) {
+        $controller = new ConfigurazioneController($twig);
+        return $controller->updateExternalPaymentType($request, $response, $args);
+    });
+
     // Endpoint per override locale tipologie (solo superadmin)
     $app->post('/configurazione/tipologie/{idEntrata}/override', function($request, $response, $args) use ($twig) {
         $controller = new ConfigurazioneController($twig);
@@ -236,6 +242,24 @@ return function (App $app, Twig $twig): void {
     $app->post('/configurazione/tipologie/{idEntrata}/descrizione/restore', function($request, $response, $args) use ($twig) {
         $controller = new ConfigurazioneController($twig);
         return $controller->restoreTipologiaDescrizione($request, $response, $args);
+    });
+
+    // Endpoint per aggiornare la descrizione estesa (locale) della tipologia (solo superadmin)
+    $app->post('/configurazione/tipologie/{idEntrata}/descrizione-estesa', function($request, $response, $args) use ($twig) {
+        $controller = new ConfigurazioneController($twig);
+        return $controller->updateTipologiaDescrizioneEstesa($request, $response, $args);
+    });
+
+    // Ripristina/cancella la descrizione estesa (set NULL)
+    $app->post('/configurazione/tipologie/{idEntrata}/descrizione-estesa/restore', function($request, $response, $args) use ($twig) {
+        $controller = new ConfigurazioneController($twig);
+        return $controller->restoreTipologiaDescrizioneEstesa($request, $response, $args);
+    });
+
+    // Copia descrizioni estese vuote dalla tassonomia PagoPA (DESCRIZIONE TIPO SERVIZIO)
+    $app->post('/configurazione/tipologie/descrizione-estesa/copia-da-tassonomia', function($request, $response) use ($twig) {
+        $controller = new ConfigurazioneController($twig);
+        return $controller->copyTipologieDescrizioneEstesaFromTassonomie($request, $response);
     });
 
     // Endpoint per attivare/disattivare la tipologia direttamente su GovPay (solo superadmin)

@@ -21,9 +21,6 @@
   - Miglioramento e ampliamento del log
   - Gestire le modifiche alla configurazione
 
-- [ ] Statistiche
-  - Creare una vista per l'api statistica
-
 - [ ] Utenti
   - Gestione più raffinata dei permessi
   - Abilitare solo alcune tipologie per ogni utente
