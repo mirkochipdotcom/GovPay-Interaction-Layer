@@ -89,7 +89,9 @@ if [ -z "${SKIP_SELF_SIGNED:-}" ] && ( [ ! -f /ssl/server.crt ] || [ ! -f /ssl/s
   if [ -n "$OPENSSL_BIN" ]; then
     if ! $OPENSSL_BIN req -x509 -nodes -days 365 -newkey rsa:2048 \
       -keyout /ssl/server.key -out /ssl/server.crt \
-      -subj "/CN=localhost" >/dev/null 2>&1; then
+      -subj "/CN=localhost" \
+      -addext "basicConstraints=CA:FALSE" \
+      -addext "subjectAltName=DNS:localhost" >/dev/null 2>&1; then
         echo "❌ Errore: generazione certificati fallita" >&2
     fi
   else
@@ -153,8 +155,323 @@ if [ "$APP_SUITE" = "frontoffice" ]; then
     rm -rf "$TARGET_PUBLIC"/debug
     chown -R www-app:www-data "$TARGET_PUBLIC" || true
     echo "✅ Frontoffice pubblicato in $TARGET_PUBLIC (debug disattivata)"
+
+    # Log applicativo frontoffice (usato da App\Logger)
+    # Deve essere scrivibile dall'utente del web server (di solito www-data).
+    FRONT_STORAGE_DIR="/var/www/html/frontoffice/storage"
+    FRONT_LOG_DIR="${FRONT_STORAGE_DIR}/logs"
+    mkdir -p "$FRONT_LOG_DIR" 2>/dev/null || true
+    chown -R www-data:www-data "$FRONT_STORAGE_DIR" 2>/dev/null || true
+    chown -R www-app:www-data "$FRONT_STORAGE_DIR" 2>/dev/null || true
+    chmod 775 "$FRONT_STORAGE_DIR" 2>/dev/null || true
+    chmod 777 "$FRONT_LOG_DIR" 2>/dev/null || true
   else
     echo "⚠️  Sorgente frontoffice $SOURCE_PUBLIC non trovata" >&2
+  fi
+
+  # === SPID/CIE (spid-cie-php) opzionale ===
+  # Abilitazione: FRONT_OFFICE_AUTH_PROVIDER=spid_cie
+  AUTH_PROVIDER="${FRONTOFFICE_AUTH_PROVIDER:-${FRONT_OFFICE_AUTH_PROVIDER:-}}"
+  AUTH_PROVIDER_LOWER="$(echo "${AUTH_PROVIDER}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+  if [ "$AUTH_PROVIDER_LOWER" = "spid_cie" ]; then
+    SPID_ROOT="${SPID_CIE_ROOT:-/var/www/spid-cie-php}"
+    SPID_VERSION="${SPID_CIE_VERSION:-master}"
+    SPID_SDK="${SPID_ROOT}/spid-php.php"
+    SPID_VENDOR_AUTOLOAD="${SPID_ROOT}/vendor/autoload.php"
+
+    if [ ! -f "${SPID_ROOT}/composer.json" ]; then
+      echo "⚙️  SPID/CIE abilitato: installo sorgente spid-cie-php (${SPID_VERSION}) in ${SPID_ROOT}..."
+      mkdir -p "$SPID_ROOT" || true
+      # Scarico sorgente (no git) + installo dipendenze senza scripts (evita setup interattivo)
+      if command -v curl >/dev/null 2>&1; then
+        DOWNLOAD_URL=""
+        if [ "$SPID_VERSION" = "master" ] || [ "$SPID_VERSION" = "main" ]; then
+          DOWNLOAD_URL="https://github.com/italia/spid-cie-php/archive/refs/heads/${SPID_VERSION}.tar.gz"
+        else
+          DOWNLOAD_URL="https://github.com/italia/spid-cie-php/archive/refs/tags/${SPID_VERSION}.tar.gz"
+        fi
+
+        if ! curl -fsSL -L -o /tmp/spid-cie-php.tgz "$DOWNLOAD_URL"; then
+          echo "⚠️  Download spid-cie-php fallito da ${DOWNLOAD_URL}. Provo fallback su master..." >&2
+          DOWNLOAD_URL="https://github.com/italia/spid-cie-php/archive/refs/heads/master.tar.gz"
+        fi
+
+        if curl -fsSL -L -o /tmp/spid-cie-php.tgz "$DOWNLOAD_URL"; then
+          if tar -xzf /tmp/spid-cie-php.tgz -C "$SPID_ROOT" --strip-components=1; then
+            rm -f /tmp/spid-cie-php.tgz || true
+            if [ -z "$COMPOSER_BIN" ]; then
+              echo "⚠️  Composer non disponibile: impossibile installare dipendenze spid-cie-php." >&2
+            fi
+          else
+            echo "⚠️  Estrazione spid-cie-php fallita." >&2
+          fi
+        else
+          echo "⚠️  Download spid-cie-php fallito (GitHub non raggiungibile dal container)." >&2
+        fi
+      else
+        echo "⚠️  curl non disponibile: impossibile installare spid-cie-php." >&2
+      fi
+    fi
+
+    # Installa dipendenze se manca l'autoload (può essere impostato COMPOSER_VENDOR_DIR globale nel container)
+    if [ ! -f "$SPID_VENDOR_AUTOLOAD" ] && [ -n "$COMPOSER_BIN" ] && [ -f "${SPID_ROOT}/composer.json" ]; then
+      echo "⚙️  Installo dipendenze spid-cie-php (vendor isolato)..."
+      (cd "$SPID_ROOT" && COMPOSER_VENDOR_DIR="$SPID_ROOT/vendor" $COMPOSER_BIN install --no-dev --prefer-dist --optimize-autoloader --no-interaction --no-scripts --no-security-blocking) \
+        || echo "⚠️  Composer install spid-cie-php fallito: verifica connessone/repo e riprova." >&2
+    fi
+
+    # Config minima SimpleSAMLphp (evita errori di configurazione e abilita metadata)
+    SSP_ROOT="$SPID_ROOT/vendor/simplesamlphp/simplesamlphp"
+    if [ -d "$SSP_ROOT" ]; then
+      SSP_CONFIG_DIR="$SSP_ROOT/config"
+      SSP_METADATA_DIR="$SSP_ROOT/metadata"
+      SSP_CERT_DIR="$SSP_ROOT/cert"
+      # Log in /tmp per evitare permessi su vendor/ (Apache non sempre può scrivere lì)
+      SSP_LOG_DIR="/tmp/simplesamlphp-log"
+      SSP_DATA_DIR="$SSP_ROOT/data"
+      SSP_TEMP_DIR="$SSP_ROOT/temp"
+      mkdir -p "$SSP_CONFIG_DIR" "$SSP_METADATA_DIR" "$SSP_CERT_DIR" "$SSP_LOG_DIR" "$SSP_DATA_DIR" "$SSP_TEMP_DIR" || true
+      # Permessi: SimpleSAML (eseguito via Apache) deve poter scrivere in log/data/temp.
+      # In alcune immagini l'utente può essere www-data; mantenere un fallback non bloccante.
+      chown -R www-data:www-data "$SSP_LOG_DIR" "$SSP_DATA_DIR" "$SSP_TEMP_DIR" 2>/dev/null || true
+      chown -R www-app:www-data "$SSP_LOG_DIR" "$SSP_DATA_DIR" "$SSP_TEMP_DIR" 2>/dev/null || true
+      chmod 777 "$SSP_LOG_DIR" 2>/dev/null || true
+
+      # Parametri base (override via env se serve)
+      SSP_BASEURLPATH="${SPID_CIE_BASEURLPATH:-spid-cie/}"
+      SSP_ADMIN_PWD="${SPID_CIE_ADMIN_PASSWORD:-admin}"
+      SSP_SECRETSALT="${SPID_CIE_SECRETSALT:-}"
+      SSP_SESSION_COOKIE_NAME="${SPID_CIE_SESSION_COOKIE_NAME:-SPIDCIESESSID}"
+
+      # Per usare il DEMO IdP serve che lo SP sia registrato e che entityID/ACS/SLO
+      # siano raggiungibili pubblicamente. Imposta SPID_CIE_PUBLIC_BASE_URL (es. https://<tunnel-host>).
+      SSP_PUBLIC_BASE_URL="${SPID_CIE_PUBLIC_BASE_URL:-}"
+      if [ -n "$SSP_PUBLIC_BASE_URL" ]; then
+        SSP_PUBLIC_BASE_URL="${SSP_PUBLIC_BASE_URL%/}"
+        SSP_ENTITY_ID_DEFAULT="${SSP_PUBLIC_BASE_URL}/spid-cie/module.php/saml/sp/metadata.php/spid"
+        SSP_ACS_CUSTOM_LOCATION_DEFAULT="${SSP_PUBLIC_BASE_URL}/spid-cie/module.php/saml/sp/saml2-acs.php/spid"
+        SSP_SLO_CUSTOM_LOCATION_DEFAULT="${SSP_PUBLIC_BASE_URL}/spid-cie/module.php/saml/sp/saml2-logout.php/spid"
+      else
+        SSP_ENTITY_ID_DEFAULT="https://localhost:8444/spid-cie/module.php/saml/sp/metadata.php/spid"
+        SSP_ACS_CUSTOM_LOCATION_DEFAULT="https://localhost:8444/spid-cie/module.php/saml/sp/saml2-acs.php/spid"
+        SSP_SLO_CUSTOM_LOCATION_DEFAULT="https://localhost:8444/spid-cie/module.php/saml/sp/saml2-logout.php/spid"
+      fi
+
+      SSP_ENTITY_ID="${SPID_CIE_SPID_ENTITY_ID:-$SSP_ENTITY_ID_DEFAULT}"
+      SSP_ACS_CUSTOM_LOCATION="${SPID_CIE_ACS_CUSTOM_LOCATION:-$SSP_ACS_CUSTOM_LOCATION_DEFAULT}"
+      SSP_SLO_CUSTOM_LOCATION="${SPID_CIE_SLO_CUSTOM_LOCATION:-$SSP_SLO_CUSTOM_LOCATION_DEFAULT}"
+      if [ -z "$SSP_SECRETSALT" ] && command -v openssl >/dev/null 2>&1; then
+        SSP_SECRETSALT="$(openssl rand -hex 16 2>/dev/null || true)"
+      fi
+      if [ -z "$SSP_SECRETSALT" ]; then
+        SSP_SECRETSALT="changeme"
+      fi
+
+      # Certificati SP minimi
+      if [ ! -f "$SSP_CERT_DIR/spid.key" ] || [ ! -f "$SSP_CERT_DIR/spid.crt" ]; then
+        if command -v openssl >/dev/null 2>&1; then
+          openssl req -x509 -newkey rsa:2048 -sha256 -days 3650 -nodes \
+            -keyout "$SSP_CERT_DIR/spid.key" -out "$SSP_CERT_DIR/spid.crt" \
+            -subj "/CN=spid" >/dev/null 2>&1 || true
+        fi
+      fi
+      if [ ! -f "$SSP_CERT_DIR/cie.key" ] || [ ! -f "$SSP_CERT_DIR/cie.crt" ]; then
+        if command -v openssl >/dev/null 2>&1; then
+          openssl req -x509 -newkey rsa:2048 -sha256 -days 3650 -nodes \
+            -keyout "$SSP_CERT_DIR/cie.key" -out "$SSP_CERT_DIR/cie.crt" \
+            -subj "/CN=cie" >/dev/null 2>&1 || true
+        fi
+      fi
+
+      # Le chiavi generate da root finiscono tipicamente con permessi 600 e owner root.
+      # SimpleSAML gira come www-data e deve poter leggere i private key.
+      chown -R www-data:www-data "$SSP_CERT_DIR" 2>/dev/null || true
+      chmod 644 "$SSP_CERT_DIR"/*.crt 2>/dev/null || true
+      chmod 600 "$SSP_CERT_DIR"/*.key 2>/dev/null || true
+
+      # config.php (include anche acsCustomLocation/sloCustomLocation richiesti dal SAMLBuilder custom)
+      if [ ! -f "$SSP_CONFIG_DIR/config.php" ]; then
+        cat > "$SSP_CONFIG_DIR/config.php" <<PHP
+<?php
+
+\$config = [
+    'baseurlpath' => '${SSP_BASEURLPATH}',
+    'certdir' => 'cert/',
+    'logging.handler' => 'file',
+    'loggingdir' => '${SSP_LOG_DIR}/',
+    'datadir' => 'data/',
+    'tempdir' => 'temp/',
+    'secretsalt' => '${SSP_SECRETSALT}',
+    'auth.adminpassword' => '${SSP_ADMIN_PWD}',
+    'admin.protectindexpage' => false,
+    'language.default' => 'it',
+    'store.type' => 'phpsession',
+    'session.phpsession.cookiename' => '${SSP_SESSION_COOKIE_NAME}',
+    'acsCustomLocation' => '${SSP_ACS_CUSTOM_LOCATION}',
+    'sloCustomLocation' => '${SSP_SLO_CUSTOM_LOCATION}',
+];
+
+PHP
+      fi
+
+      # Se config.php esiste già (da una run precedente) ma manca le chiavi richieste, le inseriamo.
+      if [ -f "$SSP_CONFIG_DIR/config.php" ]; then
+        # Se è rimasta una loggingdir relativa, la spostiamo su /tmp (writable)
+        if grep -q "'loggingdir' => 'log/'" "$SSP_CONFIG_DIR/config.php"; then
+          sed -i "s#'loggingdir' => 'log/',#'loggingdir' => '${SSP_LOG_DIR}/',#" "$SSP_CONFIG_DIR/config.php" || true
+        fi
+        if ! grep -q "acsCustomLocation" "$SSP_CONFIG_DIR/config.php"; then
+          sed -i "/^\];/i\\    'acsCustomLocation' => '${SSP_ACS_CUSTOM_LOCATION}'," "$SSP_CONFIG_DIR/config.php" || true
+        fi
+        if ! grep -q "sloCustomLocation" "$SSP_CONFIG_DIR/config.php"; then
+          sed -i "/^\];/i\\    'sloCustomLocation' => '${SSP_SLO_CUSTOM_LOCATION}'," "$SSP_CONFIG_DIR/config.php" || true
+        fi
+        if ! grep -q "session\.phpsession\.cookiename" "$SSP_CONFIG_DIR/config.php"; then
+          sed -i "/^\];/i\\    'session.phpsession.cookiename' => '${SSP_SESSION_COOKIE_NAME}'," "$SSP_CONFIG_DIR/config.php" || true
+        fi
+
+        # Se esistono già, aggiorniamo i valori per mantenere coerenza con le env (es. URL pubblico via tunnel).
+        if grep -q "acsCustomLocation" "$SSP_CONFIG_DIR/config.php"; then
+          sed -i "s#'acsCustomLocation' => '[^']*',#'acsCustomLocation' => '${SSP_ACS_CUSTOM_LOCATION}',#" "$SSP_CONFIG_DIR/config.php" 2>/dev/null || true
+        fi
+        if grep -q "sloCustomLocation" "$SSP_CONFIG_DIR/config.php"; then
+          sed -i "s#'sloCustomLocation' => '[^']*',#'sloCustomLocation' => '${SSP_SLO_CUSTOM_LOCATION}',#" "$SSP_CONFIG_DIR/config.php" 2>/dev/null || true
+        fi
+        if grep -q "session\.phpsession\.cookiename" "$SSP_CONFIG_DIR/config.php"; then
+          sed -i "s#'session\.phpsession\.cookiename' => '[^']*',#'session.phpsession.cookiename' => '${SSP_SESSION_COOKIE_NAME}',#" "$SSP_CONFIG_DIR/config.php" 2>/dev/null || true
+        fi
+      fi
+
+      # authsources.php (necessario per metadata.php/spid e metadata.php/cie)
+      SPID_ENTITY_ID="${SPID_CIE_SPID_ENTITY_ID:-$SSP_ENTITY_ID}"
+      if [ -n "$SSP_PUBLIC_BASE_URL" ]; then
+        CIE_ENTITY_ID_DEFAULT="${SSP_PUBLIC_BASE_URL}/spid-cie/module.php/saml/sp/metadata.php/cie"
+      else
+        CIE_ENTITY_ID_DEFAULT="https://localhost:8444/spid-cie/module.php/saml/sp/metadata.php/cie"
+      fi
+      CIE_ENTITY_ID="${SPID_CIE_CIE_ENTITY_ID:-$CIE_ENTITY_ID_DEFAULT}"
+
+      AUTH_SOURCES_NEED_UPDATE=0
+      if [ ! -f "$SSP_CONFIG_DIR/authsources.php" ]; then
+        AUTH_SOURCES_NEED_UPDATE=1
+      else
+        if ! grep -q "'entityID' => '${SPID_ENTITY_ID}'" "$SSP_CONFIG_DIR/authsources.php" 2>/dev/null; then
+          AUTH_SOURCES_NEED_UPDATE=1
+        fi
+        if ! grep -q "'entityID' => '${CIE_ENTITY_ID}'" "$SSP_CONFIG_DIR/authsources.php" 2>/dev/null; then
+          AUTH_SOURCES_NEED_UPDATE=1
+        fi
+      fi
+
+      if [ "$AUTH_SOURCES_NEED_UPDATE" -eq 1 ]; then
+        cat > "$SSP_CONFIG_DIR/authsources.php" <<PHP
+<?php
+
+\$config = [
+    'admin' => [
+        'core:AdminPassword',
+    ],
+    'spid' => [
+        'saml:SP',
+        'entityID' => '${SPID_ENTITY_ID}',
+        'privatekey' => 'spid.key',
+        'certificate' => 'spid.crt',
+    ],
+    'cie' => [
+        'saml:SP',
+        'entityID' => '${CIE_ENTITY_ID}',
+        'privatekey' => 'cie.key',
+        'certificate' => 'cie.crt',
+    ],
+];
+
+PHP
+      fi
+    fi
+
+    # Popola metadata IdP (DEMO) + genera spid-php.php, senza setup interattivo
+    if [ -f "$SPID_VENDOR_AUTOLOAD" ] && [ -f "${SPID_ROOT}/setup/Setup.php" ]; then
+      IDP_METADATA_FILE="$SPID_ROOT/vendor/simplesamlphp/simplesamlphp/metadata/saml20-idp-remote.php"
+      SETUP_JSON="$SPID_ROOT/spid-php-setup.json"
+      ENTITY_MARKER="$SPID_ROOT/.spid_entityid"
+
+      NEED_METADATA_UPDATE=0
+      if [ ! -f "$SPID_SDK" ] || [ ! -f "$IDP_METADATA_FILE" ]; then
+        NEED_METADATA_UPDATE=1
+      fi
+      if [ -f "$ENTITY_MARKER" ]; then
+        CURRENT_ENTITY_ID="$(cat "$ENTITY_MARKER" 2>/dev/null || true)"
+        if [ "$CURRENT_ENTITY_ID" != "$SSP_ENTITY_ID" ]; then
+          NEED_METADATA_UPDATE=1
+        fi
+      else
+        NEED_METADATA_UPDATE=1
+      fi
+
+      # Manteniamo sempre aggiornato spid-php-setup.json: nel README è il file di riferimento per reinstall/aggiornamenti.
+      cat > "$SETUP_JSON" <<JSON
+{
+  "installDir": "${SPID_ROOT}",
+  "wwwDir": "/var/www/html/public",
+  "serviceName": "spid-cie",
+  "entityID": "${SSP_ENTITY_ID}",
+  "addSPID": true,
+  "addCIE": false,
+  "addDemoIDP": true,
+  "addDemoValidatorIDP": false,
+  "addValidatorIDP": false,
+  "addLocalTestIDP": "",
+  "addProxyExample": false
+}
+JSON
+
+      if [ "$NEED_METADATA_UPDATE" -eq 1 ]; then
+        echo "⚙️  Genero/aggiorno metadata IdP (DEMO) e SDK helper (spid-php.php)..."
+        echo "$SSP_ENTITY_ID" > "$ENTITY_MARKER" 2>/dev/null || true
+
+        (cd "$SPID_ROOT" && php -r "require 'vendor/autoload.php'; \\SPID_PHP\\Setup::updateMetadata();") \
+          || echo "⚠️  updateMetadata fallito (SPID registry/demo non raggiungibili?): riprova o controlla connettività." >&2
+      fi
+
+      # In alcune versioni dello script upstream, l'IdP DEMO viene scritto nei metadata ma non viene aggiunto
+      # alla lista IDP nello SDK (spid-php.php). Per la demo aggiungiamo una mappatura esplicita se manca.
+      if [ -f "$SPID_SDK" ] && [ -f "$IDP_METADATA_FILE" ]; then
+        if grep -q "\$metadata\['https://demo\.spid\.gov\.it'\]" "$IDP_METADATA_FILE" 2>/dev/null; then
+          if ! grep -q "\['DEMO'\]" "$SPID_SDK" 2>/dev/null; then
+            echo "⚙️  Aggiungo IdP DEMO allo SDK (spid-php.php)..."
+            sed -i "/\$this->service = \$service;/a\\
+			\$this->idps['DEMO'] = 'https://demo.spid.gov.it';" "$SPID_SDK" || true
+          fi
+        fi
+
+        # Evita warning/errore in runtime: lo SDK prova a creare spid-idps.json nella cwd.
+        # In produzione la cwd spesso non è scrivibile; usiamo /tmp (sempre scrivibile).
+        sed -i "s/file_put_contents('spid-idps.json',/file_put_contents(sys_get_temp_dir().'\/spid-idps.json',/g" "$SPID_SDK" 2>/dev/null || true
+        sed -i "s/file_get_contents('spid-idps.json')/file_get_contents(sys_get_temp_dir().'\/spid-idps.json')/g" "$SPID_SDK" 2>/dev/null || true
+
+        # Espone gli asset del bottone SPID/CIE sotto /spid-cie/ (alias Apache su www/ SimpleSAML).
+        # Senza questi symlink, CSS/JS/img tornano 404 e il bottone non funziona correttamente.
+        SSP_WWW_DIR="$SPID_ROOT/vendor/simplesamlphp/simplesamlphp/www"
+        if [ -d "$SSP_WWW_DIR" ]; then
+          # spid-sp-access-button: gli asset pubblici stanno sotto src/production/
+          if [ -d "$SPID_ROOT/vendor/italia/spid-sp-access-button/src/production" ]; then
+            rm -rf "$SSP_WWW_DIR/spid-sp-access-button" 2>/dev/null || true
+            ln -s "$SPID_ROOT/vendor/italia/spid-sp-access-button/src/production" "$SSP_WWW_DIR/spid-sp-access-button" 2>/dev/null || true
+          elif [ -d "$SPID_ROOT/vendor/italia/spid-sp-access-button" ]; then
+            rm -rf "$SSP_WWW_DIR/spid-sp-access-button" 2>/dev/null || true
+            ln -s "$SPID_ROOT/vendor/italia/spid-sp-access-button" "$SSP_WWW_DIR/spid-sp-access-button" 2>/dev/null || true
+          fi
+          if [ -d "$SPID_ROOT/vendor/italia/spid-smart-button" ]; then
+            rm -rf "$SSP_WWW_DIR/spid-smart-button" 2>/dev/null || true
+            ln -s "$SPID_ROOT/vendor/italia/spid-smart-button" "$SSP_WWW_DIR/spid-smart-button" 2>/dev/null || true
+          fi
+          if [ -d "$SPID_ROOT/vendor/italia/cie-graphics" ]; then
+            rm -rf "$SSP_WWW_DIR/cie-graphics" 2>/dev/null || true
+            ln -s "$SPID_ROOT/vendor/italia/cie-graphics" "$SSP_WWW_DIR/cie-graphics" 2>/dev/null || true
+          fi
+        fi
+      fi
+    fi
   fi
 fi
 

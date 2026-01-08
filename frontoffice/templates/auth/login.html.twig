@@ -1,0 +1,53 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Accesso – {{ app_entity.name }}{% endblock %}
+
+{% block head %}
+  {{ spid_button_css|default('')|raw }}
+{% endblock %}
+
+{% block content %}
+  <div class="container-xxl pt-4">
+    <div class="row justify-content-center">
+      <div class="col-12 col-md-10 col-lg-8">
+        <div class="card shadow-sm">
+          <div class="card-body p-4">
+            <h1 class="h4 mb-3">Accedi</h1>
+
+            {% if auth_error %}
+              <div class="alert alert-danger" role="alert">{{ auth_error }}</div>
+            {% endif %}
+
+            {% if spid_enabled or cie_enabled %}
+              <p class="text-muted mb-4">Puoi accedere utilizzando SPID o CIE.</p>
+
+              {% if spid_enabled %}
+                <div class="mb-4">
+                  {{ spid_button_html|default('')|raw }}
+                </div>
+              {% endif %}
+
+              {% if cie_enabled %}
+                <div class="mb-2">
+                  {{ cie_button_html|default('')|raw }}
+                </div>
+              {% endif %}
+
+              <p class="text-muted small mt-4 mb-0">
+                Selezionando un provider verrai reindirizzato al sistema di autenticazione.
+              </p>
+            {% else %}
+              <div class="alert alert-warning" role="alert">
+                Accesso SPID/CIE non configurato su questo ambiente.
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  {{ spid_button_js|default('')|raw }}
+{% endblock %}

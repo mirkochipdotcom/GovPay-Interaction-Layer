@@ -12,7 +12,202 @@ use GuzzleHttp\Exception\ClientException;
 use Twig\Environment;
 use Twig\Loader\FilesystemLoader;
 
-require dirname(__DIR__) . '/vendor/autoload.php';
+// Manteniamo un riferimento al ClassLoader Composer dell'app.
+// Serve perché l'autoloader di spid-cie-php viene registrato in modalità "prepend",
+// e può prendere precedenza su Twig dell'app causando 500 nelle pagine non SPID.
+$frontofficeAppAutoloader = require dirname(__DIR__) . '/vendor/autoload.php';
+
+if (!function_exists('frontoffice_capture_output')) {
+    function frontoffice_capture_output(callable $fn): string
+    {
+        ob_start();
+        try {
+            $fn();
+        } finally {
+            return (string) ob_get_clean();
+        }
+    }
+}
+
+if (!function_exists('frontoffice_session_start')) {
+    function frontoffice_session_start(): void
+    {
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            return;
+        }
+        // Non blocchiamo la request se headers già inviati: semplicemente niente sessione.
+        if (headers_sent()) {
+            return;
+        }
+        @session_start();
+    }
+}
+
+if (!function_exists('frontoffice_session_get_current_user')) {
+    function frontoffice_session_get_current_user(): ?array
+    {
+        frontoffice_session_start();
+        $value = $_SESSION['frontoffice_current_user'] ?? null;
+        return is_array($value) ? $value : null;
+    }
+}
+
+if (!function_exists('frontoffice_session_set_current_user')) {
+    function frontoffice_session_set_current_user(array $user): void
+    {
+        frontoffice_session_start();
+        $_SESSION['frontoffice_current_user'] = $user;
+    }
+}
+
+if (!function_exists('frontoffice_session_clear_current_user')) {
+    function frontoffice_session_clear_current_user(): void
+    {
+        frontoffice_session_start();
+        unset($_SESSION['frontoffice_current_user']);
+    }
+}
+
+if (!function_exists('frontoffice_safe_return_to')) {
+    function frontoffice_safe_return_to(?string $value, string $default = '/'): string
+    {
+        $value = (string)($value ?? '');
+        $value = trim($value);
+        if ($value === '') {
+            return $default;
+        }
+        // Evita open redirect: accetta solo path relativi assoluti ("/...")
+        if ($value[0] !== '/') {
+            return $default;
+        }
+        // Evita "//example.com" e path traversal bizzarri
+        if (str_starts_with($value, '//') || str_contains($value, '\\')) {
+            return $default;
+        }
+        return $value;
+    }
+}
+
+if (!function_exists('frontoffice_is_spid_cie_enabled')) {
+    function frontoffice_is_spid_cie_enabled(): bool
+    {
+        $provider = trim((string) frontoffice_env_value('FRONTOFFICE_AUTH_PROVIDER', ''));
+        if ($provider === '') {
+            $provider = trim((string) frontoffice_env_value('FRONT_OFFICE_AUTH_PROVIDER', ''));
+        }
+        $provider = strtolower($provider);
+        return $provider === 'spid_cie';
+    }
+}
+
+if (!function_exists('frontoffice_spid_cie_root')) {
+    function frontoffice_spid_cie_root(): string
+    {
+        $root = trim((string) frontoffice_env_value('SPID_CIE_ROOT', ''));
+        if ($root !== '') {
+            return $root;
+        }
+        // Default pensato per il container
+        if (is_dir('/var/www/spid-cie-php')) {
+            return '/var/www/spid-cie-php';
+        }
+        return '';
+    }
+}
+
+if (!function_exists('frontoffice_spid_cie_sdk')) {
+    function frontoffice_spid_cie_sdk(): ?object
+    {
+        if (!frontoffice_is_spid_cie_enabled()) {
+            return null;
+        }
+
+        $root = frontoffice_spid_cie_root();
+        if ($root === '') {
+            return null;
+        }
+        $bootstrap = rtrim($root, '/\\') . '/spid-php.php';
+        if (!is_file($bootstrap)) {
+            Logger::getInstance()->warning('SPID/CIE abilitato ma spid-php.php non trovato', ['path' => $bootstrap]);
+            return null;
+        }
+
+        try {
+            require_once $bootstrap;
+
+            // spid-cie-php (tramite SimpleSAML) registra il suo Composer autoloader in prepend.
+            // Ripristiniamo la precedenza dell'autoloader dell'app per evitare conflitti (es. Twig).
+            if (isset($GLOBALS['frontofficeAppAutoloader']) && $GLOBALS['frontofficeAppAutoloader'] instanceof \Composer\Autoload\ClassLoader) {
+                $GLOBALS['frontofficeAppAutoloader']->register(true);
+            }
+
+            if (!class_exists('SPID_PHP')) {
+                Logger::getInstance()->warning('SPID_PHP non disponibile dopo include spid-php.php');
+                return null;
+            }
+            return new \SPID_PHP();
+        } catch (\Throwable $e) {
+            Logger::getInstance()->warning('Errore inizializzazione SDK SPID/CIE', ['error' => $e->getMessage()]);
+            return null;
+        }
+    }
+}
+
+if (!function_exists('frontoffice_spid_cie_current_user')) {
+    function frontoffice_spid_cie_current_user(): ?array
+    {
+        $sdk = frontoffice_spid_cie_sdk();
+        if ($sdk === null || !method_exists($sdk, 'isAuthenticated')) {
+            return null;
+        }
+
+        try {
+            if (!$sdk->isAuthenticated()) {
+                return null;
+            }
+            $attributes = method_exists($sdk, 'getAttributes') ? (array) $sdk->getAttributes() : [];
+            $getFirst = static function (array $attrs, string $key): ?string {
+                $value = $attrs[$key] ?? null;
+                if (is_array($value) && isset($value[0])) {
+                    $value = $value[0];
+                }
+                $value = is_scalar($value) ? trim((string) $value) : '';
+                return $value !== '' ? $value : null;
+            };
+
+            $firstName = $getFirst($attributes, 'name') ?? $getFirst($attributes, 'nome');
+            $lastName = $getFirst($attributes, 'familyName') ?? $getFirst($attributes, 'cognome');
+            $email = $getFirst($attributes, 'email');
+
+            $fiscal = $getFirst($attributes, 'fiscalNumber') ?? $getFirst($attributes, 'codiceFiscale');
+            if ($fiscal !== null) {
+                $fiscal = strtoupper(trim($fiscal));
+                // Spesso arriva nel formato "TINIT-XXXXXXXXXXXXXXX"
+                if (str_starts_with($fiscal, 'TINIT-')) {
+                    $fiscal = substr($fiscal, 6);
+                }
+            }
+
+            $idp = null;
+            if (method_exists($sdk, 'getAttribute')) {
+                // Non sempre esiste un attributo IdP standard; lasciamo null se assente.
+                $idp = null;
+            }
+
+            return [
+                'first_name' => $firstName,
+                'last_name' => $lastName,
+                'email' => $email ?? ($fiscal ? strtolower($fiscal) . '@spid.local' : null),
+                'fiscal_number' => $fiscal,
+                'idp' => $idp,
+                'attributes' => $attributes,
+            ];
+        } catch (\Throwable $e) {
+            Logger::getInstance()->warning('Errore lettura utente SPID/CIE', ['error' => $e->getMessage()]);
+            return null;
+        }
+    }
+}
 
 if (!function_exists('frontoffice_env_value')) {
     function frontoffice_env_value(string $key, ?string $default = null): string
@@ -1020,6 +1215,195 @@ $routes = [
             ],
         ];
     },
+    '/login' => static function () use ($entityName, $appFavicon): array {
+        // NOTA: spid-cie-php/SimpleSAML porta la sua dipendenza twig/twig.
+        // Se renderizziamo questa pagina con Twig dell'app, si crea un conflitto (twig_cycle redeclare).
+        // Qui quindi gestiamo login e UI in modo "raw" e facciamo exit prima del bootstrap Twig.
+
+        $finalReturnTo = frontoffice_safe_return_to($_GET['returnTo'] ?? null, '/');
+        $callbackReturnTo = '/login?returnTo=' . rawurlencode($finalReturnTo);
+
+        // Se abbiamo già una sessione applicativa, non riavviamo SPID.
+        if (frontoffice_session_get_current_user() !== null) {
+            header('Location: ' . $finalReturnTo, true, 302);
+            exit;
+        }
+
+        $sdk = frontoffice_spid_cie_sdk();
+
+        $spidEnabled = false;
+        $cieEnabled = false;
+        if ($sdk !== null) {
+            $spidEnabled = method_exists($sdk, 'isSPIDEnabled') ? (bool) $sdk->isSPIDEnabled() : false;
+            $cieEnabled = method_exists($sdk, 'isCIEEnabled') ? (bool) $sdk->isCIEEnabled() : false;
+        }
+
+        // Se SimpleSAML ha già una sessione valida, mappiamo attributi -> sessione app.
+        if ($sdk !== null && method_exists($sdk, 'isAuthenticated') && $sdk->isAuthenticated()) {
+            try {
+                $attributes = method_exists($sdk, 'getAttributes') ? (array) $sdk->getAttributes() : [];
+                $getFirst = static function (array $attrs, string $key): ?string {
+                    $value = $attrs[$key] ?? null;
+                    if (is_array($value) && isset($value[0])) {
+                        $value = $value[0];
+                    }
+                    $value = is_scalar($value) ? trim((string) $value) : '';
+                    return $value !== '' ? $value : null;
+                };
+
+                $firstName = $getFirst($attributes, 'name') ?? $getFirst($attributes, 'nome');
+                $lastName = $getFirst($attributes, 'familyName') ?? $getFirst($attributes, 'cognome');
+                $email = $getFirst($attributes, 'email');
+                $fiscal = $getFirst($attributes, 'fiscalNumber') ?? $getFirst($attributes, 'codiceFiscale');
+                if ($fiscal !== null) {
+                    $fiscal = strtoupper(trim($fiscal));
+                    if (str_starts_with($fiscal, 'TINIT-')) {
+                        $fiscal = substr($fiscal, 6);
+                    }
+                }
+
+                frontoffice_session_set_current_user([
+                    'first_name' => $firstName,
+                    'last_name' => $lastName,
+                    'email' => $email ?? ($fiscal ? strtolower($fiscal) . '@spid.local' : null),
+                    'fiscal_number' => $fiscal,
+                    'attributes' => $attributes,
+                ]);
+            } catch (\Throwable $e) {
+                Logger::getInstance()->warning('Errore mapping utente SPID/CIE in sessione', ['error' => $e->getMessage()]);
+            }
+
+            header('Location: ' . $finalReturnTo, true, 302);
+            exit;
+        }
+
+        $authError = null;
+        if (!frontoffice_is_spid_cie_enabled()) {
+            $authError = null;
+        } elseif ($sdk === null) {
+            $authError = 'Accesso SPID/CIE non disponibile: configurazione mancante sul server.';
+        } elseif (!$spidEnabled && !$cieEnabled) {
+            $authError = 'Accesso SPID/CIE non ancora configurato su questo ambiente.';
+        }
+
+        // Se arriva un IdP, avvia la AuthnRequest.
+        $idp = isset($_GET['idp']) ? trim((string) $_GET['idp']) : '';
+        if ($sdk !== null && $idp !== '' && method_exists($sdk, 'login')) {
+            try {
+                $level = (int) frontoffice_env_value('SPID_LEVEL', '2');
+                if ($level < 1 || $level > 3) {
+                    $level = 2;
+                }
+                if (method_exists($sdk, 'isIdPAvailable') && !$sdk->isIdPAvailable($idp)) {
+                    $authError = 'Identity Provider non riconosciuto.';
+                } else {
+                    $sdk->login($idp, $level, $callbackReturnTo);
+                    exit;
+                }
+            } catch (\Throwable $e) {
+                Logger::getInstance()->warning('Errore login SPID/CIE', ['error' => $e->getMessage()]);
+                $authError = 'Non è stato possibile avviare l\'autenticazione. Riprova più tardi.';
+            }
+        }
+
+        $spidCss = '';
+        $spidHtml = '';
+        $spidJs = '';
+        $cieHtml = '';
+
+        if ($sdk !== null) {
+            if (method_exists($sdk, 'insertSPIDButtonCSS')) {
+                $spidCss = frontoffice_capture_output(static fn () => $sdk->insertSPIDButtonCSS());
+            }
+            if ($spidEnabled && method_exists($sdk, 'insertSPIDButton')) {
+                $spidHtml = frontoffice_capture_output(static fn () => $sdk->insertSPIDButton('L'));
+            }
+            if (method_exists($sdk, 'insertSPIDButtonJS')) {
+                $spidJs = frontoffice_capture_output(static fn () => $sdk->insertSPIDButtonJS());
+            }
+            if ($cieEnabled && method_exists($sdk, 'insertCIEButton')) {
+                $cieHtml = frontoffice_capture_output(static fn () => $sdk->insertCIEButton('default'));
+            }
+        }
+
+        header('Content-Type: text/html; charset=UTF-8');
+        echo "<!doctype html>\n";
+        echo "<html lang=\"it\">\n";
+        echo "<head>\n";
+        echo "  <meta charset=\"utf-8\">\n";
+        echo "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n";
+        echo "  <title>Accesso – " . htmlspecialchars($entityName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</title>\n";
+        echo "  <link rel=\"icon\" href=\"" . htmlspecialchars($appFavicon['href'] ?? '/img/favicon_default.png', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "\" type=\"" . htmlspecialchars($appFavicon['type'] ?? 'image/png', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "\">\n";
+        echo "  <link rel=\"stylesheet\" href=\"/assets/bootstrap-italia/css/bootstrap-italia.min.css\">\n";
+        echo "  <link rel=\"stylesheet\" href=\"/assets/fontawesome/css/all.min.css\">\n";
+        echo "  <link rel=\"stylesheet\" href=\"/assets/css/app.css\">\n";
+        if ($spidCss !== '') {
+            echo $spidCss . "\n";
+        }
+        echo "</head>\n";
+        echo "<body class=\"it-body\">\n";
+        echo "  <main id=\"main\" class=\"pb-5\">\n";
+        echo "    <div class=\"container-xxl pt-4\">\n";
+        echo "      <div class=\"row justify-content-center\">\n";
+        echo "        <div class=\"col-12 col-md-10 col-lg-8\">\n";
+        echo "          <div class=\"card shadow-sm\">\n";
+        echo "            <div class=\"card-body p-4\">\n";
+        echo "              <h1 class=\"h4 mb-3\">Accedi</h1>\n";
+        if ($authError) {
+            echo "              <div class=\"alert alert-danger\" role=\"alert\">" . htmlspecialchars($authError, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</div>\n";
+        }
+        if ($spidEnabled || $cieEnabled) {
+            echo "              <p class=\"text-muted mb-4\">Puoi accedere utilizzando SPID o CIE.</p>\n";
+            if ($spidEnabled) {
+                echo "              <div class=\"mb-4\">" . $spidHtml . "</div>\n";
+            }
+            if ($cieEnabled) {
+                echo "              <div class=\"mb-2\">" . $cieHtml . "</div>\n";
+            }
+            echo "              <p class=\"text-muted small mt-4 mb-0\">Selezionando un provider verrai reindirizzato al sistema di autenticazione.</p>\n";
+        } else {
+            echo "              <div class=\"alert alert-warning\" role=\"alert\">Accesso SPID/CIE non configurato su questo ambiente.</div>\n";
+        }
+        echo "            </div>\n";
+        echo "          </div>\n";
+        echo "        </div>\n";
+        echo "      </div>\n";
+        echo "    </div>\n";
+        echo "  </main>\n";
+        echo "  <script src=\"/assets/bootstrap-italia/js/bootstrap-italia.bundle.min.js\"></script>\n";
+        echo "  <script src=\"/assets/js/app.js\"></script>\n";
+        if ($spidJs !== '') {
+            echo $spidJs . "\n";
+        }
+        echo "</body>\n";
+        echo "</html>\n";
+        exit;
+    },
+    '/logout' => static function (): array {
+        frontoffice_session_clear_current_user();
+        $sdk = frontoffice_spid_cie_sdk();
+        $returnTo = frontoffice_safe_return_to($_GET['returnTo'] ?? null, '/');
+        if ($sdk !== null && method_exists($sdk, 'logout')) {
+            try {
+                $sdk->logout($returnTo);
+                exit;
+            } catch (\Throwable $e) {
+                Logger::getInstance()->warning('Errore logout SPID/CIE', ['error' => $e->getMessage()]);
+            }
+        }
+        header('Location: ' . $returnTo, true, 302);
+        exit;
+    },
+    '/profile' => static function (): array {
+        if (frontoffice_session_get_current_user() === null) {
+            header('Location: /login?returnTo=' . rawurlencode('/profile'), true, 302);
+            exit;
+        }
+        return [
+            'template' => 'profile.html.twig',
+            'context' => [],
+        ];
+    },
 ];
 
 $routeDefinition = null;
@@ -1074,7 +1458,7 @@ $baseContext = [
     ],
     'app_logo' => $appLogo,
     'app_favicon' => $appFavicon,
-    'current_user' => null,
+    'current_user' => frontoffice_session_get_current_user(),
     'support_email' => $supportEmail,
     'support_phone' => $env('FRONTOFFICE_SUPPORT_PHONE', '800.000.000'),
     'support_hours' => $env('FRONTOFFICE_SUPPORT_HOURS', 'Lun-Ven 8:30-17:30'),

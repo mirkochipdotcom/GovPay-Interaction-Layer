@@ -72,12 +72,16 @@ FROM php:8.4-apache-trixie AS runtime-base
 # Installazione delle dipendenze di sistema e PHP (inclusi unzip e wget)
 ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libicu-dev libzip-dev libonig-dev \
-    ca-certificates curl unzip openssl \
-    && docker-php-ext-install intl mbstring pdo_mysql zip \
+    libicu-dev libzip-dev libonig-dev libxml2-dev libgmp-dev \
+    ca-certificates curl unzip openssl tar \
+    && docker-php-ext-install intl mbstring pdo_mysql zip xml gmp \
     && a2enmod ssl rewrite headers \
     && echo "ServerName localhost" >> /etc/apache2/apache2.conf \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# Composer può dover fare fallback su download "source" (VCS): serve git nel runtime.
+RUN apt-get update && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copia vendor dal builder
 COPY --from=vendor_builder /app/vendor /var/www/html/vendor
@@ -162,5 +166,28 @@ RUN mkdir -p /var/www/html/backoffice/storage/logs \
 
 FROM runtime-base AS runtime-frontoffice
 COPY frontoffice/ /var/www/html/frontoffice/
+
+# SPID/CIE (SimpleSAMLphp 1.19) su PHP 8.4 genera molti Deprecated: se mostrati a schermo
+# rompono i metadata SAML e le response. Nel frontoffice li sopprimiamo a livello PHP.
+RUN printf '%s\n' \
+    'display_errors=0' \
+    'display_startup_errors=0' \
+    'html_errors=0' \
+    'log_errors=1' \
+    'error_reporting=E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED' \
+    > /usr/local/etc/php/conf.d/zz-frontoffice-spid-cie.ini
+
+# SPID/CIE: preparazione directory e Alias Apache.
+# L'installazione (download + composer install) viene eseguita a runtime dal docker-setup.sh quando FRONT_OFFICE_AUTH_PROVIDER=spid_cie.
+RUN mkdir -p /var/www/spid-cie-php/vendor/simplesamlphp/simplesamlphp/www \
+    && printf '%s\n' \
+        'Alias /spid-cie /var/www/spid-cie-php/vendor/simplesamlphp/simplesamlphp/www' \
+        '<Directory /var/www/spid-cie-php/vendor/simplesamlphp/simplesamlphp/www>' \
+        '  Options FollowSymLinks' \
+        '  AllowOverride All' \
+        '  Require all granted' \
+        '</Directory>' \
+        > /etc/apache2/conf-enabled/spid-cie.conf
+
 RUN mkdir -p /var/www/html/frontoffice/storage/logs \
     && chown -R www-app:www-data /var/www/html

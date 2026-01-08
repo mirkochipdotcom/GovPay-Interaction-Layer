@@ -100,6 +100,16 @@ Variabili porte di rete:
 - `BACKOFFICE_HTTPS_PORT`: porta HTTPS esposta dal container backoffice (default 8443)
 - `FRONTOFFICE_HTTPS_PORT`: porta HTTPS esposta dal container frontoffice (default 8444)
 
+### SPID/CIE (frontoffice)
+
+Il frontoffice supporta l'accesso tramite SPID/CIE integrando il progetto `italia/spid-cie-php` (basato su SimpleSAMLphp).
+
+- Abilitazione: imposta `FRONTOFFICE_AUTH_PROVIDER=spid_cie` nel `.env`.
+- URL runtime SimpleSAMLphp (frontoffice): `https://<host>:<FRONTOFFICE_HTTPS_PORT>/spid-cie/`
+- Pagina login applicativa: `https://<host>:<FRONTOFFICE_HTTPS_PORT>/login`
+
+Nota: l'immagine frontoffice include il codice di `spid-cie-php`, ma la configurazione (entityID, certificati, metadata, ecc.) va completata secondo la documentazione ufficiale del progetto.
+
 ### 🔐 Autenticazione e superadmin
 
 L'applicazione richiede autenticazione. Al primo avvio, uno script di migrazione crea lo schema utenti e inserisce un utente amministratore di default (seed) usando le variabili d'ambiente `ADMIN_EMAIL` e `ADMIN_PASSWORD`.

@@ -1,0 +1,38 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Profilo – {{ app_entity.name }}{% endblock %}
+
+{% block content %}
+  <div class="container-xxl pt-4">
+    <h1 class="h4 mb-3">Profilo</h1>
+
+    {% if current_user %}
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <dl class="row mb-0">
+            <dt class="col-sm-4">Nome</dt>
+            <dd class="col-sm-8">{{ current_user.first_name|default('') }}</dd>
+
+            <dt class="col-sm-4">Cognome</dt>
+            <dd class="col-sm-8">{{ current_user.last_name|default('') }}</dd>
+
+            <dt class="col-sm-4">Codice fiscale</dt>
+            <dd class="col-sm-8">{{ current_user.fiscal_number|default('') }}</dd>
+
+            <dt class="col-sm-4">Email</dt>
+            <dd class="col-sm-8">{{ current_user.email|default('') }}</dd>
+
+            {% if current_user.idp is defined and current_user.idp %}
+              <dt class="col-sm-4">IdP</dt>
+              <dd class="col-sm-8">{{ current_user.idp }}</dd>
+            {% endif %}
+          </dl>
+        </div>
+      </div>
+    {% else %}
+      <div class="alert alert-warning" role="alert">
+        Non risulti autenticato.
+      </div>
+    {% endif %}
+  </div>
+{% endblock %}
