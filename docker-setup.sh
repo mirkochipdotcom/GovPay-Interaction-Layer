@@ -351,6 +351,17 @@ PHP
       fi
       CIE_ENTITY_ID="${SPID_CIE_CIE_ENTITY_ID:-$CIE_ENTITY_ID_DEFAULT}"
 
+      # Dati organizzazione nel metadata SP (alcuni validatori/portali li richiedono esplicitamente).
+      # Usiamo variabili già presenti nel progetto, con override dedicati se necessario.
+      ORG_NAME_RAW="${SPID_CIE_ORGANIZATION_NAME:-${APP_ENTITY_NAME:-${APACHE_SERVER_NAME:-Service Provider}}}"
+      ORG_URL_RAW="${SPID_CIE_ORGANIZATION_URL:-${URL_ENTE:-${SSP_PUBLIC_BASE_URL:-}}}"
+      if [ -z "$ORG_URL_RAW" ]; then
+        ORG_URL_RAW="https://${APACHE_SERVER_NAME:-localhost}"
+      fi
+      # Escape per PHP single-quoted string
+      ORG_NAME="$(printf "%s" "$ORG_NAME_RAW" | sed "s/'/\\\\'/g")"
+      ORG_URL="$(printf "%s" "$ORG_URL_RAW" | sed "s/'/\\\\'/g")"
+
       AUTH_SOURCES_NEED_UPDATE=0
       if [ ! -f "$SSP_CONFIG_DIR/authsources.php" ]; then
         AUTH_SOURCES_NEED_UPDATE=1
@@ -359,6 +370,10 @@ PHP
           AUTH_SOURCES_NEED_UPDATE=1
         fi
         if ! grep -q "'entityID' => '${CIE_ENTITY_ID}'" "$SSP_CONFIG_DIR/authsources.php" 2>/dev/null; then
+          AUTH_SOURCES_NEED_UPDATE=1
+        fi
+        # Validatori SPID spesso richiedono md:Organization nel metadata: se manca, forziamo l'update.
+        if ! grep -q "OrganizationName" "$SSP_CONFIG_DIR/authsources.php" 2>/dev/null; then
           AUTH_SOURCES_NEED_UPDATE=1
         fi
       fi
@@ -376,12 +391,18 @@ PHP
         'entityID' => '${SPID_ENTITY_ID}',
         'privatekey' => 'spid.key',
         'certificate' => 'spid.crt',
+        'OrganizationName' => ['it' => '${ORG_NAME}'],
+        'OrganizationDisplayName' => ['it' => '${ORG_NAME}'],
+        'OrganizationURL' => ['it' => '${ORG_URL}'],
     ],
     'cie' => [
         'saml:SP',
         'entityID' => '${CIE_ENTITY_ID}',
         'privatekey' => 'cie.key',
         'certificate' => 'cie.crt',
+        'OrganizationName' => ['it' => '${ORG_NAME}'],
+        'OrganizationDisplayName' => ['it' => '${ORG_NAME}'],
+        'OrganizationURL' => ['it' => '${ORG_URL}'],
     ],
 ];
 
