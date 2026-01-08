@@ -462,6 +462,20 @@ JSON
           || echo "⚠️  updateMetadata fallito (SPID registry/demo non raggiungibili?): riprova o controlla connettività." >&2
       fi
 
+      # DEMO IdP "strict" validation: l'AuthnRequest deve avere Destination uguale all'endpoint SSO.
+      # Alcune varianti/patch SPID impostano Destination all'entityID dell'IdP e mettono la destinazione HTTP sul binding.
+      # Il DEMO/validator spesso rifiuta quel formato -> normalizziamo forzando Destination=$dst['Location'] quando rilevato.
+      for SP_AUTH_SOURCE_FILE in \
+        "$SPID_ROOT/vendor/simplesamlphp/simplesamlphp/modules/saml/lib/Auth/Source/SP.php" \
+        "$SPID_ROOT/setup/simplesamlphp/simplesamlphp/modules/saml/lib/Auth/Source/SP.php"; do
+        if [ -f "$SP_AUTH_SOURCE_FILE" ]; then
+          # match con e senza ';' (dipende dalla versione del file)
+          if grep -Fq "\$ar->setDestination(\$idpMetadata->getString('entityid'))" "$SP_AUTH_SOURCE_FILE" 2>/dev/null; then
+            sed -i "s/\$ar->setDestination(\$idpMetadata->getString('entityid'));*/\$ar->setDestination(\$dst['Location']);/g" "$SP_AUTH_SOURCE_FILE" 2>/dev/null || true
+          fi
+        fi
+      done
+
       # In alcune versioni dello script upstream, l'IdP DEMO viene scritto nei metadata ma non viene aggiunto
       # alla lista IDP nello SDK (spid-php.php). Per la demo aggiungiamo una mappatura esplicita se manca.
       if [ -f "$SPID_SDK" ] && [ -f "$IDP_METADATA_FILE" ]; then
