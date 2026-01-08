@@ -376,6 +376,14 @@ PHP
         if ! grep -q "OrganizationName" "$SSP_CONFIG_DIR/authsources.php" 2>/dev/null; then
           AUTH_SOURCES_NEED_UPDATE=1
         fi
+        # md:Organization deve essere generato: in SimpleSAML i campi Organization* vanno come chiavi top-level dell'authsource.
+        # Se troviamo una vecchia struttura con 'metadata' => [...] (tentativo precedente), rigeneriamo.
+        if grep -q "'metadata'" "$SSP_CONFIG_DIR/authsources.php" 2>/dev/null; then
+          AUTH_SOURCES_NEED_UPDATE=1
+        fi
+        if ! grep -Eq "^[[:space:]]*'OrganizationName'[[:space:]]*=>" "$SSP_CONFIG_DIR/authsources.php" 2>/dev/null; then
+          AUTH_SOURCES_NEED_UPDATE=1
+        fi
       fi
 
       if [ "$AUTH_SOURCES_NEED_UPDATE" -eq 1 ]; then
@@ -391,18 +399,18 @@ PHP
         'entityID' => '${SPID_ENTITY_ID}',
         'privatekey' => 'spid.key',
         'certificate' => 'spid.crt',
-        'OrganizationName' => ['it' => '${ORG_NAME}'],
-        'OrganizationDisplayName' => ['it' => '${ORG_NAME}'],
-        'OrganizationURL' => ['it' => '${ORG_URL}'],
+      'OrganizationName' => ['it' => '${ORG_NAME}'],
+      'OrganizationDisplayName' => ['it' => '${ORG_NAME}'],
+      'OrganizationURL' => ['it' => '${ORG_URL}'],
     ],
     'cie' => [
         'saml:SP',
         'entityID' => '${CIE_ENTITY_ID}',
         'privatekey' => 'cie.key',
         'certificate' => 'cie.crt',
-        'OrganizationName' => ['it' => '${ORG_NAME}'],
-        'OrganizationDisplayName' => ['it' => '${ORG_NAME}'],
-        'OrganizationURL' => ['it' => '${ORG_URL}'],
+      'OrganizationName' => ['it' => '${ORG_NAME}'],
+      'OrganizationDisplayName' => ['it' => '${ORG_NAME}'],
+      'OrganizationURL' => ['it' => '${ORG_URL}'],
     ],
 ];
 
