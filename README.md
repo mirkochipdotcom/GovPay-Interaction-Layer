@@ -105,8 +105,14 @@ Variabili porte di rete:
 Il frontoffice supporta l'accesso tramite SPID/CIE integrando il progetto `italia/spid-cie-php` (basato su SimpleSAMLphp).
 
 - Abilitazione: imposta `FRONTOFFICE_AUTH_PROVIDER=spid_cie` nel `.env`.
+- Per test con DEMO IdP / validator, imposta anche `SPID_CIE_PUBLIC_BASE_URL` (un URL HTTPS pubblico che punti al frontoffice).
 - URL runtime SimpleSAMLphp (frontoffice): `https://<host>:<FRONTOFFICE_HTTPS_PORT>/spid-cie/`
 - Pagina login applicativa: `https://<host>:<FRONTOFFICE_HTTPS_PORT>/login`
+- Endpoint metadata "full" (frontoffice): `https://<host>:<FRONTOFFICE_HTTPS_PORT>/spid-metadata.xml`
+
+Note per validazione metadata SPID:
+- `SPID_METADATA_IPA_CODE` è richiesto (il metadata endpoint risponde 500 se mancante).
+- Il certificato SPID self-signed viene generato a runtime in SimpleSAMLphp; puoi personalizzare DN/attributi con `SPID_CERT_*` e forzare rigenerazione con `SPID_CIE_FORCE_REGENERATE_CERTS=1`.
 
 Nota: l'immagine frontoffice include il codice di `spid-cie-php`, ma la configurazione (entityID, certificati, metadata, ecc.) va completata secondo la documentazione ufficiale del progetto.
 

@@ -1,30 +1,46 @@
 {
-  "version": "2.0.0",
-  "tasks": [
-    {
-      "label": "rebuild-and-restart",
-      "type": "shell",
-      "command": "docker compose up -d --build --force-recreate",
-      "args": [],
-      "isBackground": false,
-      "group": "build",
-      "problemMatcher": []
-    },
-    {
-      "label": "logs",
-      "type": "shell",
-      "command": "docker compose logs -f",
-      "isBackground": true,
-      "group": "none",
-      "problemMatcher": []
-    },
-    {
-      "label": "down",
-      "type": "shell",
-      "command": "docker compose down --remove-orphans",
-      "isBackground": false,
-      "group": "build",
-      "problemMatcher": []
-    }
-  ]
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "rebuild-and-restart",
+			"type": "shell",
+			"command": "docker compose up -d --build --force-recreate",
+			"args": [],
+			"isBackground": false,
+			"group": "build",
+			"problemMatcher": []
+		},
+		{
+			"label": "logs",
+			"type": "shell",
+			"command": "docker compose logs -f",
+			"isBackground": true,
+			"group": "none",
+			"problemMatcher": []
+		},
+		{
+			"label": "down",
+			"type": "shell",
+			"command": "docker compose down --remove-orphans",
+			"isBackground": false,
+			"group": "build",
+			"problemMatcher": []
+		},
+		{
+			"label": "inspect-spid-cert",
+			"type": "shell",
+			"command": "docker",
+			"args": [
+				"compose",
+				"exec",
+				"-T",
+				"govpay-interaction-frontoffice",
+				"sh",
+				"-lc",
+				"set -e; CONF=/var/www/spid-cie-php/vendor/simplesamlphp/simplesamlphp/cert/spid-openssl.cnf; echo \"IPA=$SPID_METADATA_IPA_CODE\"; echo \"PUBLIC=$SPID_CIE_PUBLIC_BASE_URL\"; echo \"--- current cert subject\"; openssl x509 -in /var/www/spid-cie-php/vendor/simplesamlphp/simplesamlphp/cert/spid.crt -noout -subject; echo \"--- current cert basic constraints\"; openssl x509 -in /var/www/spid-cie-php/vendor/simplesamlphp/simplesamlphp/cert/spid.crt -noout -text | sed -n \"1,120p\"; echo \"--- conf (if exists)\"; ls -l \"$CONF\" 2>/dev/null || true; sed -n \"1,140p\" \"$CONF\" 2>/dev/null || true"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		}
+	]
 }

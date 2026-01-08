@@ -267,12 +267,105 @@ if [ "$APP_SUITE" = "frontoffice" ]; then
         SSP_SECRETSALT="changeme"
       fi
 
-      # Certificati SP minimi
-      if [ ! -f "$SSP_CERT_DIR/spid.key" ] || [ ! -f "$SSP_CERT_DIR/spid.crt" ]; then
-        if command -v openssl >/dev/null 2>&1; then
-          openssl req -x509 -newkey rsa:2048 -sha256 -days 3650 -nodes \
-            -keyout "$SSP_CERT_DIR/spid.key" -out "$SSP_CERT_DIR/spid.crt" \
-            -subj "/CN=spid" >/dev/null 2>&1 || true
+      # Certificati SP (SPID): devono risultare "SPID compliant" per i check del validator.
+      # In particolare servono SubjectDN con: organizationIdentifier (2.5.4.97), uri (2.5.4.83), C, L, O
+      # e le estensioni: basicConstraints (non-critical, CA:FALSE), keyUsage, certificatePolicies.
+      if command -v openssl >/dev/null 2>&1; then
+        SHOULD_REGEN_SPID_CERT="0"
+        if [ ! -f "$SSP_CERT_DIR/spid.key" ] || [ ! -f "$SSP_CERT_DIR/spid.crt" ]; then
+          SHOULD_REGEN_SPID_CERT="1"
+        else
+          # Verifica minimale di conformità (se fallisce, rigeneriamo)
+          CERT_TEXT="$(openssl x509 -in "$SSP_CERT_DIR/spid.crt" -noout -text 2>/dev/null || true)"
+          CERT_SUBJ="$(openssl x509 -in "$SSP_CERT_DIR/spid.crt" -noout -subject 2>/dev/null || true)"
+          # OpenSSL può stampare l'attributo 2.5.4.97 come nome (organizationIdentifier)
+          # oppure come OID numerico (2.5.4.97). Accettiamo entrambi.
+          echo "$CERT_SUBJ" | grep -Eq "organizationIdentifier|2\.5\.4\.97" || SHOULD_REGEN_SPID_CERT="1"
+          echo "$CERT_SUBJ" | grep -q "2\.5\.4\.83" || SHOULD_REGEN_SPID_CERT="1"
+          echo "$CERT_SUBJ" | grep -q "C=" || SHOULD_REGEN_SPID_CERT="1"
+          echo "$CERT_SUBJ" | grep -q "L=" || SHOULD_REGEN_SPID_CERT="1"
+          echo "$CERT_SUBJ" | grep -q "O=" || SHOULD_REGEN_SPID_CERT="1"
+          echo "$CERT_TEXT" | grep -q "X509v3 Key Usage" || SHOULD_REGEN_SPID_CERT="1"
+          echo "$CERT_TEXT" | grep -q "X509v3 Certificate Policies" || SHOULD_REGEN_SPID_CERT="1"
+          # basicConstraints non deve essere critical e CA deve essere FALSE
+          echo "$CERT_TEXT" | grep -q "X509v3 Basic Constraints: critical" && SHOULD_REGEN_SPID_CERT="1"
+          echo "$CERT_TEXT" | grep -q "CA:FALSE" || SHOULD_REGEN_SPID_CERT="1"
+        fi
+
+        if [ "${SPID_CIE_FORCE_REGENERATE_CERTS:-0}" = "1" ]; then
+          SHOULD_REGEN_SPID_CERT="1"
+        fi
+
+        if [ "$SHOULD_REGEN_SPID_CERT" = "1" ]; then
+          SPID_CERT_C="${SPID_CERT_COUNTRY:-IT}"
+          SPID_CERT_L="${SPID_CERT_LOCALITY:-${SPID_CIE_CERT_LOCALITY:-Montesilvano}}"
+          SPID_CERT_O="${SPID_CERT_ORGANIZATION:-${SPID_CIE_ORGANIZATION_NAME:-Service Provider}}"
+
+          # organizationIdentifier (OID 2.5.4.97)
+          SPID_CERT_ORG_ID="${SPID_CERT_ORGANIZATION_IDENTIFIER:-${SPID_CIE_CERT_ORGANIZATION_IDENTIFIER:-PA:IT-IPA:${SPID_METADATA_IPA_CODE:-000000}}}"
+
+          # uri (OID 2.5.4.83). Se non impostato, usa base URL pubblico se presente.
+          SPID_CERT_URI="${SPID_CERT_URI:-${SPID_CIE_CERT_URI:-${SSP_PUBLIC_BASE_URL:-https://localhost:8444}}}"
+
+          SPID_CERT_CN="${SPID_CERT_COMMON_NAME:-spid}"
+          SPID_CERT_CONF="$SSP_CERT_DIR/spid-openssl.cnf"
+          SPID_CERT_CSR="/tmp/spid.csr"
+          SPID_CERT_TMP_KEY="/tmp/spid.key"
+          SPID_CERT_TMP_CRT="/tmp/spid.crt"
+
+          cat > "$SPID_CERT_CONF" <<EOF
+[ req ]
+default_bits       = 2048
+default_md         = sha256
+prompt             = no
+distinguished_name = dn
+req_extensions     = v3_req
+
+[ dn ]
+C  = ${SPID_CERT_C}
+L  = ${SPID_CERT_L}
+O  = ${SPID_CERT_O}
+CN = ${SPID_CERT_CN}
+# Usiamo gli OID numerici per massima compatibilità tra versioni di OpenSSL.
+2.5.4.97 = ${SPID_CERT_ORG_ID}
+2.5.4.83 = ${SPID_CERT_URI}
+
+[ v3_req ]
+basicConstraints = CA:FALSE
+keyUsage = digitalSignature
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid:always
+certificatePolicies = @polsect
+
+[ polsect ]
+policyIdentifier = 2.5.29.32.0
+EOF
+
+          rm -f "$SPID_CERT_CSR" "$SPID_CERT_TMP_KEY" "$SPID_CERT_TMP_CRT" 2>/dev/null || true
+
+          echo "⚙️  Rigenero certificato SPID (DN + estensioni SPID compliant)..."
+          if openssl req -new -newkey rsa:2048 -nodes \
+            -keyout "$SPID_CERT_TMP_KEY" \
+            -out "$SPID_CERT_CSR" \
+            -config "$SPID_CERT_CONF"; then
+            if openssl x509 -req -sha256 -days 3650 \
+              -in "$SPID_CERT_CSR" \
+              -signkey "$SPID_CERT_TMP_KEY" \
+              -out "$SPID_CERT_TMP_CRT" \
+              -extfile "$SPID_CERT_CONF" -extensions v3_req; then
+              mv -f "$SPID_CERT_TMP_KEY" "$SSP_CERT_DIR/spid.key"
+              mv -f "$SPID_CERT_TMP_CRT" "$SSP_CERT_DIR/spid.crt"
+              echo "✅ Certificato SPID rigenerato: $(openssl x509 -in "$SSP_CERT_DIR/spid.crt" -noout -subject 2>/dev/null || true)"
+            else
+              echo "⚠️  Generazione certificato SPID fallita (openssl x509). Mantengo eventuale certificato esistente." >&2
+              rm -f "$SPID_CERT_TMP_KEY" "$SPID_CERT_TMP_CRT" 2>/dev/null || true
+            fi
+          else
+            echo "⚠️  Generazione CSR SPID fallita (openssl req). Mantengo eventuale certificato esistente." >&2
+            rm -f "$SPID_CERT_CSR" "$SPID_CERT_TMP_KEY" "$SPID_CERT_TMP_CRT" 2>/dev/null || true
+          fi
+
+          rm -f "$SPID_CERT_CSR" 2>/dev/null || true
         fi
       fi
       if [ ! -f "$SSP_CERT_DIR/cie.key" ] || [ ! -f "$SSP_CERT_DIR/cie.crt" ]; then

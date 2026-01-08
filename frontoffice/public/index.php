@@ -1299,7 +1299,15 @@ $routes = [
         }
 
         $supportPhone = trim((string) frontoffice_env_value('SPID_METADATA_SUPPORT_PHONE', ''));
+
         $ipaCode = trim((string) frontoffice_env_value('SPID_METADATA_IPA_CODE', ''));
+        if ($ipaCode === '') {
+            // Richiesto dai test SPID (spid:IPACode MUST be present)
+            http_response_code(500);
+            header('Content-Type: text/plain; charset=UTF-8');
+            echo "Missing required env SPID_METADATA_IPA_CODE";
+            exit;
+        }
         $vatNumber = trim((string) frontoffice_env_value('SPID_METADATA_VAT_NUMBER', ''));
         $fiscalCode = trim((string) frontoffice_env_value('SPID_METADATA_FISCAL_CODE', ''));
 
@@ -1319,9 +1327,12 @@ $routes = [
         $xml .= "      </ds:KeyInfo>\n";
         $xml .= "    </md:KeyDescriptor>\n";
 
+        // Ordine elementi: SingleLogoutService appartiene a SSODescriptorType,
+        // quindi deve apparire prima degli elementi aggiunti da SPSSODescriptorType
+        // (AssertionConsumerService / AttributeConsumingService).
+        $xml .= "    <md:SingleLogoutService Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect\" Location=\"" . htmlspecialchars($slo, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "\"/>\n";
         $xml .= "    <md:NameIDFormat>urn:oasis:names:tc:SAML:2.0:nameid-format:transient</md:NameIDFormat>\n";
         $xml .= "    <md:AssertionConsumerService index=\"0\" isDefault=\"true\" Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST\" Location=\"" . htmlspecialchars($acs, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "\"/>\n";
-        $xml .= "    <md:SingleLogoutService Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect\" Location=\"" . htmlspecialchars($slo, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "\"/>\n";
 
         $xml .= "    <md:AttributeConsumingService index=\"0\" isDefault=\"true\">\n";
         $xml .= "      <md:ServiceName xml:lang=\"it\">" . htmlspecialchars($orgName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</md:ServiceName>\n";
@@ -1340,19 +1351,15 @@ $routes = [
         if ($supportPhone !== '') {
             $xml .= "    <md:TelephoneNumber>" . htmlspecialchars($supportPhone, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</md:TelephoneNumber>\n";
         }
-        if ($ipaCode !== '' || $vatNumber !== '' || $fiscalCode !== '') {
-            $xml .= "    <md:Extensions>\n";
-            if ($ipaCode !== '') {
-                $xml .= "      <spid:IPACode>" . htmlspecialchars($ipaCode, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</spid:IPACode>\n";
-            }
-            if ($vatNumber !== '') {
-                $xml .= "      <spid:VATNumber>" . htmlspecialchars($vatNumber, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</spid:VATNumber>\n";
-            }
-            if ($fiscalCode !== '') {
-                $xml .= "      <spid:FiscalCode>" . htmlspecialchars($fiscalCode, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</spid:FiscalCode>\n";
-            }
-            $xml .= "    </md:Extensions>\n";
+        $xml .= "    <md:Extensions>\n";
+        $xml .= "      <spid:IPACode>" . htmlspecialchars($ipaCode, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</spid:IPACode>\n";
+        if ($vatNumber !== '') {
+            $xml .= "      <spid:VATNumber>" . htmlspecialchars($vatNumber, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</spid:VATNumber>\n";
         }
+        if ($fiscalCode !== '') {
+            $xml .= "      <spid:FiscalCode>" . htmlspecialchars($fiscalCode, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</spid:FiscalCode>\n";
+        }
+        $xml .= "    </md:Extensions>\n";
         $xml .= "  </md:ContactPerson>\n";
 
         // Organization (richiesta dal validator)
