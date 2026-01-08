@@ -220,6 +220,54 @@ if (!function_exists('frontoffice_env_value')) {
     }
 }
 
+if (!function_exists('frontoffice_public_base_url')) {
+    function frontoffice_public_base_url(): string
+    {
+        $base = trim((string) frontoffice_env_value('SPID_CIE_PUBLIC_BASE_URL', ''));
+        if ($base !== '') {
+            return rtrim($base, '/');
+        }
+
+        $https = (string) ($_SERVER['HTTPS'] ?? '');
+        $scheme = ($https !== '' && strtolower($https) !== 'off') ? 'https' : 'http';
+        $host = trim((string) ($_SERVER['HTTP_HOST'] ?? ''));
+        if ($host === '') {
+            $host = 'localhost';
+        }
+        return $scheme . '://' . $host;
+    }
+}
+
+if (!function_exists('frontoffice_spid_metadata_certificate_b64')) {
+    function frontoffice_spid_metadata_certificate_b64(): ?string
+    {
+        $root = frontoffice_spid_cie_root();
+        if ($root === '') {
+            return null;
+        }
+
+        $candidates = [
+            rtrim($root, '/\\') . '/vendor/simplesamlphp/simplesamlphp/cert/spid.crt',
+            rtrim($root, '/\\') . '/cert/spid.crt',
+        ];
+
+        $pem = null;
+        foreach ($candidates as $path) {
+            if (is_file($path)) {
+                $pem = @file_get_contents($path);
+                break;
+            }
+        }
+        if (!is_string($pem) || trim($pem) === '') {
+            return null;
+        }
+
+        $pem = preg_replace('/-----BEGIN CERTIFICATE-----|-----END CERTIFICATE-----|\s+/', '', $pem);
+        $pem = is_string($pem) ? trim($pem) : '';
+        return $pem !== '' ? $pem : null;
+    }
+}
+
 $env = static function (string $key, ?string $default = null): string {
     return frontoffice_env_value($key, $default);
 };
@@ -1214,6 +1262,110 @@ $routes = [
                 'form_feedback' => null,
             ],
         ];
+    },
+    '/spid-metadata.xml' => static function () use ($entityName): array {
+        // Metadata "full" per SPID Validator / DEMO:
+        // include ContactPerson (evita crash entityType undefined) + AttributeConsumingService.
+        // Non usiamo Twig qui: risposta raw XML.
+
+        if (!frontoffice_is_spid_cie_enabled()) {
+            http_response_code(404);
+            header('Content-Type: text/plain; charset=UTF-8');
+            echo "Not found";
+            exit;
+        }
+
+        $baseUrl = frontoffice_public_base_url();
+        $entityId = $baseUrl . '/spid-cie/module.php/saml/sp/metadata.php/spid';
+        $acs = $baseUrl . '/spid-cie/module.php/saml/sp/saml2-acs.php/spid';
+        $slo = $baseUrl . '/spid-cie/module.php/saml/sp/saml2-logout.php/spid';
+
+        $certB64 = frontoffice_spid_metadata_certificate_b64();
+        if ($certB64 === null) {
+            http_response_code(500);
+            header('Content-Type: text/plain; charset=UTF-8');
+            echo "SPID metadata certificate not available";
+            exit;
+        }
+
+        $orgName = trim((string) $entityName);
+        if ($orgName === '') {
+            $orgName = 'Service Provider';
+        }
+
+        $supportEmail = trim((string) frontoffice_env_value('SPID_METADATA_SUPPORT_EMAIL', ''));
+        if ($supportEmail === '') {
+            $supportEmail = 'support@' . preg_replace('/[^a-z0-9.\-]+/i', '', parse_url($baseUrl, PHP_URL_HOST) ?: 'example.local');
+        }
+
+        $supportPhone = trim((string) frontoffice_env_value('SPID_METADATA_SUPPORT_PHONE', ''));
+        $ipaCode = trim((string) frontoffice_env_value('SPID_METADATA_IPA_CODE', ''));
+        $vatNumber = trim((string) frontoffice_env_value('SPID_METADATA_VAT_NUMBER', ''));
+        $fiscalCode = trim((string) frontoffice_env_value('SPID_METADATA_FISCAL_CODE', ''));
+
+        header('Content-Type: text/xml; charset=UTF-8');
+
+        $xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+        $xml .= "<md:EntityDescriptor";
+        $xml .= " xmlns:md=\"urn:oasis:names:tc:SAML:2.0:metadata\"";
+        $xml .= " xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\"";
+        $xml .= " xmlns:spid=\"https://spid.gov.it/saml-extensions\"";
+        $xml .= " entityID=\"" . htmlspecialchars($entityId, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "\">\n";
+
+        $xml .= "  <md:SPSSODescriptor protocolSupportEnumeration=\"urn:oasis:names:tc:SAML:2.0:protocol\" AuthnRequestsSigned=\"true\" WantAssertionsSigned=\"true\">\n";
+        $xml .= "    <md:KeyDescriptor use=\"signing\">\n";
+        $xml .= "      <ds:KeyInfo>\n";
+        $xml .= "        <ds:X509Data><ds:X509Certificate>" . $certB64 . "</ds:X509Certificate></ds:X509Data>\n";
+        $xml .= "      </ds:KeyInfo>\n";
+        $xml .= "    </md:KeyDescriptor>\n";
+
+        $xml .= "    <md:NameIDFormat>urn:oasis:names:tc:SAML:2.0:nameid-format:transient</md:NameIDFormat>\n";
+        $xml .= "    <md:AssertionConsumerService index=\"0\" isDefault=\"true\" Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST\" Location=\"" . htmlspecialchars($acs, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "\"/>\n";
+        $xml .= "    <md:SingleLogoutService Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect\" Location=\"" . htmlspecialchars($slo, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "\"/>\n";
+
+        $xml .= "    <md:AttributeConsumingService index=\"0\" isDefault=\"true\">\n";
+        $xml .= "      <md:ServiceName xml:lang=\"it\">" . htmlspecialchars($orgName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</md:ServiceName>\n";
+        $xml .= "      <md:RequestedAttribute FriendlyName=\"fiscalNumber\" Name=\"fiscalNumber\" isRequired=\"true\"/>\n";
+        $xml .= "      <md:RequestedAttribute FriendlyName=\"name\" Name=\"name\" isRequired=\"false\"/>\n";
+        $xml .= "      <md:RequestedAttribute FriendlyName=\"familyName\" Name=\"familyName\" isRequired=\"false\"/>\n";
+        $xml .= "      <md:RequestedAttribute FriendlyName=\"email\" Name=\"email\" isRequired=\"false\"/>\n";
+        $xml .= "    </md:AttributeConsumingService>\n";
+
+        $xml .= "  </md:SPSSODescriptor>\n";
+
+        // ContactPerson: richiesto dal validator per evitare crash (entityType undefined).
+        $xml .= "  <md:ContactPerson contactType=\"other\" spid:entityType=\"spid:aggregator\">\n";
+        $xml .= "    <md:Company>" . htmlspecialchars($orgName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</md:Company>\n";
+        $xml .= "    <md:EmailAddress>" . htmlspecialchars($supportEmail, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</md:EmailAddress>\n";
+        if ($supportPhone !== '') {
+            $xml .= "    <md:TelephoneNumber>" . htmlspecialchars($supportPhone, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</md:TelephoneNumber>\n";
+        }
+        if ($ipaCode !== '' || $vatNumber !== '' || $fiscalCode !== '') {
+            $xml .= "    <md:Extensions>\n";
+            if ($ipaCode !== '') {
+                $xml .= "      <spid:IPACode>" . htmlspecialchars($ipaCode, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</spid:IPACode>\n";
+            }
+            if ($vatNumber !== '') {
+                $xml .= "      <spid:VATNumber>" . htmlspecialchars($vatNumber, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</spid:VATNumber>\n";
+            }
+            if ($fiscalCode !== '') {
+                $xml .= "      <spid:FiscalCode>" . htmlspecialchars($fiscalCode, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</spid:FiscalCode>\n";
+            }
+            $xml .= "    </md:Extensions>\n";
+        }
+        $xml .= "  </md:ContactPerson>\n";
+
+        // Organization (richiesta dal validator)
+        $xml .= "  <md:Organization>\n";
+        $xml .= "    <md:OrganizationName xml:lang=\"it\">" . htmlspecialchars($orgName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</md:OrganizationName>\n";
+        $xml .= "    <md:OrganizationDisplayName xml:lang=\"it\">" . htmlspecialchars($orgName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</md:OrganizationDisplayName>\n";
+        $xml .= "    <md:OrganizationURL xml:lang=\"it\">" . htmlspecialchars($baseUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</md:OrganizationURL>\n";
+        $xml .= "  </md:Organization>\n";
+
+        $xml .= "</md:EntityDescriptor>\n";
+
+        echo $xml;
+        exit;
     },
     '/login' => static function () use ($entityName, $appFavicon): array {
         // NOTA: spid-cie-php/SimpleSAML porta la sua dipendenza twig/twig.
