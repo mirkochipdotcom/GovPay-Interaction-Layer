@@ -282,6 +282,154 @@ if (!function_exists('frontoffice_spid_metadata_certificate_candidates')) {
     }
 }
 
+if (!function_exists('frontoffice_spid_metadata_private_key_pem')) {
+    function frontoffice_spid_metadata_private_key_pem(): ?string
+    {
+        $root = frontoffice_spid_cie_root();
+        if ($root === '') {
+            return null;
+        }
+
+        $candidates = [
+            rtrim($root, '/\\') . '/vendor/simplesamlphp/simplesamlphp/cert/spid.key',
+            rtrim($root, '/\\') . '/cert/spid.key',
+        ];
+
+        foreach ($candidates as $path) {
+            if (is_file($path)) {
+                $pem = @file_get_contents($path);
+                if (is_string($pem) && trim($pem) !== '') {
+                    return $pem;
+                }
+            }
+        }
+
+        return null;
+    }
+}
+
+if (!function_exists('frontoffice_spid_metadata_private_key_candidates')) {
+    function frontoffice_spid_metadata_private_key_candidates(): array
+    {
+        $root = frontoffice_spid_cie_root();
+        if ($root === '') {
+            return [];
+        }
+        return [
+            rtrim($root, '/\\') . '/vendor/simplesamlphp/simplesamlphp/cert/spid.key',
+            rtrim($root, '/\\') . '/cert/spid.key',
+        ];
+    }
+}
+
+if (!function_exists('frontoffice_sign_spid_metadata_xml')) {
+    function frontoffice_sign_spid_metadata_xml(string $xml, string $certB64, string $privateKeyPem, string $referenceId, ?string $passphrase = null): ?string
+    {
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $dom->preserveWhiteSpace = false;
+        $dom->formatOutput = true;
+
+        $previousInternalErrors = libxml_use_internal_errors(true);
+        $loaded = $dom->loadXML($xml, LIBXML_NONET | LIBXML_NOBLANKS);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previousInternalErrors);
+        if (!$loaded) {
+            return null;
+        }
+
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement) {
+            return null;
+        }
+
+        if ($referenceId === '') {
+            $referenceId = $root->getAttribute('ID');
+            if ($referenceId === '') {
+                return null;
+            }
+        } else {
+            $root->setAttribute('ID', $referenceId);
+        }
+        $root->setIdAttribute('ID', true);
+
+        $digestSource = $root->C14N(true, false);
+        if ($digestSource === false) {
+            return null;
+        }
+        $digestValue = base64_encode(hash('sha256', $digestSource, true));
+
+        $signature = $dom->createElementNS('http://www.w3.org/2000/09/xmldsig#', 'ds:Signature');
+        if ($root->firstChild instanceof \DOMNode) {
+            $root->insertBefore($signature, $root->firstChild);
+        } else {
+            $root->appendChild($signature);
+        }
+
+        $signedInfo = $dom->createElementNS('http://www.w3.org/2000/09/xmldsig#', 'ds:SignedInfo');
+        $signature->appendChild($signedInfo);
+
+        $canonMethod = $dom->createElementNS('http://www.w3.org/2000/09/xmldsig#', 'ds:CanonicalizationMethod');
+        $canonMethod->setAttribute('Algorithm', 'http://www.w3.org/2001/10/xml-exc-c14n#');
+        $signedInfo->appendChild($canonMethod);
+
+        $signatureMethod = $dom->createElementNS('http://www.w3.org/2000/09/xmldsig#', 'ds:SignatureMethod');
+        $signatureMethod->setAttribute('Algorithm', 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha256');
+        $signedInfo->appendChild($signatureMethod);
+
+        $reference = $dom->createElementNS('http://www.w3.org/2000/09/xmldsig#', 'ds:Reference');
+        $reference->setAttribute('URI', '#' . $referenceId);
+        $signedInfo->appendChild($reference);
+
+        $transforms = $dom->createElementNS('http://www.w3.org/2000/09/xmldsig#', 'ds:Transforms');
+        $reference->appendChild($transforms);
+
+        $transformEnveloped = $dom->createElementNS('http://www.w3.org/2000/09/xmldsig#', 'ds:Transform');
+        $transformEnveloped->setAttribute('Algorithm', 'http://www.w3.org/2000/09/xmldsig#enveloped-signature');
+        $transforms->appendChild($transformEnveloped);
+
+        $transformC14n = $dom->createElementNS('http://www.w3.org/2000/09/xmldsig#', 'ds:Transform');
+        $transformC14n->setAttribute('Algorithm', 'http://www.w3.org/2001/10/xml-exc-c14n#');
+        $transforms->appendChild($transformC14n);
+
+        $digestMethod = $dom->createElementNS('http://www.w3.org/2000/09/xmldsig#', 'ds:DigestMethod');
+        $digestMethod->setAttribute('Algorithm', 'http://www.w3.org/2001/04/xmlenc#sha256');
+        $reference->appendChild($digestMethod);
+
+        $digestValueNode = $dom->createElementNS('http://www.w3.org/2000/09/xmldsig#', 'ds:DigestValue', $digestValue);
+        $reference->appendChild($digestValueNode);
+
+        $canonicalSignedInfo = $signedInfo->C14N(true, false);
+        if ($canonicalSignedInfo === false) {
+            return null;
+        }
+
+        $privateKey = @openssl_pkey_get_private($privateKeyPem, $passphrase ?? '');
+        if ($privateKey === false) {
+            return null;
+        }
+
+        $binarySignature = '';
+        $signatureOk = openssl_sign($canonicalSignedInfo, $binarySignature, $privateKey, OPENSSL_ALGO_SHA256);
+        openssl_free_key($privateKey);
+        if (!$signatureOk) {
+            return null;
+        }
+
+        $signatureValue = base64_encode($binarySignature);
+        $signatureValueNode = $dom->createElementNS('http://www.w3.org/2000/09/xmldsig#', 'ds:SignatureValue', $signatureValue);
+        $signature->appendChild($signatureValueNode);
+
+        $keyInfo = $dom->createElementNS('http://www.w3.org/2000/09/xmldsig#', 'ds:KeyInfo');
+        $x509Data = $dom->createElementNS('http://www.w3.org/2000/09/xmldsig#', 'ds:X509Data');
+        $x509Certificate = $dom->createElementNS('http://www.w3.org/2000/09/xmldsig#', 'ds:X509Certificate', trim($certB64));
+        $x509Data->appendChild($x509Certificate);
+        $keyInfo->appendChild($x509Data);
+        $signature->appendChild($keyInfo);
+
+        return $dom->saveXML();
+    }
+}
+
 $env = static function (string $key, ?string $default = null): string {
     return frontoffice_env_value($key, $default);
 };
@@ -1312,6 +1460,29 @@ $routes = [
             exit;
         }
 
+        $privateKeyPem = frontoffice_spid_metadata_private_key_pem();
+        if ($privateKeyPem === null) {
+            http_response_code(500);
+            header('Content-Type: text/plain; charset=UTF-8');
+            $root = frontoffice_spid_cie_root();
+            $candidates = frontoffice_spid_metadata_private_key_candidates();
+            echo "SPID metadata private key not available\n";
+            echo "SPID_CIE_ROOT: " . ($root !== '' ? $root : '(empty)') . "\n";
+            if ($candidates !== []) {
+                echo "Checked paths:\n";
+                foreach ($candidates as $path) {
+                    echo "- " . $path . (is_file($path) ? " (exists)" : " (missing)") . "\n";
+                }
+            }
+            echo "\nFix: ensure SimpleSAMLphp private key (spid.key) exists and is readable.\n";
+            exit;
+        }
+
+        $privateKeyPassword = trim((string) frontoffice_env_value('SPID_METADATA_PRIVATE_KEY_PASSWORD', ''));
+        if ($privateKeyPassword === '') {
+            $privateKeyPassword = null;
+        }
+
         $orgName = trim((string) $entityName);
         if ($orgName === '') {
             $orgName = 'Service Provider';
@@ -1335,14 +1506,15 @@ $routes = [
         $vatNumber = trim((string) frontoffice_env_value('SPID_METADATA_VAT_NUMBER', ''));
         $fiscalCode = trim((string) frontoffice_env_value('SPID_METADATA_FISCAL_CODE', ''));
 
-        header('Content-Type: text/xml; charset=UTF-8');
+        $entityDescriptorId = 'ID-' . substr(hash('sha256', $entityId . $certB64), 0, 32);
 
         $xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
         $xml .= "<md:EntityDescriptor";
         $xml .= " xmlns:md=\"urn:oasis:names:tc:SAML:2.0:metadata\"";
         $xml .= " xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\"";
         $xml .= " xmlns:spid=\"https://spid.gov.it/saml-extensions\"";
-        $xml .= " entityID=\"" . htmlspecialchars($entityId, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "\">\n";
+        $xml .= " entityID=\"" . htmlspecialchars($entityId, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "\"";
+        $xml .= " ID=\"" . htmlspecialchars($entityDescriptorId, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "\">\n";
 
         $xml .= "  <md:SPSSODescriptor protocolSupportEnumeration=\"urn:oasis:names:tc:SAML:2.0:protocol\" AuthnRequestsSigned=\"true\" WantAssertionsSigned=\"true\">\n";
         $xml .= "    <md:KeyDescriptor use=\"signing\">\n";
@@ -1370,11 +1542,6 @@ $routes = [
 
         // ContactPerson: richiesto dal validator per evitare crash (entityType undefined).
         $xml .= "  <md:ContactPerson contactType=\"other\" spid:entityType=\"spid:aggregator\">\n";
-        $xml .= "    <md:Company>" . htmlspecialchars($orgName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</md:Company>\n";
-        $xml .= "    <md:EmailAddress>" . htmlspecialchars($supportEmail, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</md:EmailAddress>\n";
-        if ($supportPhone !== '') {
-            $xml .= "    <md:TelephoneNumber>" . htmlspecialchars($supportPhone, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</md:TelephoneNumber>\n";
-        }
         $xml .= "    <md:Extensions>\n";
         $xml .= "      <spid:IPACode>" . htmlspecialchars($ipaCode, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</spid:IPACode>\n";
         if ($vatNumber !== '') {
@@ -1384,6 +1551,11 @@ $routes = [
             $xml .= "      <spid:FiscalCode>" . htmlspecialchars($fiscalCode, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</spid:FiscalCode>\n";
         }
         $xml .= "    </md:Extensions>\n";
+        $xml .= "    <md:Company>" . htmlspecialchars($orgName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</md:Company>\n";
+        $xml .= "    <md:EmailAddress>" . htmlspecialchars($supportEmail, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</md:EmailAddress>\n";
+        if ($supportPhone !== '') {
+            $xml .= "    <md:TelephoneNumber>" . htmlspecialchars($supportPhone, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</md:TelephoneNumber>\n";
+        }
         $xml .= "  </md:ContactPerson>\n";
 
         // Organization (richiesta dal validator)
@@ -1395,7 +1567,16 @@ $routes = [
 
         $xml .= "</md:EntityDescriptor>\n";
 
-        echo $xml;
+        $signedXml = frontoffice_sign_spid_metadata_xml($xml, $certB64, $privateKeyPem, $entityDescriptorId, $privateKeyPassword);
+        if ($signedXml === null) {
+            http_response_code(500);
+            header('Content-Type: text/plain; charset=UTF-8');
+            echo "Unable to sign SPID metadata (XML-DSig generation failed).";
+            exit;
+        }
+
+        header('Content-Type: text/xml; charset=UTF-8');
+        echo $signedXml;
         exit;
     },
     '/login' => static function () use ($entityName, $appFavicon): array {
