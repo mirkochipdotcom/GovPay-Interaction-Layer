@@ -1540,6 +1540,13 @@ $routes = [
 
         $xml .= "  </md:SPSSODescriptor>\n";
 
+        // Organization (richiesta dal validator)
+        $xml .= "  <md:Organization>\n";
+        $xml .= "    <md:OrganizationName xml:lang=\"it\">" . htmlspecialchars($orgName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</md:OrganizationName>\n";
+        $xml .= "    <md:OrganizationDisplayName xml:lang=\"it\">" . htmlspecialchars($orgName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</md:OrganizationDisplayName>\n";
+        $xml .= "    <md:OrganizationURL xml:lang=\"it\">" . htmlspecialchars($baseUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</md:OrganizationURL>\n";
+        $xml .= "  </md:Organization>\n";
+
         // ContactPerson: richiesto dal validator per evitare crash (entityType undefined).
         $xml .= "  <md:ContactPerson contactType=\"other\" spid:entityType=\"spid:aggregator\">\n";
         $xml .= "    <md:Extensions>\n";
@@ -1560,13 +1567,6 @@ $routes = [
             $xml .= "    <md:TelephoneNumber>" . htmlspecialchars($supportPhone, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</md:TelephoneNumber>\n";
         }
         $xml .= "  </md:ContactPerson>\n";
-
-        // Organization (richiesta dal validator)
-        $xml .= "  <md:Organization>\n";
-        $xml .= "    <md:OrganizationName xml:lang=\"it\">" . htmlspecialchars($orgName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</md:OrganizationName>\n";
-        $xml .= "    <md:OrganizationDisplayName xml:lang=\"it\">" . htmlspecialchars($orgName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</md:OrganizationDisplayName>\n";
-        $xml .= "    <md:OrganizationURL xml:lang=\"it\">" . htmlspecialchars($baseUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</md:OrganizationURL>\n";
-        $xml .= "  </md:Organization>\n";
 
         $xml .= "</md:EntityDescriptor>\n";
 
