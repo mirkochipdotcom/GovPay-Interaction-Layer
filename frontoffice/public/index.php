@@ -1543,13 +1543,16 @@ $routes = [
         // ContactPerson: richiesto dal validator per evitare crash (entityType undefined).
         $xml .= "  <md:ContactPerson contactType=\"other\" spid:entityType=\"spid:aggregator\">\n";
         $xml .= "    <md:Extensions>\n";
-        $xml .= "      <spid:IPACode>" . htmlspecialchars($ipaCode, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</spid:IPACode>\n";
+        $xml .= "      <!-- SPID validator: expose aggregator data inside spid:Public, never emit spid:Private -->\n";
+        $xml .= "      <spid:Public>\n";
+        $xml .= "        <spid:IPACode>" . htmlspecialchars($ipaCode, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</spid:IPACode>\n";
         if ($vatNumber !== '') {
-            $xml .= "      <spid:VATNumber>" . htmlspecialchars($vatNumber, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</spid:VATNumber>\n";
+            $xml .= "        <spid:VATNumber>" . htmlspecialchars($vatNumber, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</spid:VATNumber>\n";
         }
         if ($fiscalCode !== '') {
-            $xml .= "      <spid:FiscalCode>" . htmlspecialchars($fiscalCode, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</spid:FiscalCode>\n";
+            $xml .= "        <spid:FiscalCode>" . htmlspecialchars($fiscalCode, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</spid:FiscalCode>\n";
         }
+        $xml .= "      </spid:Public>\n";
         $xml .= "    </md:Extensions>\n";
         $xml .= "    <md:Company>" . htmlspecialchars($orgName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</md:Company>\n";
         $xml .= "    <md:EmailAddress>" . htmlspecialchars($supportEmail, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</md:EmailAddress>\n";
