@@ -167,6 +167,23 @@ RUN mkdir -p /var/www/html/backoffice/storage/logs \
 FROM runtime-base AS runtime-frontoffice
 COPY frontoffice/ /var/www/html/frontoffice/
 
+# (Opzionale) Bake-in di spid-cie-php nell'immagine.
+# Utile in ambienti dove i container non hanno egress verso GitHub/Composer a runtime.
+ARG SPID_CIE_BAKE_IN=0
+ARG SPID_CIE_VERSION=master
+
+RUN if [ "$SPID_CIE_BAKE_IN" = "1" ]; then \
+            echo "⚙️  Bake-in spid-cie-php (${SPID_CIE_VERSION}) in /var/www/spid-cie-php..."; \
+            mkdir -p /var/www/spid-cie-php; \
+            if [ "$SPID_CIE_VERSION" = "master" ] || [ "$SPID_CIE_VERSION" = "main" ]; then \
+                DOWNLOAD_URL="https://github.com/italia/spid-cie-php/archive/refs/heads/${SPID_CIE_VERSION}.tar.gz"; \
+            else \
+                DOWNLOAD_URL="https://github.com/italia/spid-cie-php/archive/refs/tags/${SPID_CIE_VERSION}.tar.gz"; \
+            fi; \
+            curl -fsSL -L "$DOWNLOAD_URL" | tar -xz -C /var/www/spid-cie-php --strip-components=1; \
+            (cd /var/www/spid-cie-php && COMPOSER_VENDOR_DIR=/var/www/spid-cie-php/vendor composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction --no-scripts --no-security-blocking); \
+        fi
+
 # SPID/CIE (SimpleSAMLphp 1.19) su PHP 8.4 genera molti Deprecated: se mostrati a schermo
 # rompono i metadata SAML e le response. Nel frontoffice li sopprimiamo a livello PHP.
 RUN printf '%s\n' \

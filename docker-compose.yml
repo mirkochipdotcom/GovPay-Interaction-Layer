@@ -25,6 +25,9 @@ services:
     build:
       context: .
       target: runtime-frontoffice
+      args:
+        SPID_CIE_BAKE_IN: ${SPID_CIE_BAKE_IN:-0}
+        SPID_CIE_VERSION: ${SPID_CIE_VERSION:-master}
     image: govpay-interaction-frontoffice:latest
     container_name: govpay-interaction-frontoffice
     ports:
