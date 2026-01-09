@@ -352,12 +352,6 @@ if (!function_exists('frontoffice_sign_spid_metadata_xml')) {
         }
         $root->setIdAttribute('ID', true);
 
-        $digestSource = $root->C14N(true, false);
-        if ($digestSource === false) {
-            return null;
-        }
-        $digestValue = base64_encode(hash('sha256', $digestSource, true));
-
         $signature = $dom->createElementNS('http://www.w3.org/2000/09/xmldsig#', 'ds:Signature');
         if ($root->firstChild instanceof \DOMNode) {
             $root->insertBefore($signature, $root->firstChild);
@@ -394,6 +388,26 @@ if (!function_exists('frontoffice_sign_spid_metadata_xml')) {
         $digestMethod = $dom->createElementNS('http://www.w3.org/2000/09/xmldsig#', 'ds:DigestMethod');
         $digestMethod->setAttribute('Algorithm', 'http://www.w3.org/2001/04/xmlenc#sha256');
         $reference->appendChild($digestMethod);
+
+        $digestDoc = new \DOMDocument('1.0', 'UTF-8');
+        $digestDoc->preserveWhiteSpace = false;
+        $digestDoc->formatOutput = false;
+        $importedRoot = $digestDoc->importNode($root, true);
+        $digestDoc->appendChild($importedRoot);
+
+        $xpath = new \DOMXPath($digestDoc);
+        $xpath->registerNamespace('ds', 'http://www.w3.org/2000/09/xmldsig#');
+        foreach ($xpath->query('//ds:Signature') as $sigNode) {
+            if ($sigNode->parentNode !== null) {
+                $sigNode->parentNode->removeChild($sigNode);
+            }
+        }
+
+        $digestSource = $digestDoc->documentElement->C14N(true, false);
+        if ($digestSource === false) {
+            return null;
+        }
+        $digestValue = base64_encode(hash('sha256', $digestSource, true));
 
         $digestValueNode = $dom->createElementNS('http://www.w3.org/2000/09/xmldsig#', 'ds:DigestValue', $digestValue);
         $reference->appendChild($digestValueNode);
