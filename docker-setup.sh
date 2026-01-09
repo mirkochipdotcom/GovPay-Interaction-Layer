@@ -340,7 +340,6 @@ OID.2.5.4.83 = ${SPID_CERT_URI}
 basicConstraints = CA:FALSE
 keyUsage = digitalSignature
 subjectKeyIdentifier = hash
-authorityKeyIdentifier = keyid:always
 certificatePolicies = @polsect
 
 [ polsect ]
