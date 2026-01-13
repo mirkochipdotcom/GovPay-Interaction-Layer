@@ -61,6 +61,20 @@ if [ ! -f "${TARGET_DIR}/spid-php-setup.json" ]; then
   SPID_PROXY_ORG_PROVINCE="${SPID_PROXY_ORG_PROVINCE:-RM}" \
   SPID_PROXY_ORG_EMAIL="${SPID_PROXY_ORG_EMAIL:-info@organization.org}" \
   SPID_PROXY_ORG_PHONE="${SPID_PROXY_ORG_PHONE:-+3912345678}" \
+  SPID_PROXY_ADD_EXAMPLES="${SPID_PROXY_ADD_EXAMPLES:-0}" \
+  SPID_PROXY_ADD_PROXY_EXAMPLE="${SPID_PROXY_ADD_PROXY_EXAMPLE:-1}" \
+  SPID_PROXY_FPA_ID_PAESE="${SPID_PROXY_FPA_ID_PAESE:-IT}" \
+  SPID_PROXY_FPA_ID_CODICE="${SPID_PROXY_FPA_ID_CODICE:-}" \
+  SPID_PROXY_FPA_DENOMINAZIONE="${SPID_PROXY_FPA_DENOMINAZIONE:-}" \
+  SPID_PROXY_FPA_INDIRIZZO="${SPID_PROXY_FPA_INDIRIZZO:-}" \
+  SPID_PROXY_FPA_NUMERO_CIVICO="${SPID_PROXY_FPA_NUMERO_CIVICO:-}" \
+  SPID_PROXY_FPA_CAP="${SPID_PROXY_FPA_CAP:-}" \
+  SPID_PROXY_FPA_COMUNE="${SPID_PROXY_FPA_COMUNE:-}" \
+  SPID_PROXY_FPA_PROVINCIA="${SPID_PROXY_FPA_PROVINCIA:-RM}" \
+  SPID_PROXY_FPA_NAZIONE="${SPID_PROXY_FPA_NAZIONE:-IT}" \
+  SPID_PROXY_FPA_ORG_NAME="${SPID_PROXY_FPA_ORG_NAME:-}" \
+  SPID_PROXY_FPA_ORG_EMAIL="${SPID_PROXY_FPA_ORG_EMAIL:-info@organization.org}" \
+  SPID_PROXY_FPA_ORG_PHONE="${SPID_PROXY_FPA_ORG_PHONE:-+3912345678}" \
   SPID_PROXY_SIGN_RESPONSE="${SPID_PROXY_SIGN_RESPONSE:-1}" \
   SPID_PROXY_ENCRYPT_RESPONSE="${SPID_PROXY_ENCRYPT_RESPONSE:-0}" \
   SPID_PROXY_LEVEL="${SPID_PROXY_LEVEL:-2}" \
@@ -127,6 +141,23 @@ if [ ! -f "${TARGET_DIR}/spid-php-setup.json" ]; then
     $orgEmail = getenv("SPID_PROXY_ORG_EMAIL") ?: "info@organization.org";
     $orgPhone = getenv("SPID_PROXY_ORG_PHONE") ?: "+3912345678";
 
+  $addExamples = (getenv("SPID_PROXY_ADD_EXAMPLES") ?: "0") === "1";
+  $addProxyExample = (getenv("SPID_PROXY_ADD_PROXY_EXAMPLE") ?: "1") === "1";
+
+  // Campi FPA (richiesti dal setup quando ORG_IS_PUBLIC_ADMIN=0)
+  $fpaIdPaese = getenv("SPID_PROXY_FPA_ID_PAESE") ?: "IT";
+  $fpaIdCodice = getenv("SPID_PROXY_FPA_ID_CODICE") ?: $orgCode;
+  $fpaDenominazione = getenv("SPID_PROXY_FPA_DENOMINAZIONE") ?: $orgName;
+  $fpaIndirizzo = getenv("SPID_PROXY_FPA_INDIRIZZO") ?: "";
+  $fpaNumeroCivico = getenv("SPID_PROXY_FPA_NUMERO_CIVICO") ?: "";
+  $fpaCAP = getenv("SPID_PROXY_FPA_CAP") ?: "";
+  $fpaComune = getenv("SPID_PROXY_FPA_COMUNE") ?: "";
+  $fpaProvincia = getenv("SPID_PROXY_FPA_PROVINCIA") ?: $orgProvince;
+  $fpaNazione = getenv("SPID_PROXY_FPA_NAZIONE") ?: "IT";
+  $fpaOrgName = getenv("SPID_PROXY_FPA_ORG_NAME") ?: $orgName;
+  $fpaOrgEmail = getenv("SPID_PROXY_FPA_ORG_EMAIL") ?: $orgEmail;
+  $fpaOrgPhone = getenv("SPID_PROXY_FPA_ORG_PHONE") ?: $orgPhone;
+
     $signResponse = (getenv("SPID_PROXY_SIGN_RESPONSE") ?: "1") === "1";
     $encryptResponse = (getenv("SPID_PROXY_ENCRYPT_RESPONSE") ?: "0") === "1";
     $level = (int)(getenv("SPID_PROXY_LEVEL") ?: "2");
@@ -169,6 +200,20 @@ if [ ! -f "${TARGET_DIR}/spid-php-setup.json" ]; then
       "spMunicipality" => $orgMunicipality,
       "spProvince" => $orgProvince,
 
+      // Campi FPA (usati solo se spIsPublicAdministration=false)
+      "fpaIdPaese" => $fpaIdPaese,
+      "fpaIdCodice" => $fpaIdCodice,
+      "fpaDenominazione" => $fpaDenominazione,
+      "fpaIndirizzo" => $fpaIndirizzo,
+      "fpaNumeroCivico" => $fpaNumeroCivico,
+      "fpaCAP" => $fpaCAP,
+      "fpaComune" => $fpaComune,
+      "fpaProvincia" => $fpaProvincia,
+      "fpaNazione" => $fpaNazione,
+      "fpaOrganizationName" => $fpaOrgName,
+      "fpaOrganizationEmailAddress" => $fpaOrgEmail,
+      "fpaOrganizationTelephoneNumber" => $fpaOrgPhone,
+
       // Questi due devono essere NON null per generare metadata
       "spOrganizationEmailAddress" => $orgEmail,
       "spOrganizationTelephoneNumber" => $orgPhone,
@@ -183,8 +228,8 @@ if [ ! -f "${TARGET_DIR}/spid-php-setup.json" ]; then
       "addValidatorIDP" => $addAgidValidatorIdp,
 
       // Esempi
-      "addExamples" => false,
-      "addProxyExample" => true,
+      "addExamples" => $addExamples,
+      "addProxyExample" => $addProxyExample,
       "proxyConfig" => [
         "clients" => [
           $clientId => [
@@ -350,12 +395,16 @@ if [ -n "${SPID_PROXY_PUBLIC_BASE_URL}" ]; then
       if (!file_exists($path)) return;
       $content = file_get_contents($path);
       if ($entityId !== "") {
-        $content = preg_replace("/'entityID'\s*=>\s*'[^']*'/", "'entityID' => '" . addslashes($entityId) . "'", $content);
+          $content = preg_replace("/\x27entityID\x27\s*=>\s*\x27[^\x27]*\x27/", "\x27entityID\x27 => \x27" . addslashes($entityId) . "\x27", $content);
       }
       $orgSource = $urlEnte !== "" ? $urlEnte : $base;
       if ($orgSource !== "") {
         $orgUrl = rtrim($orgSource, "/") . "/";
-        $content = preg_replace("/'OrganizationURL'\s*=>\s*array\('\w+'\s*=>\s*'[^']*'\)/", "'OrganizationURL' => array('it'=> '" . addslashes($orgUrl) . "')", $content);
+          $content = preg_replace(
+            "/\x27OrganizationURL\x27\s*=>\s*array\(\x27\\w+\x27\s*=>\s*\x27[^\x27]*\x27\)/",
+            "\x27OrganizationURL\x27 => array(\x27it\x27=> \x27" . addslashes($orgUrl) . "\x27)",
+            $content
+          );
       }
       file_put_contents($path, $content);
     };
@@ -412,7 +461,18 @@ fi
 # Se esistono già i file di config (spid-php-setup.json) possiamo eseguire il setup in modo non-interattivo.
 if [ ! -d "${TARGET_DIR}/vendor" ]; then
   echo "[spid-proxy] vendor/ mancante: eseguo composer update (no-interaction) per installare dipendenze e lanciare Setup::setup"
+  # Composer 2.9+ può bloccare dipendenze con security advisories (es. Twig 2 richiesto da SimpleSAMLphp 1.19.x).
+  # Per questo progetto, lasciamo proseguire l'install evitando il blocco "insecure".
+  (COMPOSER_ALLOW_SUPERUSER=1 composer config --global audit.block-insecure false >/dev/null 2>&1) || true
   (cd "${TARGET_DIR}" && COMPOSER_ALLOW_SUPERUSER=1 composer update --no-interaction --no-progress) || true
+fi
+
+# Recovery: se le dipendenze sono installate ma i file web non sono stati generati (es. primo avvio fallito),
+# rilancia lo script di setup che scrive `www/proxy.php` e i metadata.
+if [ -d "${TARGET_DIR}/vendor" ] && [ ! -f "${TARGET_DIR}/www/proxy.php" ]; then
+  echo "[spid-proxy] vendor/ presente ma www/proxy.php mancante: rilancio composer post-update-cmd (Setup::setup)"
+  (COMPOSER_ALLOW_SUPERUSER=1 composer config --global audit.block-insecure false >/dev/null 2>&1) || true
+  (cd "${TARGET_DIR}" && COMPOSER_ALLOW_SUPERUSER=1 composer run-script post-update-cmd --no-interaction --no-ansi --no-progress) || true
 fi
 
 exec "$@"
