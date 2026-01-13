@@ -50,6 +50,8 @@ services:
       context: ./spid-proxy
     image: govpay-spid-proxy:latest
     container_name: spid-proxy
+    profiles:
+      - spid-proxy
     ports:
       - "${SPID_PROXY_HTTPS_PORT:-8445}:443"
     env_file:
