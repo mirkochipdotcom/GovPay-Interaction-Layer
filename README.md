@@ -100,6 +100,23 @@ Variabili porte di rete:
 - `BACKOFFICE_HTTPS_PORT`: porta HTTPS esposta dal container backoffice (default 8443)
 - `FRONTOFFICE_HTTPS_PORT`: porta HTTPS esposta dal container frontoffice (default 8444)
 
+### SPID/CIE Proxy (opzionale)
+Il servizio `spid-proxy` è definito con un **profile** Docker Compose, quindi **non parte** a meno che tu non lo abiliti.
+
+Nel tuo `.env`:
+- per abilitarlo: `COMPOSE_PROFILES=spid-proxy`
+- per disabilitarlo: lascia `COMPOSE_PROFILES` vuoto o commentato
+
+Variabili principali:
+- `SPID_PROXY_HTTPS_PORT`: porta HTTPS esposta dal proxy (default 8445)
+- `SPID_PROXY_PUBLIC_BASE_URL`: base URL pubblico del proxy (usato per metadata e redirect)
+- `SPID_PROXY_ENTITY_ID`: (opzionale) entityID del proxy; default `${SPID_PROXY_PUBLIC_BASE_URL}/spid-metadata.xml`
+
+Avvio (comando unico, stesso di sempre):
+```bash
+docker compose up -d --build
+```
+
 ### 🔐 Autenticazione e superadmin
 
 L'applicazione richiede autenticazione. Al primo avvio, uno script di migrazione crea lo schema utenti e inserisce un utente amministratore di default (seed) usando le variabili d'ambiente `ADMIN_EMAIL` e `ADMIN_PASSWORD`.
