@@ -1,0 +1,17 @@
+{% extends "base.html.twig" %}
+
+{% block title %}Servizio non disponibile{% endblock %}
+
+{% block content %}
+  <div class="container-xxl py-5">
+    <div class="row">
+      <div class="col-12 col-lg-8">
+        <h1 class="h3 mb-3">Servizio non disponibile</h1>
+        <p class="text-muted mb-4">
+          {{ message|default('Operazione non disponibile in questo momento.') }}
+        </p>
+        <a class="btn btn-outline-primary" href="/">Torna alla home</a>
+      </div>
+    </div>
+  </div>
+{% endblock %}

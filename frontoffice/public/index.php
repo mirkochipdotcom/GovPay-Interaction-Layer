@@ -14,6 +14,19 @@ use Twig\Loader\FilesystemLoader;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
 
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    session_name('govpay_frontoffice');
+    $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
+    session_set_cookie_params([
+        'lifetime' => 0,
+        'path' => '/',
+        'secure' => $isHttps,
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+    session_start();
+}
+
 if (!function_exists('frontoffice_env_value')) {
     function frontoffice_env_value(string $key, ?string $default = null): string
     {
@@ -904,11 +917,145 @@ if ($normalizedPath === '') {
     $normalizedPath = '/';
 }
 
+$frontofficeBaseUrl = rtrim($env('FRONTOFFICE_PUBLIC_BASE_URL', ''), '/');
+if ($frontofficeBaseUrl === '') {
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $host = (string)($_SERVER['HTTP_HOST'] ?? '');
+    if ($host !== '') {
+        $frontofficeBaseUrl = $scheme . '://' . $host;
+    }
+}
+$spidCallbackPath = $env('FRONTOFFICE_SPID_CALLBACK_PATH', '/spid/callback');
+if ($spidCallbackPath === '' || $spidCallbackPath[0] !== '/') {
+    $spidCallbackPath = '/' . ltrim($spidCallbackPath, '/');
+}
+$spidCallbackUrl = $frontofficeBaseUrl !== '' ? ($frontofficeBaseUrl . $spidCallbackPath) : '';
+
 $routes = [
     '/' => static fn (): array => [
         'template' => 'home.html.twig',
         'context' => [],
     ],
+    '/login' => static function () use ($env, $spidCallbackUrl): array {
+        $proxyBase = rtrim($env('SPID_PROXY_PUBLIC_BASE_URL', ''), '/');
+        $clientId = $env('SPID_PROXY_CLIENT_ID', '');
+
+        $redirectUri = $env('FRONTOFFICE_SPID_REDIRECT_URI', '');
+        $allowedRedirectsRaw = $env('SPID_PROXY_REDIRECT_URIS', '');
+        $allowedRedirects = array_values(array_filter(array_map('trim', preg_split('/[\s,]+/', $allowedRedirectsRaw))));
+
+        if ($redirectUri === '') {
+            if ($spidCallbackUrl !== '' && in_array($spidCallbackUrl, $allowedRedirects, true)) {
+                $redirectUri = $spidCallbackUrl;
+            } elseif ($allowedRedirects !== []) {
+                $redirectUri = $allowedRedirects[0];
+            } else {
+                $redirectUri = $spidCallbackUrl;
+            }
+        }
+
+        if ($proxyBase === '' || $clientId === '' || $redirectUri === '') {
+            http_response_code(503);
+            return [
+                'template' => 'errors/503.html.twig',
+                'context' => [
+                    'message' => 'Login SPID non configurato: verifica SPID_PROXY_PUBLIC_BASE_URL, SPID_PROXY_CLIENT_ID e configura un redirect URI valido (FRONTOFFICE_SPID_REDIRECT_URI oppure SPID_PROXY_REDIRECT_URIS).',
+                ],
+            ];
+        }
+
+        try {
+            $state = bin2hex(random_bytes(16));
+        } catch (\Throwable $e) {
+            $state = md5((string)microtime(true));
+        }
+
+        $returnTo = (string)($_GET['return_to'] ?? '/');
+        if ($returnTo === '' || $returnTo[0] !== '/') {
+            $returnTo = '/';
+        }
+        $_SESSION['spid_state'] = $state;
+        $_SESSION['spid_return_to'] = $returnTo;
+
+        $target = $proxyBase . '/proxy-home.php'
+            . '?client_id=' . rawurlencode($clientId)
+            . '&redirect_uri=' . rawurlencode($redirectUri)
+            . '&state=' . rawurlencode($state);
+
+        header('Location: ' . $target, true, 302);
+        exit;
+    },
+    '/spid/callback' => static function () use ($method): array {
+        if ($method !== 'POST') {
+            http_response_code(405);
+            return [
+                'template' => 'errors/404.html.twig',
+                'context' => [
+                    'requested_path' => '/spid/callback',
+                ],
+            ];
+        }
+
+        $state = (string)($_POST['state'] ?? '');
+        $expectedState = (string)($_SESSION['spid_state'] ?? '');
+        if ($state === '' || $expectedState === '' || !hash_equals($expectedState, $state)) {
+            http_response_code(400);
+            return [
+                'template' => 'errors/503.html.twig',
+                'context' => [
+                    'message' => 'Callback SPID non valida (state mismatch). Riprovare il login.',
+                ],
+            ];
+        }
+
+        $user = [
+            'first_name' => (string)($_POST['name'] ?? ''),
+            'last_name' => (string)($_POST['familyName'] ?? ''),
+            'email' => (string)($_POST['email'] ?? ''),
+            'fiscal_number' => (string)($_POST['fiscalNumber'] ?? ''),
+            'spid_code' => (string)($_POST['spidCode'] ?? ''),
+            'provider_id' => (string)($_POST['providerId'] ?? ''),
+            'provider_name' => (string)($_POST['providerName'] ?? ''),
+            'response_id' => (string)($_POST['responseId'] ?? ''),
+        ];
+
+        // Se il proxy usa handler Sign/Encrypt, qui arriverebbe anche `data` (JWS/JWE).
+        // Per ora manteniamo compatibilità con handler Plain (campi in chiaro).
+        if (isset($_POST['data']) && is_string($_POST['data']) && $_POST['data'] !== '') {
+            $user['token'] = (string)$_POST['data'];
+        }
+
+        $_SESSION['frontoffice_user'] = $user;
+        unset($_SESSION['spid_state']);
+        $returnTo = (string)($_SESSION['spid_return_to'] ?? '/');
+        unset($_SESSION['spid_return_to']);
+        if ($returnTo === '' || $returnTo[0] !== '/') {
+            $returnTo = '/';
+        }
+
+        header('Location: ' . $returnTo, true, 302);
+        exit;
+    },
+    '/profile' => static function (): array {
+        $user = $_SESSION['frontoffice_user'] ?? null;
+        if (!is_array($user) || $user === []) {
+            header('Location: /login?return_to=%2Fprofile', true, 302);
+            exit;
+        }
+        return [
+            'template' => 'profile.html.twig',
+            'context' => [
+                'profile' => $user,
+            ],
+        ];
+    },
+    '/logout' => static function (): array {
+        unset($_SESSION['frontoffice_user']);
+
+        // Logout locale; opzionalmente puoi aggiungere logout IdP via proxy in futuro.
+        header('Location: /', true, 302);
+        exit;
+    },
     '/pagamento-spontaneo' => static function () use ($method, $serviceCatalog, $serviceInternalOptions, $serviceExternalOptions, $env): array {
         $defaultYear = (int) date('Y');
         $payPortalUrl = $env('FRONTOFFICE_PAGOPA_CHECKOUT_URL', 'https://checkout.pagopa.it/');
@@ -1074,7 +1221,7 @@ $baseContext = [
     ],
     'app_logo' => $appLogo,
     'app_favicon' => $appFavicon,
-    'current_user' => null,
+    'current_user' => (isset($_SESSION['frontoffice_user']) && is_array($_SESSION['frontoffice_user'])) ? $_SESSION['frontoffice_user'] : null,
     'support_email' => $supportEmail,
     'support_phone' => $env('FRONTOFFICE_SUPPORT_PHONE', '800.000.000'),
     'support_hours' => $env('FRONTOFFICE_SUPPORT_HOURS', 'Lun-Ven 8:30-17:30'),
