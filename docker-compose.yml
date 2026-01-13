@@ -40,6 +40,7 @@ services:
       - DB_PASSWORD=${DB_PASSWORD_CITTADINI}
     env_file:
       - .env
+      - .env.spid
     depends_on:
       - db
     entrypoint: ["/usr/local/bin/docker-setup.sh"]
@@ -56,6 +57,7 @@ services:
       - "${SPID_PROXY_HTTPS_PORT:-8445}:443"
     env_file:
       - .env
+      - .env.spid
     volumes:
       - ./spid-proxy/data:/var/www/spid-cie-php
       - ./ssl:/ssl

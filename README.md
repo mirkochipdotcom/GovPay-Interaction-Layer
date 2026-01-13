@@ -107,6 +107,11 @@ Nel tuo `.env`:
 - per abilitarlo: `COMPOSE_PROFILES=spid-proxy`
 - per disabilitarlo: lascia `COMPOSE_PROFILES` vuoto o commentato
 
+Le variabili SPID/CIE sono tenute in un file dedicato per non appesantire il `.env` principale:
+```bash
+cp .env.spid.example .env.spid
+```
+
 Variabili principali:
 - `SPID_PROXY_HTTPS_PORT`: porta HTTPS esposta dal proxy (default 8445)
 - `SPID_PROXY_PUBLIC_BASE_URL`: base URL pubblico del proxy (usato per metadata e redirect)
