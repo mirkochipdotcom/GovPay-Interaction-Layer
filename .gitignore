@@ -17,6 +17,11 @@ debug/*
 # Ignore composer vendor directory
 vendor/
 
+# spid-cie-php in modalità proxy: working copy/runtime data (bind-mount)
+/spid-proxy/data/*
+/spid-proxy/data/.*
+!/spid-proxy/data/.gitkeep
+
 # Logo ente personalizzato (non versionare)
 img/stemma_ente.png
 
