@@ -499,8 +499,8 @@ if [ "$FORCE_SETUP_RUN" = "1" ] && [ -d "${TARGET_DIR}/vendor" ]; then
     exit 1
   fi
 
-  (cd "${TARGET_DIR}" && COMPOSER_ALLOW_SUPERUSER=1 composer run-script post-update-cmd --no-interaction --no-ansi --no-progress)
-  (cd "${TARGET_DIR}" && COMPOSER_ALLOW_SUPERUSER=1 composer run-script update-metadata --no-interaction --no-ansi --no-progress)
+  (cd "${TARGET_DIR}" && COMPOSER_ALLOW_SUPERUSER=1 composer run-script post-update-cmd --no-interaction --no-ansi)
+  (cd "${TARGET_DIR}" && COMPOSER_ALLOW_SUPERUSER=1 composer run-script update-metadata --no-interaction --no-ansi)
 
   if [ -f "${TARGET_DIR}/vendor/simplesamlphp/simplesamlphp/config/authsources.php" ]; then
     echo "[spid-proxy] Authsources.php (estratto): $(php -r '$p="/var/www/spid-cie-php/vendor/simplesamlphp/simplesamlphp/config/authsources.php"; $c=@file_get_contents($p); if($c===false){echo"<unreadable>"; exit(0);} $t=""; if(preg_match("/\\x27spid\\.codeType\\x27\\s*=>\\s*\\x27([^\\x27]*)\\x27/",$c,$m)) $t.="spid.codeType=".$m[1]." "; if(preg_match("/\\x27spid\\.codeValue\\x27\\s*=>\\s*\\x27([^\\x27]*)\\x27/",$c,$m)) $t.="spid.codeValue=".$m[1]; echo trim($t)?:"<not-found>";')"
@@ -515,7 +515,7 @@ fi
 if [ -d "${TARGET_DIR}/vendor" ] && [ ! -f "${TARGET_DIR}/www/proxy.php" ]; then
   echo "[spid-proxy] vendor/ presente ma www/proxy.php mancante: rilancio composer post-update-cmd (Setup::setup)"
   (COMPOSER_ALLOW_SUPERUSER=1 composer config --global audit.block-insecure false >/dev/null 2>&1) || true
-  (cd "${TARGET_DIR}" && COMPOSER_ALLOW_SUPERUSER=1 composer run-script post-update-cmd --no-interaction --no-ansi --no-progress) || true
+  (cd "${TARGET_DIR}" && COMPOSER_ALLOW_SUPERUSER=1 composer run-script post-update-cmd --no-interaction --no-ansi) || true
 fi
 
 exec "$@"
