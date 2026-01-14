@@ -33,6 +33,9 @@ if [ "${SPID_PROXY_FORCE_SETUP:-0}" = "1" ]; then
   echo "[spid-proxy] SPID_PROXY_FORCE_SETUP=1: forzo rigenerazione setup (spid-php-setup.json + config/metadata)"
   FORCE_SETUP_RUN=1
   rm -f "${TARGET_DIR}/spid-php-setup.json" "${TARGET_DIR}/spid-php-openssl.cnf" "${TARGET_DIR}/spid-php-proxy.json" || true
+  # Questi file sono generati dal Setup e vivono su bind-mount: se restano, rischi di vedere valori vecchi
+  # (es. spid.codeValue/IPACode) anche dopo aver cambiato .env.spid.
+  rm -f "${TARGET_DIR}/vendor/simplesamlphp/simplesamlphp/config/authsources.php" || true
   echo "[spid-proxy] Cleanup done: $(ls -1 ${TARGET_DIR}/spid-php-setup.json ${TARGET_DIR}/spid-php-openssl.cnf ${TARGET_DIR}/spid-php-proxy.json 2>/dev/null | wc -l) files remain"
   # Opzionale: rigenera anche i certificati SPID (cert/). Attenzione: cambierà la chiave del SP.
   if [ "${SPID_PROXY_FORCE_CERT:-0}" = "1" ]; then
@@ -489,8 +492,22 @@ fi
 if [ "$FORCE_SETUP_RUN" = "1" ] && [ -d "${TARGET_DIR}/vendor" ]; then
   echo "[spid-proxy] Forzo Setup::setup (composer post-update-cmd) e update-metadata"
   (COMPOSER_ALLOW_SUPERUSER=1 composer config --global audit.block-insecure false >/dev/null 2>&1) || true
-  (cd "${TARGET_DIR}" && COMPOSER_ALLOW_SUPERUSER=1 composer run-script post-update-cmd --no-interaction --no-ansi --no-progress) || true
-  (cd "${TARGET_DIR}" && COMPOSER_ALLOW_SUPERUSER=1 composer run-script update-metadata --no-interaction --no-ansi --no-progress) || true
+  if [ -f "${TARGET_DIR}/spid-php-setup.json" ]; then
+    echo "[spid-proxy] Setup.json (estratto): $(php -r '$p="/var/www/spid-cie-php/spid-php-setup.json"; $j=@json_decode(@file_get_contents($p),true); if(!is_array($j)) { echo "<invalid>"; exit(0);} echo "spOrganizationCodeType=".($j["spOrganizationCodeType"]??"<missing>")." spOrganizationCode=".($j["spOrganizationCode"]??"<missing>");')"
+  else
+    echo "[spid-proxy] ERRORE: spid-php-setup.json non presente prima del setup"
+    exit 1
+  fi
+
+  (cd "${TARGET_DIR}" && COMPOSER_ALLOW_SUPERUSER=1 composer run-script post-update-cmd --no-interaction --no-ansi --no-progress)
+  (cd "${TARGET_DIR}" && COMPOSER_ALLOW_SUPERUSER=1 composer run-script update-metadata --no-interaction --no-ansi --no-progress)
+
+  if [ -f "${TARGET_DIR}/vendor/simplesamlphp/simplesamlphp/config/authsources.php" ]; then
+    echo "[spid-proxy] Authsources.php (estratto): $(php -r '$p="/var/www/spid-cie-php/vendor/simplesamlphp/simplesamlphp/config/authsources.php"; $c=@file_get_contents($p); if($c===false){echo"<unreadable>"; exit(0);} $t=""; if(preg_match("/\\x27spid\\.codeType\\x27\\s*=>\\s*\\x27([^\\x27]*)\\x27/",$c,$m)) $t.="spid.codeType=".$m[1]." "; if(preg_match("/\\x27spid\\.codeValue\\x27\\s*=>\\s*\\x27([^\\x27]*)\\x27/",$c,$m)) $t.="spid.codeValue=".$m[1]; echo trim($t)?:"<not-found>";')"
+  else
+    echo "[spid-proxy] ERRORE: authsources.php non generato dopo post-update-cmd"
+    exit 1
+  fi
 fi
 
 # Recovery: se le dipendenze sono installate ma i file web non sono stati generati (es. primo avvio fallito),
