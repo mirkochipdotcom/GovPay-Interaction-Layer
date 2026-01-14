@@ -49,6 +49,17 @@ fi
 # Se spid-php-setup.json esiste ed include tutte le chiavi richieste, il setup diventa non-interattivo.
 if [ ! -f "${TARGET_DIR}/spid-php-setup.json" ]; then
   echo "[spid-proxy] spid-php-setup.json mancante: genero configurazione di default (non-interattiva)"
+
+  # Guardrail: evitare metadata con IPACode di fallback "code".
+  # Se sei PA e hai scelto IPACode, devi valorizzare SPID_PROXY_ORG_CODE con un codice IPA reale (es. c_f646).
+  if [ "${SPID_PROXY_ORG_IS_PUBLIC_ADMIN:-1}" = "1" ] && [ "${SPID_PROXY_ORG_CODE_TYPE:-}" = "IPACode" ]; then
+    if [ -z "${SPID_PROXY_ORG_CODE:-}" ] || [ "${SPID_PROXY_ORG_CODE:-}" = "code" ]; then
+      echo "[spid-proxy] ERROR: SPID_PROXY_ORG_CODE non valorizzato (o vale 'code') ma SPID_PROXY_ORG_CODE_TYPE=IPACode." >&2
+      echo "[spid-proxy]        Imposta SPID_PROXY_ORG_CODE=<codice_ipa_reale> in .env.spid (es. c_f646) e rigenera con SPID_PROXY_FORCE_SETUP=1 + force-recreate." >&2
+      exit 1
+    fi
+  fi
+
   TARGET_DIR="${TARGET_DIR}" \
   SPID_PROXY_PUBLIC_BASE_URL="${SPID_PROXY_PUBLIC_BASE_URL:-}" \
   SPID_PROXY_PUBLIC_HOST="${SPID_PROXY_PUBLIC_HOST:-}" \
