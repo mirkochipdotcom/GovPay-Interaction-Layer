@@ -945,13 +945,30 @@ $routes = [
         $allowedRedirects = array_values(array_filter(array_map('trim', preg_split('/[\s,]+/', $allowedRedirectsRaw))));
 
         if ($redirectUri === '') {
-            if ($spidCallbackUrl !== '' && in_array($spidCallbackUrl, $allowedRedirects, true)) {
-                $redirectUri = $spidCallbackUrl;
-            } elseif ($allowedRedirects !== []) {
-                $redirectUri = $allowedRedirects[0];
-            } else {
-                $redirectUri = $spidCallbackUrl;
+            // Default: usa SEMPRE la callback del frontoffice.
+            // Se SPID_PROXY_REDIRECT_URIS è valorizzato, deve includere questo URL (match esatto), altrimenti
+            // il proxy rifiuterà il redirect o finirai su un endpoint "demo" tipo /proxy-sample.php.
+            $redirectUri = $spidCallbackUrl;
+            if ($redirectUri !== '' && $allowedRedirects !== [] && !in_array($redirectUri, $allowedRedirects, true)) {
+                http_response_code(503);
+                return [
+                    'template' => 'errors/503.html.twig',
+                    'context' => [
+                        'message' => 'Login SPID non configurato: SPID_PROXY_REDIRECT_URIS deve includere la callback del frontoffice (' . $redirectUri . ').',
+                    ],
+                ];
             }
+        }
+
+        // Se l'utente ha impostato un redirect esplicito, verifica comunque che sia autorizzato dal proxy.
+        if ($redirectUri !== '' && $allowedRedirects !== [] && !in_array($redirectUri, $allowedRedirects, true)) {
+            http_response_code(503);
+            return [
+                'template' => 'errors/503.html.twig',
+                'context' => [
+                    'message' => 'Login SPID non configurato: FRONTOFFICE_SPID_REDIRECT_URI non è presente in SPID_PROXY_REDIRECT_URIS (' . $redirectUri . ').',
+                ],
+            ];
         }
 
         if ($proxyBase === '' || $clientId === '' || $redirectUri === '') {
