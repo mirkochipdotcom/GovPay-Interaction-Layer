@@ -24,3 +24,31 @@ Attenzione: i certificati self-signed generati sono solo per sviluppo e testing;
 
 Nota: i certificati presenti nella cartella `certificate/` sono distinti e servono per l'autenticazione client
 verso le API GovPay (mTLS applicazione → GovPay), non per l'HTTPS del server web (browser → applicazione).
+
+## Troubleshooting: permessi (rootless Docker / utente deploy)
+
+Se in un ambiente Apache fallisce con un errore tipo:
+
+`SSLCertificateKeyFile: file '/ssl/server.key' does not exist or is empty`
+
+ma sul server i file sembrano presenti, la causa più comune è un problema di permessi sul bind mount.
+
+Esempio classico:
+- i file `ssl/server.key` e `ssl/server.crt` sulla macchina host sono **owner root** con permessi stretti (es. `600`);
+- il deploy viene eseguito da un utente non-root (es. `dev`);
+- se il motore container è **rootless** (o in generale non ha accesso ai file), dentro il container i file risultano
+	“mancanti/vuoti” e Apache non parte.
+
+Verifiche utili sul server:
+- `ls -l ssl/server.key ssl/server.crt`
+- `wc -c ssl/server.key ssl/server.crt` (attenzione a file da 0 byte)
+- `docker info | grep -i rootless` (per capire se Docker è rootless)
+
+Fix tipico (adegua utente/gruppo al tuo caso):
+- `sudo chown dev:dev ssl/server.key ssl/server.crt`
+- `chmod 600 ssl/server.key`
+- `chmod 644 ssl/server.crt`
+
+Nota: lo script di bootstrap può generare certificati self-signed se mancano, ma se la directory `ssl/` è montata
+in sola lettura o con owner/perms non scrivibili dall'utente che esegue il deploy, la generazione può fallire e Apache
+si blocca in fase di avvio.

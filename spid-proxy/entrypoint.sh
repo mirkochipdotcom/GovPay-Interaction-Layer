@@ -23,6 +23,22 @@ fi
 # Directory web persistente dove Setup.php scrive proxy.php e pagine di esempio
 mkdir -p "${TARGET_DIR}/www" || true
 
+# ---- Forzatura rigenerazione setup/metadata ----
+# Per default, spid-cie-php salva la configurazione su volume e non rigenera ad ogni avvio.
+# Imposta SPID_PROXY_FORCE_SETUP=1 per forzare una rigenerazione (utile quando cambi env e vuoi
+# rigenerare metadata/config senza cancellare tutto il volume).
+FORCE_SETUP_RUN=0
+if [ "${SPID_PROXY_FORCE_SETUP:-0}" = "1" ]; then
+  echo "[spid-proxy] SPID_PROXY_FORCE_SETUP=1: forzo rigenerazione setup (spid-php-setup.json + config/metadata)"
+  FORCE_SETUP_RUN=1
+  rm -f "${TARGET_DIR}/spid-php-setup.json" "${TARGET_DIR}/spid-php-openssl.cnf" "${TARGET_DIR}/spid-php-proxy.json" || true
+  # Opzionale: rigenera anche i certificati SPID (cert/). Attenzione: cambierà la chiave del SP.
+  if [ "${SPID_PROXY_FORCE_CERT:-0}" = "1" ]; then
+    echo "[spid-proxy] SPID_PROXY_FORCE_CERT=1: rimuovo certificati SPID in ${TARGET_DIR}/cert/"
+    rm -rf "${TARGET_DIR}/cert"/* || true
+  fi
+fi
+
 # ---- Bootstrap non-interattivo (spid-php-setup.json) ----
 # spid-cie-php esegue un setup interattivo durante gli script composer.
 # Se spid-php-setup.json esiste ed include tutte le chiavi richieste, il setup diventa non-interattivo.
@@ -465,6 +481,14 @@ if [ ! -d "${TARGET_DIR}/vendor" ]; then
   # Per questo progetto, lasciamo proseguire l'install evitando il blocco "insecure".
   (COMPOSER_ALLOW_SUPERUSER=1 composer config --global audit.block-insecure false >/dev/null 2>&1) || true
   (cd "${TARGET_DIR}" && COMPOSER_ALLOW_SUPERUSER=1 composer update --no-interaction --no-progress) || true
+fi
+
+# Se richiesto, forza l'esecuzione dello script di setup anche se i file web esistono già.
+if [ "$FORCE_SETUP_RUN" = "1" ] && [ -d "${TARGET_DIR}/vendor" ]; then
+  echo "[spid-proxy] Forzo Setup::setup (composer post-update-cmd) e update-metadata"
+  (COMPOSER_ALLOW_SUPERUSER=1 composer config --global audit.block-insecure false >/dev/null 2>&1) || true
+  (cd "${TARGET_DIR}" && COMPOSER_ALLOW_SUPERUSER=1 composer run-script post-update-cmd --no-interaction --no-ansi --no-progress) || true
+  (cd "${TARGET_DIR}" && COMPOSER_ALLOW_SUPERUSER=1 composer run-script update-metadata --no-interaction --no-ansi --no-progress) || true
 fi
 
 # Recovery: se le dipendenze sono installate ma i file web non sono stati generati (es. primo avvio fallito),

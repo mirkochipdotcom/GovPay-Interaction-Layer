@@ -80,11 +80,13 @@ else
   fi
 fi
 
-# === SSL: genera certificati self-signed se non esistono ===
-# Se SKIP_SELF_SIGNED è impostato (user ha fornito certificati GOVPAY), non generare
-if [ -z "${SKIP_SELF_SIGNED:-}" ] && ( [ ! -f /ssl/server.crt ] || [ ! -f /ssl/server.key ] ); then
-  echo "⚙️  Certificati SSL mancanti: genero certificati self-signed in /ssl ..."
+# === SSL: genera certificati self-signed se non esistono o sono vuoti ===
+# Se SKIP_SELF_SIGNED è impostato, non generare.
+# Nota: Apache fallisce anche se i file esistono ma sono vuoti (0 byte), quindi usiamo -s.
+if [ -z "${SKIP_SELF_SIGNED:-}" ] && ( [ ! -s /ssl/server.crt ] || [ ! -s /ssl/server.key ] ); then
+  echo "⚙️  Certificati SSL mancanti o vuoti: genero certificati self-signed in /ssl ..."
   mkdir -p /ssl
+  rm -f /ssl/server.key /ssl/server.crt || true
   # Genera una chiave privata e un certificato self-signed valido 365 giorni
   if [ -n "$OPENSSL_BIN" ]; then
     if ! $OPENSSL_BIN req -x509 -nodes -days 365 -newkey rsa:2048 \
