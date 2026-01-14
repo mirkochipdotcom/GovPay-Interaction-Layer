@@ -28,10 +28,12 @@ mkdir -p "${TARGET_DIR}/www" || true
 # Imposta SPID_PROXY_FORCE_SETUP=1 per forzare una rigenerazione (utile quando cambi env e vuoi
 # rigenerare metadata/config senza cancellare tutto il volume).
 FORCE_SETUP_RUN=0
+echo "[spid-proxy] Force flags: SPID_PROXY_FORCE_SETUP=${SPID_PROXY_FORCE_SETUP:-0} SPID_PROXY_FORCE_CERT=${SPID_PROXY_FORCE_CERT:-0}"
 if [ "${SPID_PROXY_FORCE_SETUP:-0}" = "1" ]; then
   echo "[spid-proxy] SPID_PROXY_FORCE_SETUP=1: forzo rigenerazione setup (spid-php-setup.json + config/metadata)"
   FORCE_SETUP_RUN=1
   rm -f "${TARGET_DIR}/spid-php-setup.json" "${TARGET_DIR}/spid-php-openssl.cnf" "${TARGET_DIR}/spid-php-proxy.json" || true
+  echo "[spid-proxy] Cleanup done: $(ls -1 ${TARGET_DIR}/spid-php-setup.json ${TARGET_DIR}/spid-php-openssl.cnf ${TARGET_DIR}/spid-php-proxy.json 2>/dev/null | wc -l) files remain"
   # Opzionale: rigenera anche i certificati SPID (cert/). Attenzione: cambierà la chiave del SP.
   if [ "${SPID_PROXY_FORCE_CERT:-0}" = "1" ]; then
     echo "[spid-proxy] SPID_PROXY_FORCE_CERT=1: rimuovo certificati SPID in ${TARGET_DIR}/cert/"
