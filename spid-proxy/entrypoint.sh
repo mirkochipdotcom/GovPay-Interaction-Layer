@@ -528,7 +528,7 @@ if [ -n "${SPID_PROXY_PUBLIC_BASE_URL}" ]; then
     $path = $target . "/vendor/simplesamlphp/simplesamlphp/config/config.php";
     if (!file_exists($path)) return;
     $content = file_get_contents($path);
-    $replacement = "\'baseurlpath\' => \"{$serviceName}/\",";
+    $replacement = "\x27baseurlpath\x27 => \"{$serviceName}/\",";
     // Rimpiazza qualunque baseurlpath esistente (stringa) con quello desiderato.
     $updated = preg_replace("/^\s*\x27baseurlpath\x27\s*=>\s*\x27[^\x27]*\x27\s*,\s*$/m", "    {$replacement}", $content);
     if ($updated !== null && $updated !== $content) {
