@@ -1,0 +1,13 @@
+[
+  {
+    "name": "checkout-ec",
+    "version": "v1",
+    "package_name": "pagopa/checkout-ec-client",
+    "base_url": "https://raw.githubusercontent.com/pagopa/pagopa-api/SANP3.10.0/openapi",
+    "main_file": "checkout.json",
+    "client_dir": "checkout-ec-client",
+    "client_namespace": "PagoPA\\CheckoutEc",
+    "support_files": [],
+    "corrections": []
+  }
+]

@@ -50,8 +50,11 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
 if (!function_exists('frontoffice_env_value')) {
     function frontoffice_env_value(string $key, ?string $default = null): string
     {
-        $value = $_ENV[$key] ?? getenv($key);
-        if ($value === false || $value === null || $value === '') {
+        $value = getenv($key);
+        if ($value === false || $value === '') {
+            $value = $_ENV[$key] ?? $_SERVER[$key] ?? null;
+        }
+        if ($value === null || $value === '') {
             return $default ?? '';
         }
         return (string) $value;
@@ -1031,11 +1034,24 @@ if (!function_exists('frontoffice_build_avviso_preview')) {
         $state = strtoupper((string)($pendenza['stato'] ?? ''));
         $importo = $pendenza['importo'] ?? null;
 
+        $idPendenza = (string)($pendenza['idPendenza'] ?? '');
+        $checkoutUrl = null;
+        if (frontoffice_is_pendenza_payable($state) && $idPendenza !== '') {
+            // Checkout dinamico (server-side) per evitare di esporre la subscription key al browser.
+            $checkoutUrl = '/pendenze/' . rawurlencode($idPendenza) . '/checkout';
+        } else {
+            // Fallback legacy: link statico al portale checkout (solo inserimento dati avviso).
+            $checkoutUrl = frontoffice_env_value(
+                'FRONTOFFICE_PAGOPA_CHECKOUT_URL',
+                'https://checkout.pagopa.it/inserisci-dati-avviso'
+            );
+        }
+
         return [
             'numero_avviso' => $numeroAvviso,
             'importo' => is_numeric($importo) ? (float)$importo : null,
             'causale' => trim((string)($pendenza['causale'] ?? '')),
-            'id_pendenza' => (string)($pendenza['idPendenza'] ?? ''),
+            'id_pendenza' => $idPendenza,
             'id_a2a' => (string)($pendenza['idA2A'] ?? ''),
             'data_validita' => $pendenza['dataValidita'] ?? null,
             'data_scadenza' => $pendenza['dataScadenza'] ?? null,
@@ -1052,11 +1068,47 @@ if (!function_exists('frontoffice_build_avviso_preview')) {
                 : null,
             'voci' => $pendenza['voci'] ?? [],
             'id_dominio' => $idDominio,
-            'checkout_url' => frontoffice_env_value(
-                'FRONTOFFICE_PAGOPA_CHECKOUT_URL',
-                'https://checkout.pagopa.it/inserisci-dati-avviso'
-            ),
+            'checkout_url' => $checkoutUrl,
         ];
+    }
+}
+
+if (!function_exists('frontoffice_amount_to_cents')) {
+    function frontoffice_amount_to_cents(float $amount): int
+    {
+        return (int)max(0, (int)round($amount * 100));
+    }
+}
+
+if (!function_exists('frontoffice_pagopa_checkout_api_client')) {
+    function frontoffice_pagopa_checkout_api_client(): ?\PagoPA\CheckoutEc\Api\DefaultApi
+    {
+        if (!class_exists(\PagoPA\CheckoutEc\Api\DefaultApi::class)) {
+            return null;
+        }
+
+        $subscriptionKey = trim(frontoffice_env_value('PAGOPA_CHECKOUT_SUBSCRIPTION_KEY', ''));
+        if ($subscriptionKey === '') {
+            return null;
+        }
+
+        $config = \PagoPA\CheckoutEc\Configuration::getDefaultConfiguration();
+        $host = trim(frontoffice_env_value('PAGOPA_CHECKOUT_EC_BASE_URL', ''));
+        if ($host !== '') {
+            $config->setHost(rtrim($host, '/'));
+        }
+
+        // La spec supporta sia header che query key; impostiamo entrambe allo stesso valore.
+        $config->setApiKey('Ocp-Apim-Subscription-Key', $subscriptionKey);
+        $config->setApiKey('subscription-key', $subscriptionKey);
+
+        $httpClient = new \GuzzleHttp\Client([
+            'timeout' => 15,
+            'connect_timeout' => 10,
+            'allow_redirects' => false,
+        ]);
+
+        return new \PagoPA\CheckoutEc\Api\DefaultApi($httpClient, $config);
     }
 }
 
@@ -2056,6 +2108,175 @@ $routeDefinition = null;
 if ($method === 'GET' && preg_match('#^/avvisi/([^/]+)/([^/]+)$#', $normalizedPath, $match)) {
     frontoffice_stream_avviso_pdf(rawurldecode($match[1]), rawurldecode($match[2]));
     return;
+}
+
+if ($method === 'GET' && preg_match('#^/pendenze/([^/]+)/checkout$#', $normalizedPath, $match)) {
+    if (!frontoffice_spid_enabled()) {
+        http_response_code(404);
+        echo 'Not found';
+        return;
+    }
+
+    $user = frontoffice_get_logged_user();
+    if ($user === null) {
+        header('Location: /login?return_to=' . rawurlencode($requestPath), true, 302);
+        exit;
+    }
+
+    $idDominio = frontoffice_env_value('ID_DOMINIO', '');
+    if ($idDominio === '') {
+        http_response_code(503);
+        echo 'Configurazione mancante: ID_DOMINIO non impostato.';
+        return;
+    }
+
+    $idPendenza = trim(rawurldecode($match[1]));
+    if ($idPendenza === '') {
+        http_response_code(404);
+        echo 'Not found';
+        return;
+    }
+
+    if ($frontofficeBaseUrl === '') {
+        http_response_code(503);
+        echo 'Configurazione mancante: FRONTOFFICE_PUBLIC_BASE_URL non impostato.';
+        return;
+    }
+
+    $detail = frontoffice_fetch_pagamenti_detail($idPendenza);
+    if (!$detail) {
+        http_response_code(404);
+        echo 'Not found';
+        return;
+    }
+    if (!frontoffice_pendenza_belongs_to_cf($detail, frontoffice_get_logged_user_fiscal_number())) {
+        http_response_code(404);
+        echo 'Not found';
+        return;
+    }
+
+    $state = strtoupper((string)($detail['stato'] ?? ''));
+    if (!frontoffice_is_pendenza_payable($state)) {
+        http_response_code(404);
+        echo 'Pagamento non disponibile per questa pendenza.';
+        return;
+    }
+
+    $numeroAvviso = trim((string)($detail['numeroAvviso'] ?? ''));
+    $numeroAvviso = preg_replace('/\D+/', '', $numeroAvviso);
+    if (!is_string($numeroAvviso) || $numeroAvviso === '') {
+        http_response_code(503);
+        echo 'Numero avviso non disponibile.';
+        return;
+    }
+
+    $importo = $detail['importo'] ?? null;
+    $amountEur = is_numeric($importo) ? (float)$importo : 0.0;
+    $amountCents = frontoffice_amount_to_cents($amountEur);
+    if ($amountCents <= 0) {
+        http_response_code(503);
+        echo 'Importo non valido.';
+        return;
+    }
+
+    $hasCheckoutClient = class_exists(\PagoPA\CheckoutEc\Api\DefaultApi::class);
+    $subscriptionKeyConfigured = trim(frontoffice_env_value('PAGOPA_CHECKOUT_SUBSCRIPTION_KEY', '')) !== '';
+
+    if (!$hasCheckoutClient || !$subscriptionKeyConfigured) {
+        http_response_code(503);
+        if (!$hasCheckoutClient) {
+            echo 'Checkout pagoPA non configurato (client non installato).';
+            Logger::getInstance()->warning('Checkout pagoPA non configurato: client non installato');
+        } else {
+            echo 'Checkout pagoPA non configurato (subscription key mancante).';
+            Logger::getInstance()->warning('Checkout pagoPA non configurato: subscription key mancante');
+        }
+        return;
+    }
+
+    $api = frontoffice_pagopa_checkout_api_client();
+    if ($api === null) {
+        http_response_code(503);
+        echo 'Checkout pagoPA non configurato.';
+        Logger::getInstance()->warning('Checkout pagoPA non configurato: helper client null');
+        return;
+    }
+
+    $companyName = trim(frontoffice_env_value('PAGOPA_CHECKOUT_COMPANY_NAME', frontoffice_env_value('APP_ENTITY_NAME', 'Ente')));
+    if ($companyName === '') {
+        $companyName = 'Ente';
+    }
+    $description = trim((string)($detail['causale'] ?? ''));
+
+    $okUrl = trim(frontoffice_env_value('PAGOPA_CHECKOUT_RETURN_OK_URL', ''));
+    $cancelUrl = trim(frontoffice_env_value('PAGOPA_CHECKOUT_RETURN_CANCEL_URL', ''));
+    $errorUrl = trim(frontoffice_env_value('PAGOPA_CHECKOUT_RETURN_ERROR_URL', ''));
+    if ($okUrl === '') {
+        $okUrl = $frontofficeBaseUrl . '/pendenze/' . rawurlencode($idPendenza) . '?checkout=ok';
+    }
+    if ($cancelUrl === '') {
+        $cancelUrl = $frontofficeBaseUrl . '/pendenze/' . rawurlencode($idPendenza) . '?checkout=cancel';
+    }
+    if ($errorUrl === '') {
+        $errorUrl = $frontofficeBaseUrl . '/pendenze/' . rawurlencode($idPendenza) . '?checkout=error';
+    }
+
+    try {
+        $notice = new \PagoPA\CheckoutEc\Model\PaymentNotice();
+        $notice->setNoticeNumber($numeroAvviso);
+        $notice->setFiscalCode($idDominio);
+        $notice->setAmount($amountCents);
+        $notice->setCompanyName($companyName);
+        if ($description !== '') {
+            $notice->setDescription($description);
+        }
+
+        $returnUrls = new \PagoPA\CheckoutEc\Model\CartRequestReturnUrls();
+        $returnUrls->setReturnOkUrl($okUrl);
+        $returnUrls->setReturnCancelUrl($cancelUrl);
+        $returnUrls->setReturnErrorUrl($errorUrl);
+
+        $cart = new \PagoPA\CheckoutEc\Model\CartRequest();
+        $cart->setPaymentNotices([$notice]);
+        $cart->setReturnUrls($returnUrls);
+
+        [, $statusCode, $headers] = $api->postCartsWithHttpInfo($cart);
+
+        $location = '';
+        if (is_array($headers)) {
+            foreach ($headers as $name => $values) {
+                if (strtolower((string)$name) !== 'location') {
+                    continue;
+                }
+                if (is_array($values) && isset($values[0]) && is_string($values[0])) {
+                    $location = trim($values[0]);
+                }
+                break;
+            }
+        }
+
+        if ($location === '' || $statusCode < 300 || $statusCode >= 400) {
+            Logger::getInstance()->warning('Checkout pagoPA: risposta inattesa da POST /carts', [
+                'idPendenza' => $idPendenza,
+                'status' => $statusCode,
+                'has_location' => $location !== '',
+            ]);
+            http_response_code(503);
+            echo 'Al momento non riusciamo ad avviare il pagamento. Riprova più tardi.';
+            return;
+        }
+
+        header('Location: ' . $location, true, 302);
+        exit;
+    } catch (\Throwable $e) {
+        Logger::getInstance()->warning('Errore durante la creazione del carrello pagoPA Checkout', [
+            'idPendenza' => $idPendenza,
+            'error' => Logger::sanitizeErrorForDisplay($e->getMessage()),
+        ]);
+        http_response_code(503);
+        echo 'Al momento non riusciamo ad avviare il pagamento. Riprova più tardi.';
+        return;
+    }
 }
 
 if ($method === 'GET' && preg_match('#^/pendenze/([^/]+)/ricevuta$#', $normalizedPath, $match)) {

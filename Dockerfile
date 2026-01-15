@@ -61,6 +61,7 @@ FROM composer:2 AS vendor_builder
 WORKDIR /app
 COPY composer.json composer.lock* ./
 COPY govpay-clients/ ./govpay-clients/
+COPY pagopa-clients/ ./pagopa-clients/
 RUN composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction || \
     composer update --no-dev --prefer-dist --optimize-autoloader --no-interaction
 
@@ -135,6 +136,7 @@ COPY migrations/ /var/www/html/migrations/
 
 # Copia la sorgente dei client generati (necessario se Composer ha creato symlink per path repositories)
 COPY govpay-clients/ /var/www/html/govpay-clients/
+COPY pagopa-clients/ /var/www/html/pagopa-clients/
 
 # Hardening Apache: rimuove Indexes e aggiunge security headers
 RUN sed -i 's/Options Indexes FollowSymLinks/Options FollowSymLinks/g' /etc/apache2/apache2.conf && \
