@@ -14,6 +14,13 @@ if [ "${SPID_PROXY_METADATA_MODE}" != "mutable" ] && [ "${SPID_PROXY_METADATA_MO
   SPID_PROXY_METADATA_MODE="mutable"
 fi
 
+# SimpleSAML baseurlpath (di default: myservice). Deve essere un path-segment semplice.
+SPID_PROXY_SERVICE_NAME="${SPID_PROXY_SERVICE_NAME:-myservice}"
+if ! echo "${SPID_PROXY_SERVICE_NAME}" | grep -Eq '^[A-Za-z0-9_-]+$'; then
+  echo "[spid-proxy] WARNING: SPID_PROXY_SERVICE_NAME non valido ('${SPID_PROXY_SERVICE_NAME}'), uso 'myservice'" >&2
+  SPID_PROXY_SERVICE_NAME="myservice"
+fi
+
 # Snapshot/Frozen metadata (file statici sotto www/metadata/)
 SPID_PROXY_METADATA_SNAPSHOT_ON_START="${SPID_PROXY_METADATA_SNAPSHOT_ON_START:-0}"
 SPID_PROXY_METADATA_PUBLISH_ON_START="${SPID_PROXY_METADATA_PUBLISH_ON_START:-0}"
@@ -43,12 +50,50 @@ fi
 # Directory web persistente dove Setup.php scrive proxy.php e pagine di esempio
 mkdir -p "${TARGET_DIR}/www" || true
 
+# ---- UI overrides (NO vendor changes in git) ----
+# Il progetto spid-cie-php non lega sempre la UI al flag addCIE; qui applichiamo un override minimo e idempotente.
+# Strategia: inseriamo un blocco CSS condizionale che nasconde tab/pannello CIE se SPID_PROXY_ADD_CIE!=1.
+PROXY_HOME_FILE="${TARGET_DIR}/www/proxy-home.php"
+if [ -f "${PROXY_HOME_FILE}" ]; then
+  if ! grep -q "GOVPAY_CIE_UI_TOGGLE" "${PROXY_HOME_FILE}"; then
+    echo "[spid-proxy] Applico override UI CIE (toggle via SPID_PROXY_ADD_CIE) su proxy-home.php"
+    php -r '
+      $p = getenv("PROXY_HOME_FILE");
+      if (!$p || !is_file($p)) { exit(0); }
+      $c = file_get_contents($p);
+      if ($c === false) { exit(0); }
+      if (strpos($c, "GOVPAY_CIE_UI_TOGGLE") !== false) { exit(0); }
+      $needle = "<?php \$spidsdk->insertSPIDButtonCSS(); ?>";
+      if (strpos($c, $needle) === false) { exit(0); }
+
+      $injection = "<!-- GOVPAY_CIE_UI_TOGGLE -->\n" .
+        "<?php if ((getenv(\"SPID_PROXY_ADD_CIE\") ?: \"0\") !== \"1\") { ?>\n" .
+        "<style>\n" .
+        "  /* Hide CIE UI when disabled via env */\n" .
+        "  a[href=\"#tab-cie\"], a[aria-controls=\"tab-cie\"], #tab-cie { display: none !important; }\n" .
+        "</style>\n" .
+        "<?php } ?>\n";
+
+      $c = str_replace($needle, $injection . $needle, $c);
+      file_put_contents($p, $c);
+    ' PROXY_HOME_FILE="${PROXY_HOME_FILE}"
+  fi
+fi
+
 # ---- Forzatura rigenerazione setup/metadata ----
 # Per default, spid-cie-php salva la configurazione su volume e non rigenera ad ogni avvio.
 # Imposta SPID_PROXY_FORCE_SETUP=1 per forzare una rigenerazione (utile quando cambi env e vuoi
 # rigenerare metadata/config senza cancellare tutto il volume).
 FORCE_SETUP_RUN=0
 echo "[spid-proxy] Force flags: SPID_PROXY_FORCE_SETUP=${SPID_PROXY_FORCE_SETUP:-0} SPID_PROXY_FORCE_CERT=${SPID_PROXY_FORCE_CERT:-0}"
+
+# Guardrail produzione: se metadata è locked, non permettere rigenerazioni accidentali.
+if [ "${SPID_PROXY_METADATA_MODE}" = "locked" ] && { [ "${SPID_PROXY_FORCE_SETUP:-0}" = "1" ] || [ "${SPID_PROXY_FORCE_CERT:-0}" = "1" ]; }; then
+  echo "[spid-proxy] WARNING: SPID_PROXY_METADATA_MODE=locked: ignoro SPID_PROXY_FORCE_SETUP/SPID_PROXY_FORCE_CERT per proteggere il metadata congelato" >&2
+  SPID_PROXY_FORCE_SETUP=0
+  SPID_PROXY_FORCE_CERT=0
+fi
+
 if [ "${SPID_PROXY_FORCE_SETUP:-0}" = "1" ]; then
   echo "[spid-proxy] SPID_PROXY_FORCE_SETUP=1: forzo rigenerazione setup (spid-php-setup.json + config/metadata)"
   FORCE_SETUP_RUN=1
@@ -368,6 +413,7 @@ SPID_PROXY_CLIENT_ID="${SPID_PROXY_CLIENT_ID:-}" \
 SPID_PROXY_CLIENT_NAME="${SPID_PROXY_CLIENT_NAME:-}" \
 SPID_PROXY_CLIENT_DESCRIPTION="${SPID_PROXY_CLIENT_DESCRIPTION:-}" \
 SPID_PROXY_CLIENT_LOGO="${SPID_PROXY_CLIENT_LOGO:-}" \
+SPID_PROXY_SERVICE_NAME="${SPID_PROXY_SERVICE_NAME:-}" \
 FRONTOFFICE_PUBLIC_BASE_URL="${FRONTOFFICE_PUBLIC_BASE_URL:-}" \
 APP_ENTITY_NAME="${APP_ENTITY_NAME:-}" \
 php -r '
@@ -376,6 +422,7 @@ php -r '
   $clientNameEnv = trim(getenv("SPID_PROXY_CLIENT_NAME") ?: "");
   $clientDescEnv = trim(getenv("SPID_PROXY_CLIENT_DESCRIPTION") ?: "");
   $clientLogoEnv = trim(getenv("SPID_PROXY_CLIENT_LOGO") ?: "");
+  $serviceNameEnv = trim(getenv("SPID_PROXY_SERVICE_NAME") ?: "");
   $frontofficeBase = rtrim(trim(getenv("FRONTOFFICE_PUBLIC_BASE_URL") ?: ""), "/");
   $appEntityName = trim(getenv("APP_ENTITY_NAME") ?: "");
 
@@ -439,8 +486,20 @@ php -r '
     file_put_contents($path, json_encode($cfg));
   };
 
+  $updateServiceName = function() use ($target, $serviceNameEnv) {
+    if ($serviceNameEnv === "") return;
+    $path = $target . "/spid-php-setup.json";
+    if (!file_exists($path)) return;
+    $cfg = json_decode(file_get_contents($path), true);
+    if (!is_array($cfg)) return;
+    // serviceName è usato per baseurlpath di SimpleSAML (es. /myservice).
+    $cfg["serviceName"] = $serviceNameEnv;
+    file_put_contents($path, json_encode($cfg));
+  };
+
   $updateProxyJson();
   $updateSetupJson();
+  $updateServiceName();
 ' || true
 
 if [ -n "${SPID_PROXY_PUBLIC_BASE_URL}" ]; then
@@ -453,7 +512,29 @@ if [ -n "${SPID_PROXY_PUBLIC_BASE_URL}" ]; then
   if [ -f /etc/apache2/sites-available/000-default.conf ]; then
     sed -i -E "s/^[[:space:]]*ServerName[[:space:]]+.*/    ServerName ${SPID_PROXY_PUBLIC_HOST}/" /etc/apache2/sites-available/000-default.conf || true
     sed -i -E "s#^[[:space:]]*Redirect[[:space:]]+permanent[[:space:]]+/[[:space:]]+https://[^/]+/#    Redirect permanent / ${SPID_PROXY_PUBLIC_BASE_URL}/#" /etc/apache2/sites-available/000-default.conf || true
+
+    # Allinea Alias + rewrite al serviceName scelto (evita che cambiare SPID_PROXY_SERVICE_NAME rompa il proxy).
+    sed -i -E "s#^[[:space:]]*Alias[[:space:]]+/[^[:space:]]+[[:space:]]+/var/www/spid-cie-php/vendor/simplesamlphp/simplesamlphp/www#    Alias /${SPID_PROXY_SERVICE_NAME} /var/www/spid-cie-php/vendor/simplesamlphp/simplesamlphp/www#" /etc/apache2/sites-available/000-default.conf || true
+    sed -i -E "s#^([[:space:]]*RewriteRule[[:space:]]+\^/\(metadata\\\.xml\|spid-metadata\\\.xml\)\$)[[:space:]]+/[^/]+/module\\.php/saml/sp/metadata\\.php/spid(.*)#\1 /${SPID_PROXY_SERVICE_NAME}/module.php/saml/sp/metadata.php/spid\2#" /etc/apache2/sites-available/000-default.conf || true
   fi
+
+  # Allinea baseurlpath di SimpleSAML (config.php) al serviceName scelto.
+  # NOTA: questo non cambia il metadata servito (entityID/ACS/SLO), ma evita redirect/URL errati nei moduli.
+  TARGET_DIR="${TARGET_DIR}" \
+  SPID_PROXY_SERVICE_NAME="${SPID_PROXY_SERVICE_NAME}" \
+  php -r '
+    $target = getenv("TARGET_DIR") ?: "/var/www/spid-cie-php";
+    $serviceName = trim(getenv("SPID_PROXY_SERVICE_NAME") ?: "myservice");
+    $path = $target . "/vendor/simplesamlphp/simplesamlphp/config/config.php";
+    if (!file_exists($path)) return;
+    $content = file_get_contents($path);
+    $replacement = "\'baseurlpath\' => \"{$serviceName}/\",";
+    // Rimpiazza qualunque baseurlpath esistente (stringa) con quello desiderato.
+    $updated = preg_replace("/^\s*\x27baseurlpath\x27\s*=>\s*\x27[^\x27]*\x27\s*,\s*$/m", "    {$replacement}", $content);
+    if ($updated !== null && $updated !== $content) {
+      file_put_contents($path, $updated);
+    }
+  ' || true
 
   if [ "${SPID_PROXY_METADATA_MODE}" = "locked" ]; then
     echo "[spid-proxy] Metadata LOCKED: salto aggiornamento automatico di setup/authsources/openssl/proxy config"
