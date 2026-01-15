@@ -5,6 +5,7 @@ ARG SPID_CIE_PHP_REF="v.3.19.1"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git ca-certificates unzip zip openssl \
+    curl \
     libgmp-dev \
     libonig-dev \
     && docker-php-ext-install gmp mbstring \

@@ -23,6 +23,9 @@ vendor/
 /spid-proxy/data/.*
 !/spid-proxy/data/.gitkeep
 
+# spid-proxy metadata generator: working directory (non versionare)
+/spid-proxy/metadata-work/
+
 # Logo ente personalizzato (non versionare)
 img/stemma_ente.png
 

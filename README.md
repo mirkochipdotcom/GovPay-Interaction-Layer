@@ -117,6 +117,47 @@ Variabili principali:
 - `SPID_PROXY_PUBLIC_BASE_URL`: base URL pubblico del proxy (usato per metadata e redirect)
 - `SPID_PROXY_ENTITY_ID`: (opzionale) entityID del proxy; default `${SPID_PROXY_PUBLIC_BASE_URL}/spid-metadata.xml`
 
+Operatività:
+- **Branding pagina proxy**: vedi `SPID_PROXY_CLIENT_NAME`, `SPID_PROXY_CLIENT_DESCRIPTION`, `SPID_PROXY_CLIENT_LOGO` in `.env.spid`. Per applicare modifiche basta ricreare il solo servizio: `docker compose up -d --force-recreate spid-proxy`.
+- **Logout “vero” SPID**: il frontoffice, se configurato, inoltra il logout al proxy (IdP logout) invece di fare solo logout locale.
+
+#### Metadata in produzione (immutabile + rotazione)
+Scenario tipico AgID:
+- Dopo attestazione, il metadata **non deve cambiare** fino a scadenza.
+- Poco prima della scadenza si prepara un nuovo metadata (“next”) **senza toccare** quello in produzione (“current”).
+
+Questo repository supporta il pattern “freeze + next generator”:
+
+Checklist pre-produzione / pre-attestazione AgID (consigliata):
+- Verifica che `SPID_PROXY_PUBLIC_BASE_URL` sia l’URL pubblico reale (niente `localhost`/`127.0.0.1` in produzione).
+- Verifica che `${SPID_PROXY_PUBLIC_BASE_URL}/spid-metadata.xml` risponda `200` e scarichi un XML valido (anche se in dev con certificato self-signed).
+- Compila correttamente i dati organizzazione in `.env.spid` (campi `SPID_PROXY_ORG_*`) e tienili stabili: una variazione cambia il metadata.
+- Se usi il branding (`SPID_PROXY_CLIENT_*`), usa un `SPID_PROXY_CLIENT_LOGO` raggiungibile pubblicamente.
+- Controlla che i redirect URI usati dal frontoffice siano presenti in `SPID_PROXY_REDIRECT_URIS` (match esatto).
+- Prima di inviare ad AgID, genera un file “da consegna” e archivialo (non usare il metadata “dinamico” come unica fonte):
+   - puoi ottenere il file direttamente dall’URL `/spid-metadata.xml`, oppure
+   - usare il generator `spid-proxy-metadata` e prelevare `spid-metadata-next.xml`.
+- Dopo attestazione, fai subito freeze del “current” e abilita `SPID_PROXY_METADATA_MODE=locked`.
+
+1) **Congelare il metadata attestato (CURRENT)**
+- Copia il file attestato in `spid-proxy/data/www/metadata/spid-metadata-current.xml`.
+- Imposta in `.env.spid`: `SPID_PROXY_METADATA_MODE=locked`.
+- Ricrea solo il proxy per rileggere le env: `docker compose up -d --force-recreate spid-proxy`.
+
+Da quel momento, l’URL pubblico `${SPID_PROXY_PUBLIC_BASE_URL}/spid-metadata.xml` serve il file “current” statico.
+
+2) **Generare il metadata NEXT in parallelo (senza impattare PROD)**
+- Esegui il generator (usa una working directory separata `spid-proxy/metadata-work/`):
+   - `docker compose --profile spid-proxy-metadata run --rm spid-proxy-metadata`
+- Prendi il file: `spid-proxy/metadata-work/www/metadata/spid-metadata-next.xml` e invialo ad AgID per attestazione.
+
+3) **Cutover (quando AgID attesta NEXT)**
+- Fai backup del current (rinomina il file in `spid-metadata-current.YYYYMMDD.xml`).
+- Sostituisci `spid-metadata-current.xml` con il nuovo attestato.
+- Ricrea `spid-proxy`.
+
+I dettagli e tutte le variabili sono documentati in `.env.spid.example`.
+
 Avvio (comando unico, stesso di sempre):
 ```bash
 docker compose up -d --build
@@ -331,6 +372,9 @@ Breve riepilogo dello stato corrente (aggiornamento):
 
 
 **Nota**: Questo progetto è sviluppato per facilitare l'integrazione con GovPay/PagoPA negli Enti.
+
+Comandi rapidi (promemoria):
+```bash
 docker compose down -v
 docker compose build --no-cache
 docker compose up -d
@@ -341,3 +385,4 @@ docker system prune -f
 docker inspect govpay-interaction-backoffice
 docker compose logs
 docker exec -it govpay-interaction-backoffice find /var/www/html -name "*.php" | head -10
+```
