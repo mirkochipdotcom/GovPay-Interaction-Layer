@@ -1,0 +1,34 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Operazione annullata – {{ app_entity.name }}{% endblock %}
+
+{% block content %}
+  <div class="container-xxl py-5">
+    <div class="row justify-content-center">
+      <div class="col-lg-8">
+        <div class="alert alert-warning" role="alert">
+          <h1 class="h4 mb-2">Operazione annullata</h1>
+          <p class="mb-0">Hai annullato il pagamento nel Checkout pagoPA. Nessuna operazione è stata completata.</p>
+        </div>
+
+        {% if id_pendenza %}
+          <p class="text-muted">Riferimento pendenza: <strong>{{ id_pendenza }}</strong></p>
+        {% endif %}
+
+        <div class="d-flex flex-wrap gap-3 mt-4">
+          {% if spid_enabled and (not is_logged_in) %}
+            <a class="btn btn-primary" href="{{ login_path }}">Accedi per riprovare</a>
+          {% else %}
+            <a class="btn btn-primary" href="{{ detail_path }}">Torna alla pendenza</a>
+          {% endif %}
+          <a class="btn btn-outline-primary" href="/pendenze">Le mie pendenze</a>
+          <a class="btn btn-outline-secondary" href="/">Torna alla home</a>
+        </div>
+
+        <div class="mt-4">
+          <p class="mb-0">Serve aiuto? Scrivi a <a href="mailto:{{ support_email }}">{{ support_email }}</a>.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
