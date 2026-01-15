@@ -497,6 +497,40 @@ if (!function_exists('frontoffice_fetch_pagamenti_detail')) {
     }
 }
 
+if (!function_exists('frontoffice_pendenza_belongs_to_cf')) {
+    function frontoffice_pendenza_belongs_to_cf(array $pendenza, string $codiceFiscale): bool
+    {
+        $expected = strtoupper(preg_replace('/\s+/', '', trim($codiceFiscale)));
+        if ($expected === '') {
+            return false;
+        }
+
+        $candidates = [];
+        foreach (['idDebitore', 'codiceFiscaleDebitore', 'id_debitore'] as $key) {
+            if (isset($pendenza[$key]) && is_string($pendenza[$key])) {
+                $candidates[] = $pendenza[$key];
+            }
+        }
+
+        if (isset($pendenza['soggettoPagatore']) && is_array($pendenza['soggettoPagatore'])) {
+            foreach (['identificativo', 'identificativoUnivoco', 'codiceFiscale', 'fiscalNumber'] as $key) {
+                if (isset($pendenza['soggettoPagatore'][$key]) && is_string($pendenza['soggettoPagatore'][$key])) {
+                    $candidates[] = $pendenza['soggettoPagatore'][$key];
+                }
+            }
+        }
+
+        foreach ($candidates as $value) {
+            $normalized = strtoupper(preg_replace('/\s+/', '', trim((string)$value)));
+            if ($normalized !== '' && $normalized === $expected) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+}
+
 if (!function_exists('frontoffice_normalize_avviso_code')) {
     function frontoffice_normalize_avviso_code(string $value): string
     {
@@ -536,6 +570,156 @@ if (!function_exists('frontoffice_is_pendenza_payable')) {
     }
 }
 
+if (!function_exists('frontoffice_is_pendenza_paid')) {
+    function frontoffice_is_pendenza_paid(string $state): bool
+    {
+        $code = strtoupper(trim($state));
+        return $code === 'ESEGUITA';
+    }
+}
+
+if (!function_exists('frontoffice_extract_ricevuta_identifiers_from_pendenza_detail')) {
+    function frontoffice_extract_ricevuta_identifiers_from_pendenza_detail(array $detail): array
+    {
+        $iuv = trim((string)($detail['iuv'] ?? ''));
+        $idRicevuta = trim((string)($detail['idRicevuta'] ?? ''));
+
+        $voci = $detail['voci'] ?? null;
+        if (is_array($voci)) {
+            foreach ($voci as $voce) {
+                if (!is_array($voce)) {
+                    continue;
+                }
+                $riscossione = $voce['riscossione'] ?? null;
+                if (!is_array($riscossione)) {
+                    continue;
+                }
+                if ($iuv === '') {
+                    $iuv = trim((string)($riscossione['iuv'] ?? ''));
+                }
+                if ($idRicevuta === '') {
+                    $idRicevuta = trim((string)($riscossione['idRicevuta'] ?? ''));
+                }
+                if ($iuv !== '' && $idRicevuta !== '') {
+                    break;
+                }
+            }
+        }
+
+        return [
+            'iuv' => $iuv,
+            'idRicevuta' => $idRicevuta,
+        ];
+    }
+}
+
+if (!function_exists('frontoffice_govpay_pagamenti_base_url')) {
+    function frontoffice_govpay_pagamenti_base_url(): string
+    {
+        $pagamentiUrl = frontoffice_env_value('GOVPAY_PAGAMENTI_URL', '');
+        return rtrim($pagamentiUrl, '/');
+    }
+}
+
+if (!function_exists('frontoffice_fetch_ricevute_for_iuv')) {
+    function frontoffice_fetch_ricevute_for_iuv(string $idDominio, string $iuv): ?array
+    {
+        $baseUrl = frontoffice_govpay_pagamenti_base_url();
+        if ($baseUrl === '' || $idDominio === '' || $iuv === '') {
+            return null;
+        }
+
+        try {
+            $client = new Client(frontoffice_govpay_client_options());
+            $options = [
+                'headers' => [
+                    'Accept' => 'application/json',
+                ],
+            ];
+            if ($auth = frontoffice_basic_auth()) {
+                $options['auth'] = [$auth[0], $auth[1]];
+            }
+
+            $url = $baseUrl . '/ricevute/' . rawurlencode($idDominio) . '/' . rawurlencode($iuv);
+            $response = $client->request('GET', $url, $options);
+            $status = $response->getStatusCode();
+            if ($status < 200 || $status >= 300) {
+                return null;
+            }
+
+            $body = (string)$response->getBody();
+            if ($body === '') {
+                return null;
+            }
+            $data = json_decode($body, true);
+            return is_array($data) ? $data : null;
+        } catch (\Throwable $e) {
+            Logger::getInstance()->warning('Errore durante la ricerca ricevute GovPay', [
+                'idDominio' => $idDominio,
+                'iuv' => $iuv,
+                'error' => Logger::sanitizeErrorForDisplay($e->getMessage()),
+            ]);
+            return null;
+        }
+    }
+}
+
+if (!function_exists('frontoffice_stream_ricevuta_pdf')) {
+    function frontoffice_stream_ricevuta_pdf(string $idDominio, string $iuv, string $idRicevuta): void
+    {
+        $baseUrl = frontoffice_govpay_pagamenti_base_url();
+        if ($baseUrl === '' || $idDominio === '' || $iuv === '' || $idRicevuta === '') {
+            http_response_code(404);
+            echo 'Ricevuta non disponibile.';
+            return;
+        }
+
+        try {
+            $client = new Client(frontoffice_govpay_client_options());
+            $options = [
+                'headers' => [
+                    'Accept' => 'application/pdf',
+                ],
+            ];
+            if ($auth = frontoffice_basic_auth()) {
+                $options['auth'] = [$auth[0], $auth[1]];
+            }
+
+            $url = $baseUrl . '/ricevute/' . rawurlencode($idDominio) . '/' . rawurlencode($iuv) . '/' . rawurlencode($idRicevuta);
+            $response = $client->request('GET', $url, $options);
+            $status = $response->getStatusCode();
+            if ($status < 200 || $status >= 300) {
+                http_response_code(404);
+                echo 'Ricevuta non disponibile.';
+                return;
+            }
+
+            $contentType = strtolower(implode(' ', $response->getHeader('Content-Type')));
+            if ($contentType !== '' && strpos($contentType, 'application/pdf') === false) {
+                http_response_code(503);
+                echo 'La ricevuta non è disponibile in formato PDF.';
+                return;
+            }
+
+            $filename = 'ricevuta_' . preg_replace('/[^A-Za-z0-9._-]+/', '_', $iuv . '_' . $idRicevuta) . '.pdf';
+            header('Content-Type: application/pdf');
+            header('Content-Disposition: attachment; filename="' . $filename . '"');
+            header('X-Content-Type-Options: nosniff');
+            echo (string)$response->getBody();
+            return;
+        } catch (\Throwable $e) {
+            Logger::getInstance()->warning('Errore durante lo scarico PDF ricevuta GovPay', [
+                'idDominio' => $idDominio,
+                'iuv' => $iuv,
+                'idRicevuta' => $idRicevuta,
+                'error' => Logger::sanitizeErrorForDisplay($e->getMessage()),
+            ]);
+            http_response_code(503);
+            echo 'Al momento non riusciamo a scaricare la ricevuta. Riprova più tardi.';
+        }
+    }
+}
+
 if (!function_exists('frontoffice_build_avviso_preview')) {
     function frontoffice_build_avviso_preview(array $pendenza, string $idDominio): array
     {
@@ -560,7 +744,11 @@ if (!function_exists('frontoffice_build_avviso_preview')) {
                 'label' => frontoffice_map_pendenza_state($state),
             ],
             'is_payable' => frontoffice_is_pendenza_payable($state),
+            'is_paid' => frontoffice_is_pendenza_paid($state),
             'download_url' => $downloadUrl,
+            'receipt_url' => (frontoffice_is_pendenza_paid($state) && (string)($pendenza['idPendenza'] ?? '') !== '')
+                ? '/pendenze/' . rawurlencode((string)$pendenza['idPendenza']) . '/ricevuta'
+                : null,
             'voci' => $pendenza['voci'] ?? [],
             'id_dominio' => $idDominio,
             'checkout_url' => frontoffice_env_value(
@@ -1474,8 +1662,12 @@ $routes = [
                     'label' => frontoffice_map_pendenza_state($state),
                 ],
                 'is_payable' => frontoffice_is_pendenza_payable($state),
+                'is_paid' => frontoffice_is_pendenza_paid($state),
                 'download_url' => ($numeroAvviso !== '' && $idDominio !== '')
                     ? '/avvisi/' . rawurlencode($idDominio) . '/' . rawurlencode($numeroAvviso)
+                    : null,
+                'receipt_url' => (frontoffice_is_pendenza_paid($state) && (string)($pendenza['idPendenza'] ?? '') !== '')
+                    ? '/pendenze/' . rawurlencode((string)$pendenza['idPendenza']) . '/ricevuta'
                     : null,
                 'detail_url' => (string)($pendenza['idPendenza'] ?? '') !== ''
                     ? '/pendenze/' . rawurlencode((string)$pendenza['idPendenza'])
@@ -1496,6 +1688,7 @@ $routes = [
                     'pagina' => (int)($data['pagina'] ?? $page),
                     'risultati_per_pagina' => (int)($data['risultatiPerPagina'] ?? $perPage),
                     'num_risultati' => (int)($data['numRisultati'] ?? 0),
+                    'total_pages' => (int) max(1, (int) ceil(((int)($data['numRisultati'] ?? 0)) / max(1, (int)($data['risultatiPerPagina'] ?? $perPage)))),
                 ],
             ],
         ];
@@ -1509,6 +1702,89 @@ if ($method === 'GET' && preg_match('#^/avvisi/([^/]+)/([^/]+)$#', $normalizedPa
     return;
 }
 
+if ($method === 'GET' && preg_match('#^/pendenze/([^/]+)/ricevuta$#', $normalizedPath, $match)) {
+    if (!frontoffice_spid_enabled()) {
+        http_response_code(404);
+        echo 'Not found';
+        return;
+    }
+
+    $user = frontoffice_get_logged_user();
+    if ($user === null) {
+        header('Location: /login?return_to=' . rawurlencode($requestPath), true, 302);
+        exit;
+    }
+
+    $idDominio = frontoffice_env_value('ID_DOMINIO', '');
+    if ($idDominio === '') {
+        http_response_code(503);
+        echo 'Configurazione mancante: ID_DOMINIO non impostato.';
+        return;
+    }
+
+    $idPendenza = trim(rawurldecode($match[1]));
+    if ($idPendenza === '') {
+        http_response_code(404);
+        echo 'Not found';
+        return;
+    }
+
+    $detail = frontoffice_fetch_pagamenti_detail($idPendenza);
+    if (!$detail) {
+        http_response_code(404);
+        echo 'Not found';
+        return;
+    }
+    if (!frontoffice_pendenza_belongs_to_cf($detail, frontoffice_get_logged_user_fiscal_number())) {
+        http_response_code(404);
+        echo 'Not found';
+        return;
+    }
+
+    $state = strtoupper((string)($detail['stato'] ?? ''));
+    if (!frontoffice_is_pendenza_paid($state)) {
+        http_response_code(404);
+        echo 'Ricevuta non disponibile.';
+        return;
+    }
+
+    $ids = frontoffice_extract_ricevuta_identifiers_from_pendenza_detail($detail);
+    $iuv = trim((string)($ids['iuv'] ?? ''));
+    $idRicevuta = trim((string)($ids['idRicevuta'] ?? ''));
+    if ($iuv === '') {
+        http_response_code(404);
+        echo 'Ricevuta non disponibile.';
+        return;
+    }
+
+    // Se il dettaglio contiene gia' i riferimenti di riscossione, possiamo scaricare direttamente il PDF.
+    if ($idRicevuta !== '') {
+        frontoffice_stream_ricevuta_pdf($idDominio, $iuv, $idRicevuta);
+        return;
+    }
+
+    // Fallback: risaliamo alla ricevuta via endpoint /ricevute/{idDominio}/{iuv}
+    $ricevute = frontoffice_fetch_ricevute_for_iuv($idDominio, $iuv);
+    $risultati = is_array($ricevute['risultati'] ?? null) ? $ricevute['risultati'] : [];
+    if ($risultati === []) {
+        http_response_code(404);
+        echo 'Ricevuta non disponibile.';
+        return;
+    }
+
+    $first = $risultati[0] ?? null;
+    $idRicevuta = is_array($first) ? trim((string)($first['idRicevuta'] ?? '')) : '';
+    $iuvFromApi = is_array($first) ? trim((string)($first['iuv'] ?? $iuv)) : $iuv;
+    if ($idRicevuta === '' || $iuvFromApi === '') {
+        http_response_code(404);
+        echo 'Ricevuta non disponibile.';
+        return;
+    }
+
+    frontoffice_stream_ricevuta_pdf($idDominio, $iuvFromApi, $idRicevuta);
+    return;
+}
+
 if ($method === 'GET' && preg_match('#^/pendenze/([^/]+)$#', $normalizedPath, $match)) {
     if (!frontoffice_spid_enabled()) {
         http_response_code(404);
@@ -1519,25 +1795,15 @@ if ($method === 'GET' && preg_match('#^/pendenze/([^/]+)$#', $normalizedPath, $m
             ],
         ];
     } else {
-    $user = frontoffice_get_logged_user();
-    if ($user === null) {
-        header('Location: /login?return_to=%2Fpendenze', true, 302);
-        exit;
-    }
+        $user = frontoffice_get_logged_user();
+        if ($user === null) {
+            header('Location: /login?return_to=%2Fpendenze', true, 302);
+            exit;
+        }
 
-    $idPendenza = rawurldecode($match[1]);
-    $idPendenza = trim($idPendenza);
-    if ($idPendenza === '') {
-        http_response_code(404);
-        $routeDefinition = [
-            'template' => 'errors/404.html.twig',
-            'context' => [
-                'requested_path' => $requestPath,
-            ],
-        ];
-    } else {
-        $detail = frontoffice_fetch_pagamenti_detail($idPendenza);
-        if (!$detail) {
+        $idPendenza = rawurldecode($match[1]);
+        $idPendenza = trim($idPendenza);
+        if ($idPendenza === '') {
             http_response_code(404);
             $routeDefinition = [
                 'template' => 'errors/404.html.twig',
@@ -1546,19 +1812,37 @@ if ($method === 'GET' && preg_match('#^/pendenze/([^/]+)$#', $normalizedPath, $m
                 ],
             ];
         } else {
-            $idDominio = frontoffice_env_value('ID_DOMINIO', '');
-            $routeDefinition = [
-                'template' => 'pendenze/detail.html.twig',
-                'context' => [
-                    'profile' => $user,
-                    'codice_fiscale' => frontoffice_get_logged_user_fiscal_number(),
-                    'pendenza' => $detail,
-                    'pendenza_preview' => frontoffice_build_avviso_preview($detail, $idDominio),
-                    'back_url' => '/pendenze',
-                ],
-            ];
+            $detail = frontoffice_fetch_pagamenti_detail($idPendenza);
+            if (!$detail) {
+                http_response_code(404);
+                $routeDefinition = [
+                    'template' => 'errors/404.html.twig',
+                    'context' => [
+                        'requested_path' => $requestPath,
+                    ],
+                ];
+            } elseif (!frontoffice_pendenza_belongs_to_cf($detail, frontoffice_get_logged_user_fiscal_number())) {
+                http_response_code(404);
+                $routeDefinition = [
+                    'template' => 'errors/404.html.twig',
+                    'context' => [
+                        'requested_path' => $requestPath,
+                    ],
+                ];
+            } else {
+                $idDominio = frontoffice_env_value('ID_DOMINIO', '');
+                $routeDefinition = [
+                    'template' => 'pendenze/detail.html.twig',
+                    'context' => [
+                        'profile' => $user,
+                        'codice_fiscale' => frontoffice_get_logged_user_fiscal_number(),
+                        'pendenza' => $detail,
+                        'pendenza_preview' => frontoffice_build_avviso_preview($detail, $idDominio),
+                        'back_url' => '/pendenze',
+                    ],
+                ];
+            }
         }
-    }
     }
 }
 

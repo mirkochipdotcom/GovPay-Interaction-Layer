@@ -2,6 +2,46 @@
 
 {% block title %}Le mie pendenze - {{ app_entity.name }}{% endblock %}
 
+{% block head %}
+  <style>
+    body { background: #f4f6fb; }
+    .pendenze-hero {
+      background: linear-gradient(135deg, #05193d 0%, #003a6d 50%, #0062b8 100%);
+      color: #fff;
+      border-radius: 24px;
+      box-shadow: 0 25px 60px rgba(9, 26, 62, 0.12);
+    }
+    .pendenze-hero .btn { border-radius: 999px; font-weight: 600; }
+    .metric-card {
+      border-radius: 20px;
+      border: none;
+      box-shadow: 0 20px 50px rgba(9, 26, 62, 0.08);
+    }
+    .filters-surface {
+      border-radius: 20px;
+      border: 1px solid rgba(9, 26, 62, 0.10);
+      background: rgba(255, 255, 255, 0.85);
+      box-shadow: none;
+      backdrop-filter: blur(6px);
+    }
+    .filters-surface .form-select {
+      background-color: #fff;
+    }
+    /* Compat: Bootstrap 5 usa .visually-hidden; qui aggiungiamo anche .sr-only per richiesta UI */
+    .sr-only {
+      position: absolute !important;
+      width: 1px !important;
+      height: 1px !important;
+      padding: 0 !important;
+      margin: -1px !important;
+      overflow: hidden !important;
+      clip: rect(0, 0, 0, 0) !important;
+      white-space: nowrap !important;
+      border: 0 !important;
+    }
+  </style>
+{% endblock %}
+
 {% set items = pendenze|default([]) %}
 {% set stato = filters.stato|default('') %}
 {% set pagina = pagination.pagina|default(1) %}
@@ -17,22 +57,25 @@
       </ol>
     </nav>
 
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
-      <div>
-        <h1 class="h3 mb-1">Le mie pendenze</h1>
-        <div class="text-muted">
-          Codice fiscale: <strong>{{ codice_fiscale|default('') }}</strong>
+    <div class="pendenze-hero p-4 p-lg-5 mb-4">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div>
+          <p class="text-uppercase small mb-2 text-white-50">Area personale</p>
+          <h1 class="h3 mb-1">Le mie pendenze</h1>
+          <div class="text-white-50">Codice fiscale: <strong class="text-white">{{ codice_fiscale|default('') }}</strong></div>
+          <div class="text-white-50 small mt-2">Da qui puoi consultare lo stato, scaricare l'avviso e (quando disponibile) la ricevuta di pagamento.</div>
         </div>
-      </div>
-      <div class="d-flex gap-2">
-        <a class="btn btn-outline-primary" href="/profile">Profilo</a>
-        <a class="btn btn-outline-danger" href="/logout">Logout</a>
+        <div class="d-flex flex-wrap gap-2">
+          <a class="btn btn-warning text-dark" href="/pagamento-avviso">Paga un avviso</a>
+          <a class="btn btn-outline-light" href="/pagamento-spontaneo">Pagamento spontaneo</a>
+          <a class="btn btn-outline-light" href="/profile">Profilo</a>
+          <a class="btn btn-outline-light" href="/logout">Logout</a>
+        </div>
       </div>
     </div>
 
-    <div class="card shadow-sm mb-4">
-      <div class="card-body">
-        <form class="row gy-2 gx-3 align-items-end" method="get" action="/pendenze">
+    <div class="filters-surface p-3 p-lg-4 mb-4">
+      <form class="row gy-2 gx-3 align-items-end" method="get" action="/pendenze">
           <div class="col-12 col-md-4">
             <label class="form-label" for="stato">Stato</label>
             <select class="form-select" id="stato" name="stato">
@@ -55,24 +98,16 @@
             </select>
           </div>
 
-          <div class="col-12 col-md-5 d-flex gap-2">
+          <div class="col-12 col-md-auto ms-md-auto d-flex gap-2">
             <button class="btn btn-primary" type="submit">Aggiorna</button>
             <a class="btn btn-outline-secondary" href="/pendenze">Reset</a>
           </div>
-        </form>
-      </div>
+      </form>
     </div>
 
     <div class="card shadow-sm">
       <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
         <span class="fw-semibold">Elenco</span>
-        <span class="text-muted small">
-          {% if num_risultati %}
-            {{ num_risultati }} risultato{{ num_risultati == 1 ? '' : 'i' }}
-          {% else %}
-            {{ items|length }} elemento{{ items|length == 1 ? '' : 'i' }}
-          {% endif %}
-        </span>
       </div>
       <div class="card-body p-0">
         {% if items is empty %}
@@ -129,10 +164,22 @@
                     <td class="text-end">
                       <div class="btn-group" role="group" aria-label="Azioni pendenza">
                         {% if p.detail_url %}
-                          <a class="btn btn-sm btn-outline-primary" href="{{ p.detail_url }}">Dettaglio</a>
+                          <a class="btn btn-sm btn-outline-primary" href="{{ p.detail_url }}">
+                            <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+                            <span class="sr-only">Dettaglio</span>
+                          </a>
                         {% endif %}
                         {% if p.download_url %}
-                          <a class="btn btn-sm btn-outline-secondary" href="{{ p.download_url }}" target="_blank" rel="noopener">PDF</a>
+                          <a class="btn btn-sm btn-outline-secondary" href="{{ p.download_url }}" target="_blank" rel="noopener">
+                            <i class="fa-solid fa-file-pdf" aria-hidden="true"></i>
+                            <span class="sr-only">Scarica PDF avviso</span>
+                          </a>
+                        {% endif %}
+                        {% if p.receipt_url %}
+                          <a class="btn btn-sm btn-outline-success" href="{{ p.receipt_url }}">
+                            <i class="fa-solid fa-receipt" aria-hidden="true"></i>
+                            <span class="sr-only">Scarica ricevuta</span>
+                          </a>
                         {% endif %}
                       </div>
                     </td>
@@ -144,13 +191,10 @@
         {% endif %}
       </div>
       <div class="card-footer d-flex flex-wrap justify-content-between align-items-center gap-2">
-        <div class="text-muted small">Pagina {{ pagina }}</div>
+        <div class="text-muted small">Pagina {{ pagination.pagina }} di {{ pagination.total_pages|default(1) }}</div>
         <div class="d-flex gap-2">
-          {% set prev = pagina - 1 %}
-          {% set next = pagina + 1 %}
-          {% set query_base = 'stato=' ~ (stato|url_encode) ~ '&per_page=' ~ per_pagina %}
-          <a class="btn btn-sm btn-outline-secondary {{ pagina <= 1 ? 'disabled' : '' }}" href="/pendenze?{{ query_base }}&page={{ prev }}">Precedente</a>
-          <a class="btn btn-sm btn-outline-secondary" href="/pendenze?{{ query_base }}&page={{ next }}">Successiva</a>
+          <a class="btn btn-sm btn-outline-secondary {{ pagination.pagina <= 1 ? 'disabled' : '' }}" href="?page={{ pagination.pagina - 1 }}&per_page={{ pagination.risultati_per_pagina }}{% if filters.stato %}&stato={{ filters.stato }}{% endif %}" {% if pagination.pagina <= 1 %}aria-disabled="true" tabindex="-1"{% endif %}>Precedente</a>
+          <a class="btn btn-sm btn-outline-secondary {{ pagination.pagina >= (pagination.total_pages|default(1)) ? 'disabled' : '' }}" href="?page={{ pagination.pagina + 1 }}&per_page={{ pagination.risultati_per_pagina }}{% if filters.stato %}&stato={{ filters.stato }}{% endif %}" {% if pagination.pagina >= (pagination.total_pages|default(1)) %}aria-disabled="true" tabindex="-1"{% endif %}>Successiva</a>
         </div>
       </div>
     </div>

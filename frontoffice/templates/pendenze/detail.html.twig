@@ -26,7 +26,6 @@
         {% if back_url|default('') %}
           <a class="btn btn-outline-secondary" href="{{ back_url }}">Torna all'elenco</a>
         {% endif %}
-        <a class="btn btn-outline-danger" href="/logout">Logout</a>
       </div>
     </div>
 
@@ -74,7 +73,16 @@
           </div>
           <div class="card-footer d-flex flex-wrap gap-2">
             {% if p.download_url %}
-              <a class="btn btn-primary" href="{{ p.download_url }}" target="_blank" rel="noopener">Scarica PDF avviso</a>
+              <a class="btn btn-primary" href="{{ p.download_url }}" target="_blank" rel="noopener">
+                <i class="fa-solid fa-file-pdf" aria-hidden="true"></i>
+                <span class="sr-only">Scarica PDF avviso</span>
+              </a>
+            {% endif %}
+            {% if p.receipt_url %}
+              <a class="btn btn-outline-success" href="{{ p.receipt_url }}">
+                <i class="fa-solid fa-receipt" aria-hidden="true"></i>
+                <span class="sr-only">Scarica ricevuta</span>
+              </a>
             {% endif %}
             {% if p.is_payable and p.checkout_url %}
               <a class="btn btn-outline-primary" href="{{ p.checkout_url }}" target="_blank" rel="noopener">Paga su pagoPA</a>

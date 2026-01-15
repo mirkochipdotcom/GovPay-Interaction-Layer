@@ -87,10 +87,13 @@
         <div class="col-lg-7">
           <p class="text-uppercase small mb-2 text-white-50">Sportello digitale</p>
           <h1 class="display-5 fw-semibold mb-3">Gestisci i pagamenti PagoPA con pochi clic</h1>
-          <p class="lead mb-4">Consulta le tue posizioni debitorie, paga un avviso gia' ricevuto oppure genera un pagamento spontaneo per i servizi del Comune.</p>
+          <p class="lead mb-4">Paga un avviso, genera un pagamento spontaneo oppure consulta le tue pendenze e scarica le ricevute dei pagamenti effettuati.</p>
           <div class="d-flex flex-wrap gap-3">
             <a class="btn btn-warning btn-lg text-dark" href="/pagamento-avviso">Paga un avviso</a>
             <a class="btn btn-outline-light btn-lg" href="/pagamento-spontaneo">Pagamento spontaneo</a>
+            {% if spid_enabled %}
+              <a class="btn btn-outline-light btn-lg" href="/pendenze">Le mie pendenze</a>
+            {% endif %}
           </div>
         </div>
         <div class="col-lg-5">
@@ -100,6 +103,9 @@
               <li>Codice avviso o IUV riportato sulla comunicazione ricevuta</li>
               <li>Codice fiscale o partita IVA del soggetto a cui e' intestato l'avviso</li>
               <li>Metodo di pagamento PagoPA (carta, conto, app o home banking)</li>
+              {% if spid_enabled %}
+                <li>SPID o CIE per accedere alle tue pendenze e alle ricevute</li>
+              {% endif %}
             </ul>
           </div>
         </div>
