@@ -5,6 +5,26 @@ set -euo pipefail
 TARGET_DIR="/var/www/spid-cie-php"
 SOURCE_DIR="/opt/spid-cie-php"
 
+# Modalità gestione metadata:
+# - mutable (default): comportamento attuale, aggiorna file di setup/config in base alle env.
+# - locked: NON modifica automaticamente file che impattano metadata (setup/authsources/openssl/proxy config).
+SPID_PROXY_METADATA_MODE="${SPID_PROXY_METADATA_MODE:-mutable}"
+if [ "${SPID_PROXY_METADATA_MODE}" != "mutable" ] && [ "${SPID_PROXY_METADATA_MODE}" != "locked" ]; then
+  echo "[spid-proxy] WARNING: SPID_PROXY_METADATA_MODE non valido ('${SPID_PROXY_METADATA_MODE}'), uso 'mutable'" >&2
+  SPID_PROXY_METADATA_MODE="mutable"
+fi
+
+# Snapshot/Frozen metadata (file statici sotto www/metadata/)
+SPID_PROXY_METADATA_SNAPSHOT_ON_START="${SPID_PROXY_METADATA_SNAPSHOT_ON_START:-0}"
+SPID_PROXY_METADATA_PUBLISH_ON_START="${SPID_PROXY_METADATA_PUBLISH_ON_START:-0}"
+SPID_PROXY_METADATA_PUBLISH_TARGET="${SPID_PROXY_METADATA_PUBLISH_TARGET:-current}"
+SPID_PROXY_GENERATE_ONLY="${SPID_PROXY_GENERATE_ONLY:-0}"
+
+if [ "${SPID_PROXY_METADATA_PUBLISH_TARGET}" != "current" ] && [ "${SPID_PROXY_METADATA_PUBLISH_TARGET}" != "next" ]; then
+  echo "[spid-proxy] WARNING: SPID_PROXY_METADATA_PUBLISH_TARGET non valido ('${SPID_PROXY_METADATA_PUBLISH_TARGET}'), uso 'current'" >&2
+  SPID_PROXY_METADATA_PUBLISH_TARGET="current"
+fi
+
 if [ ! -f "${TARGET_DIR}/.spid_proxy_copied" ]; then
   echo "[spid-proxy] Inizializzo working copy in ${TARGET_DIR}..."
   mkdir -p "${TARGET_DIR}"
@@ -435,16 +455,19 @@ if [ -n "${SPID_PROXY_PUBLIC_BASE_URL}" ]; then
     sed -i -E "s#^[[:space:]]*Redirect[[:space:]]+permanent[[:space:]]+/[[:space:]]+https://[^/]+/#    Redirect permanent / ${SPID_PROXY_PUBLIC_BASE_URL}/#" /etc/apache2/sites-available/000-default.conf || true
   fi
 
-  # Override file di configurazione (persistenti su bind-mount)
-  TARGET_DIR="${TARGET_DIR}" \
-  SPID_PROXY_PUBLIC_BASE_URL="${SPID_PROXY_PUBLIC_BASE_URL}" \
-  SPID_PROXY_PUBLIC_HOST="${SPID_PROXY_PUBLIC_HOST}" \
-  SPID_PROXY_ENTITY_ID="${SPID_PROXY_ENTITY_ID}" \
-  SPID_PROXY_CLIENT_ID="${SPID_PROXY_CLIENT_ID:-}" \
-  SPID_PROXY_REDIRECT_URIS="${SPID_PROXY_REDIRECT_URIS:-}" \
-  APP_ENTITY_NAME="${APP_ENTITY_NAME:-}" \
-  URL_ENTE="${URL_ENTE:-}" \
-  php -r '
+  if [ "${SPID_PROXY_METADATA_MODE}" = "locked" ]; then
+    echo "[spid-proxy] Metadata LOCKED: salto aggiornamento automatico di setup/authsources/openssl/proxy config"
+  else
+    # Override file di configurazione (persistenti su bind-mount)
+    TARGET_DIR="${TARGET_DIR}" \
+    SPID_PROXY_PUBLIC_BASE_URL="${SPID_PROXY_PUBLIC_BASE_URL}" \
+    SPID_PROXY_PUBLIC_HOST="${SPID_PROXY_PUBLIC_HOST}" \
+    SPID_PROXY_ENTITY_ID="${SPID_PROXY_ENTITY_ID}" \
+    SPID_PROXY_CLIENT_ID="${SPID_PROXY_CLIENT_ID:-}" \
+    SPID_PROXY_REDIRECT_URIS="${SPID_PROXY_REDIRECT_URIS:-}" \
+    APP_ENTITY_NAME="${APP_ENTITY_NAME:-}" \
+    URL_ENTE="${URL_ENTE:-}" \
+    php -r '
     $target = getenv("TARGET_DIR") ?: "/var/www/spid-cie-php";
     $base = getenv("SPID_PROXY_PUBLIC_BASE_URL") ?: "";
     $host = getenv("SPID_PROXY_PUBLIC_HOST") ?: "localhost";
@@ -546,6 +569,7 @@ if [ -n "${SPID_PROXY_PUBLIC_BASE_URL}" ]; then
     $applyAuthsources();
     $applyOpenSSL();
   ' || true
+  fi
 fi
 
 # Cert self-signed se mancante (dev)
@@ -618,6 +642,47 @@ if [ -d "${TARGET_DIR}/vendor" ] && [ ! -f "${TARGET_DIR}/www/proxy.php" ]; then
   echo "[spid-proxy] vendor/ presente ma www/proxy.php mancante: rilancio composer post-update-cmd (Setup::setup)"
   (COMPOSER_ALLOW_SUPERUSER=1 composer config --global audit.block-insecure false >/dev/null 2>&1) || true
   (cd "${TARGET_DIR}" && COMPOSER_ALLOW_SUPERUSER=1 composer run-script post-update-cmd --no-interaction --no-ansi) || true
+fi
+
+# Esegue eventuale snapshot metadata DOPO che vendor/config sono presenti.
+if [ "${SPID_PROXY_METADATA_SNAPSHOT_ON_START}" = "1" ]; then
+  if [ -d "${TARGET_DIR}/vendor/simplesamlphp/simplesamlphp/www" ]; then
+    META_DIR="${TARGET_DIR}/www/metadata"
+    mkdir -p "${META_DIR}" || true
+    TS="$(date -u +"%Y%m%dT%H%M%SZ" 2>/dev/null || date +"%Y%m%d%H%M%S")"
+    OUT_FILE="${META_DIR}/spid-metadata-${TS}.xml"
+    echo "[spid-proxy] Snapshot metadata: ${OUT_FILE}"
+
+    apache2ctl start >/dev/null 2>&1 || true
+    if command -v curl >/dev/null 2>&1; then
+      curl -ksS --max-time 30 "https://localhost/myservice/module.php/saml/sp/metadata.php/spid" -o "${OUT_FILE}" || true
+    else
+      echo "[spid-proxy] WARNING: curl non disponibile, impossibile fare snapshot metadata" >&2
+    fi
+    apache2ctl stop >/dev/null 2>&1 || true
+
+    if [ ! -s "${OUT_FILE}" ]; then
+      echo "[spid-proxy] WARNING: snapshot metadata vuoto o fallito (${OUT_FILE})" >&2
+      rm -f "${OUT_FILE}" || true
+    else
+      if [ "${SPID_PROXY_METADATA_PUBLISH_ON_START}" = "1" ]; then
+        if [ "${SPID_PROXY_METADATA_PUBLISH_TARGET}" = "next" ]; then
+          cp -f "${OUT_FILE}" "${META_DIR}/spid-metadata-next.xml" || true
+          echo "[spid-proxy] Pubblicato metadata NEXT: ${META_DIR}/spid-metadata-next.xml"
+        else
+          cp -f "${OUT_FILE}" "${META_DIR}/spid-metadata-current.xml" || true
+          echo "[spid-proxy] Pubblicato metadata CURRENT: ${META_DIR}/spid-metadata-current.xml"
+        fi
+      fi
+    fi
+  else
+    echo "[spid-proxy] WARNING: vendor SimpleSAML assente, salto snapshot metadata" >&2
+  fi
+fi
+
+if [ "${SPID_PROXY_GENERATE_ONLY}" = "1" ]; then
+  echo "[spid-proxy] SPID_PROXY_GENERATE_ONLY=1: esco dopo generazione/snapshot (non avvio Apache in foreground)"
+  exit 0
 fi
 
 exec "$@"

@@ -62,6 +62,32 @@ services:
       - ./spid-proxy/data:/var/www/spid-cie-php
       - ./ssl:/ssl
     restart: unless-stopped
+
+  # Generatore metadata "next": gira su una working directory separata, quindi non tocca il proxy in produzione.
+  # Uso tipico:
+  #   docker compose --profile spid-proxy-metadata run --rm spid-proxy-metadata
+  # Output:
+  #   spid-proxy/metadata-work/www/metadata/spid-metadata-next.xml
+  spid-proxy-metadata:
+    build:
+      context: ./spid-proxy
+    image: govpay-spid-proxy:latest
+    container_name: spid-proxy-metadata
+    profiles:
+      - spid-proxy-metadata
+    env_file:
+      - .env
+      - .env.spid
+    environment:
+      - SPID_PROXY_FORCE_SETUP=1
+      - SPID_PROXY_FORCE_CERT=1
+      - SPID_PROXY_METADATA_SNAPSHOT_ON_START=1
+      - SPID_PROXY_METADATA_PUBLISH_ON_START=1
+      - SPID_PROXY_METADATA_PUBLISH_TARGET=next
+      - SPID_PROXY_GENERATE_ONLY=1
+    volumes:
+      - ./spid-proxy/metadata-work:/var/www/spid-cie-php
+    restart: "no"
   db:
     image: mariadb:11
     container_name: mariadb

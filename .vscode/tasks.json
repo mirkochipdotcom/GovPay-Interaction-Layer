@@ -29,6 +29,15 @@
       "problemMatcher": []
     },
     {
+      "label": "generate-spid-metadata-next",
+      "type": "shell",
+      "command": "docker compose --profile spid-proxy-metadata run --rm spid-proxy-metadata",
+      "args": [],
+      "isBackground": false,
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
       "label": "logs",
       "type": "shell",
       "command": "docker compose logs -f",
