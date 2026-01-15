@@ -669,6 +669,15 @@ if (!function_exists('frontoffice_extract_ricevuta_identifiers_from_pendenza_det
     {
         $iuv = trim((string)($detail['iuv'] ?? ''));
         $idRicevuta = trim((string)($detail['idRicevuta'] ?? ''));
+        $ccp = '';
+        foreach (['ccp', 'codiceContestoPagamento', 'codice_contesto_pagamento'] as $k) {
+            if (isset($detail[$k]) && is_scalar($detail[$k])) {
+                $ccp = trim((string)$detail[$k]);
+                if ($ccp !== '') {
+                    break;
+                }
+            }
+        }
 
         $voci = $detail['voci'] ?? null;
         if (is_array($voci)) {
@@ -686,7 +695,18 @@ if (!function_exists('frontoffice_extract_ricevuta_identifiers_from_pendenza_det
                 if ($idRicevuta === '') {
                     $idRicevuta = trim((string)($riscossione['idRicevuta'] ?? ''));
                 }
-                if ($iuv !== '' && $idRicevuta !== '') {
+                if ($ccp === '') {
+                    foreach (['ccp', 'codiceContestoPagamento', 'codice_contesto_pagamento'] as $k) {
+                        if (isset($riscossione[$k]) && is_scalar($riscossione[$k])) {
+                            $ccp = trim((string)$riscossione[$k]);
+                            if ($ccp !== '') {
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if ($iuv !== '' && $idRicevuta !== '' && $ccp !== '') {
                     break;
                 }
             }
@@ -695,7 +715,16 @@ if (!function_exists('frontoffice_extract_ricevuta_identifiers_from_pendenza_det
         return [
             'iuv' => $iuv,
             'idRicevuta' => $idRicevuta,
+            'ccp' => $ccp,
         ];
+    }
+}
+
+if (!function_exists('frontoffice_govpay_pendenze_base_url')) {
+    function frontoffice_govpay_pendenze_base_url(): string
+    {
+        $pendenzeUrl = frontoffice_env_value('GOVPAY_PENDENZE_URL', '');
+        return rtrim($pendenzeUrl, '/');
     }
 }
 
@@ -725,6 +754,8 @@ if (!function_exists('frontoffice_fetch_ricevute_for_iuv')) {
             if ($auth = frontoffice_basic_auth()) {
                 $options['auth'] = [$auth[0], $auth[1]];
             }
+            // Allineato al backoffice (diag): richiedi solo ricevute con esito positivo.
+            $options['query'] = ['esito' => 'ESEGUITO'];
 
             $url = $baseUrl . '/ricevute/' . rawurlencode($idDominio) . '/' . rawurlencode($iuv);
             $response = $client->request('GET', $url, $options);
@@ -746,6 +777,71 @@ if (!function_exists('frontoffice_fetch_ricevute_for_iuv')) {
                 'error' => Logger::sanitizeErrorForDisplay($e->getMessage()),
             ]);
             return null;
+        }
+    }
+}
+
+if (!function_exists('frontoffice_stream_rt_pdf')) {
+    function frontoffice_stream_rt_pdf(string $idDominio, string $iuv, string $ccp): void
+    {
+        $baseUrl = frontoffice_govpay_pendenze_base_url();
+        if ($idDominio === '' || $iuv === '' || $ccp === '') {
+            http_response_code(404);
+            echo 'Ricevuta non disponibile.';
+            return;
+        }
+        if ($baseUrl === '') {
+            http_response_code(503);
+            echo 'Configurazione mancante: GOVPAY_PENDENZE_URL non impostata.';
+            return;
+        }
+
+        try {
+            $client = new Client(frontoffice_govpay_client_options());
+            $options = [
+                'headers' => [
+                    'Accept' => 'application/pdf',
+                ],
+            ];
+            if ($auth = frontoffice_basic_auth()) {
+                $options['auth'] = [$auth[0], $auth[1]];
+            }
+
+            $url = $baseUrl . '/rpp/' . rawurlencode($idDominio) . '/' . rawurlencode($iuv) . '/' . rawurlencode($ccp) . '/rt';
+            $response = $client->request('GET', $url, $options);
+            $status = $response->getStatusCode();
+            if ($status < 200 || $status >= 300) {
+                http_response_code(404);
+                echo 'Ricevuta non disponibile.';
+                return;
+            }
+
+            $contentType = strtolower(implode(' ', $response->getHeader('Content-Type')));
+            if ($contentType !== '' && strpos($contentType, 'application/pdf') === false) {
+                http_response_code(503);
+                echo 'La ricevuta non è disponibile in formato PDF.';
+                return;
+            }
+
+            $filename = 'rt-' . preg_replace('/[^A-Za-z0-9._-]+/', '_', $iuv . '_' . $ccp) . '.pdf';
+            header('Content-Type: application/pdf');
+            header('Content-Disposition: attachment; filename="' . $filename . '"');
+            header('X-Content-Type-Options: nosniff');
+            echo (string)$response->getBody();
+            return;
+        } catch (ClientException $e) {
+            http_response_code(($e->getResponse() ? $e->getResponse()->getStatusCode() : 404) ?: 404);
+            echo 'Ricevuta non disponibile.';
+            return;
+        } catch (\Throwable $e) {
+            Logger::getInstance()->warning('Errore durante lo scarico PDF RT (Pendenze /rpp)', [
+                'idDominio' => $idDominio,
+                'iuv' => $iuv,
+                'ccp' => $ccp,
+                'error' => Logger::sanitizeErrorForDisplay($e->getMessage()),
+            ]);
+            http_response_code(503);
+            echo 'Al momento non riusciamo a scaricare la ricevuta. Riprova più tardi.';
         }
     }
 }
@@ -1892,19 +1988,20 @@ if ($method === 'GET' && preg_match('#^/pendenze/([^/]+)/ricevuta$#', $normalize
     $ids = frontoffice_extract_ricevuta_identifiers_from_pendenza_detail($detail);
     $iuv = trim((string)($ids['iuv'] ?? ''));
     $idRicevuta = trim((string)($ids['idRicevuta'] ?? ''));
+    $ccp = trim((string)($ids['ccp'] ?? ''));
     if ($iuv === '') {
         http_response_code(404);
         echo 'Ricevuta non disponibile.';
         return;
     }
 
-    // Se il dettaglio contiene gia' i riferimenti di riscossione, possiamo scaricare direttamente il PDF.
-    if ($idRicevuta !== '') {
-        frontoffice_stream_ricevuta_pdf($idDominio, $iuv, $idRicevuta);
+    // Allineato al backoffice: la RT si scarica da Pendenze v2 /rpp/{idDominio}/{iuv}/{ccp}/rt.
+    if ($ccp !== '') {
+        frontoffice_stream_rt_pdf($idDominio, $iuv, $ccp);
         return;
     }
 
-    // Fallback: risaliamo alla ricevuta via endpoint /ricevute/{idDominio}/{iuv}
+    // Fallback: cerchiamo il CCP interrogando Pagamenti /ricevute/{idDominio}/{iuv}.
     $ricevute = frontoffice_fetch_ricevute_for_iuv($idDominio, $iuv);
     $risultati = is_array($ricevute['risultati'] ?? null) ? $ricevute['risultati'] : [];
     if ($risultati === []) {
@@ -1914,15 +2011,30 @@ if ($method === 'GET' && preg_match('#^/pendenze/([^/]+)/ricevuta$#', $normalize
     }
 
     $first = $risultati[0] ?? null;
-    $idRicevuta = is_array($first) ? trim((string)($first['idRicevuta'] ?? '')) : '';
     $iuvFromApi = is_array($first) ? trim((string)($first['iuv'] ?? $iuv)) : $iuv;
-    if ($idRicevuta === '' || $iuvFromApi === '') {
+    $ccpFromApi = '';
+    if (is_array($first)) {
+        foreach (['ccp', 'codiceContestoPagamento', 'codice_contesto_pagamento'] as $k) {
+            if (isset($first[$k]) && is_scalar($first[$k])) {
+                $ccpFromApi = trim((string)$first[$k]);
+                if ($ccpFromApi !== '') {
+                    break;
+                }
+            }
+        }
+    }
+    if ($ccpFromApi === '' || $iuvFromApi === '') {
+        // Ultimo fallback: se abbiamo idRicevuta (anche se non abbiamo CCP), proviamo lo scarico PDF legacy.
+        if ($idRicevuta !== '') {
+            frontoffice_stream_ricevuta_pdf($idDominio, $iuv, $idRicevuta);
+            return;
+        }
         http_response_code(404);
         echo 'Ricevuta non disponibile.';
         return;
     }
 
-    frontoffice_stream_ricevuta_pdf($idDominio, $iuvFromApi, $idRicevuta);
+    frontoffice_stream_rt_pdf($idDominio, $iuvFromApi, $ccpFromApi);
     return;
 }
 
