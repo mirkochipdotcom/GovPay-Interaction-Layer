@@ -1,0 +1,158 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Le mie pendenze - {{ app_entity.name }}{% endblock %}
+
+{% set items = pendenze|default([]) %}
+{% set stato = filters.stato|default('') %}
+{% set pagina = pagination.pagina|default(1) %}
+{% set per_pagina = pagination.risultati_per_pagina|default(25) %}
+{% set num_risultati = pagination.num_risultati|default(0) %}
+
+{% block content %}
+  <div class="container-xxl py-4">
+    <nav aria-label="Percorso" class="mb-3">
+      <ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item"><a href="/">Home</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Le mie pendenze</li>
+      </ol>
+    </nav>
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+      <div>
+        <h1 class="h3 mb-1">Le mie pendenze</h1>
+        <div class="text-muted">
+          Codice fiscale: <strong>{{ codice_fiscale|default('') }}</strong>
+        </div>
+      </div>
+      <div class="d-flex gap-2">
+        <a class="btn btn-outline-primary" href="/profile">Profilo</a>
+        <a class="btn btn-outline-danger" href="/logout">Logout</a>
+      </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+      <div class="card-body">
+        <form class="row gy-2 gx-3 align-items-end" method="get" action="/pendenze">
+          <div class="col-12 col-md-4">
+            <label class="form-label" for="stato">Stato</label>
+            <select class="form-select" id="stato" name="stato">
+              <option value="" {{ stato == '' ? 'selected' : '' }}>Tutti</option>
+              <option value="NON_ESEGUITA" {{ stato == 'NON_ESEGUITA' ? 'selected' : '' }}>Da pagare</option>
+              <option value="ESEGUITA_PARZIALE" {{ stato == 'ESEGUITA_PARZIALE' ? 'selected' : '' }}>Pagata parzialmente</option>
+              <option value="ESEGUITA" {{ stato == 'ESEGUITA' ? 'selected' : '' }}>Pagata</option>
+              <option value="SCADUTA" {{ stato == 'SCADUTA' ? 'selected' : '' }}>Scaduta</option>
+              <option value="ANNULLATA" {{ stato == 'ANNULLATA' ? 'selected' : '' }}>Annullata</option>
+              <option value="ANOMALA" {{ stato == 'ANOMALA' ? 'selected' : '' }}>In verifica</option>
+            </select>
+          </div>
+
+          <div class="col-12 col-md-3">
+            <label class="form-label" for="per_page">Risultati per pagina</label>
+            <select class="form-select" id="per_page" name="per_page">
+              {% for n in [10,25,50,100] %}
+                <option value="{{ n }}" {{ per_pagina == n ? 'selected' : '' }}>{{ n }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-12 col-md-5 d-flex gap-2">
+            <button class="btn btn-primary" type="submit">Aggiorna</button>
+            <a class="btn btn-outline-secondary" href="/pendenze">Reset</a>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card shadow-sm">
+      <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <span class="fw-semibold">Elenco</span>
+        <span class="text-muted small">
+          {% if num_risultati %}
+            {{ num_risultati }} risultato{{ num_risultati == 1 ? '' : 'i' }}
+          {% else %}
+            {{ items|length }} elemento{{ items|length == 1 ? '' : 'i' }}
+          {% endif %}
+        </span>
+      </div>
+      <div class="card-body p-0">
+        {% if items is empty %}
+          <div class="p-4">
+            <div class="alert alert-info mb-0" role="status">Nessuna pendenza trovata.</div>
+          </div>
+        {% else %}
+          <div class="table-responsive">
+            <table class="table table-striped mb-0 align-middle">
+              <thead>
+                <tr>
+                  <th>Numero avviso</th>
+                  <th>Causale</th>
+                  <th class="text-end">Importo</th>
+                  <th>Scadenza</th>
+                  <th>Stato</th>
+                  <th class="text-end">Azioni</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for p in items %}
+                  <tr>
+                    <td>
+                      {% if p.numero_avviso %}
+                        <span class="font-monospace">{{ p.numero_avviso }}</span>
+                      {% else %}
+                        <span class="text-muted">—</span>
+                      {% endif %}
+                    </td>
+                    <td>
+                      <div class="fw-semibold">{{ p.causale|default('—') }}</div>
+                      {% if p.id_pendenza %}
+                        <div class="text-muted small">ID: {{ p.id_pendenza }}</div>
+                      {% endif %}
+                    </td>
+                    <td class="text-end">
+                      {% if p.importo is not null %}
+                        € {{ p.importo|number_format(2, ',', '.') }}
+                      {% else %}
+                        —
+                      {% endif %}
+                    </td>
+                    <td>
+                      {% if p.data_scadenza %}
+                        {{ p.data_scadenza|date('d/m/Y') }}
+                      {% else %}
+                        <span class="text-muted">—</span>
+                      {% endif %}
+                    </td>
+                    <td>
+                      {% set badge = p.stato.code in ['NON_ESEGUITA','ESEGUITA_PARZIALE'] ? 'bg-success' : (p.stato.code in ['SCADUTA','ANOMALA'] ? 'bg-warning text-dark' : 'bg-secondary') %}
+                      <span class="badge {{ badge }}">{{ p.stato.label|default('—') }}</span>
+                    </td>
+                    <td class="text-end">
+                      <div class="btn-group" role="group" aria-label="Azioni pendenza">
+                        {% if p.detail_url %}
+                          <a class="btn btn-sm btn-outline-primary" href="{{ p.detail_url }}">Dettaglio</a>
+                        {% endif %}
+                        {% if p.download_url %}
+                          <a class="btn btn-sm btn-outline-secondary" href="{{ p.download_url }}" target="_blank" rel="noopener">PDF</a>
+                        {% endif %}
+                      </div>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% endif %}
+      </div>
+      <div class="card-footer d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div class="text-muted small">Pagina {{ pagina }}</div>
+        <div class="d-flex gap-2">
+          {% set prev = pagina - 1 %}
+          {% set next = pagina + 1 %}
+          {% set query_base = 'stato=' ~ (stato|url_encode) ~ '&per_page=' ~ per_pagina %}
+          <a class="btn btn-sm btn-outline-secondary {{ pagina <= 1 ? 'disabled' : '' }}" href="/pendenze?{{ query_base }}&page={{ prev }}">Precedente</a>
+          <a class="btn btn-sm btn-outline-secondary" href="/pendenze?{{ query_base }}&page={{ next }}">Successiva</a>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

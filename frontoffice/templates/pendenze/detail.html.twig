@@ -1,0 +1,130 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Dettaglio pendenza - {{ app_entity.name }}{% endblock %}
+
+{% set p = pendenza_preview|default({}) %}
+{% set raw = pendenza|default({}) %}
+{% set pagatore = p.soggetto_pagatore|default({}) %}
+{% set voci = p.voci|default([]) %}
+
+{% block content %}
+  <div class="container-xxl py-4">
+    <nav aria-label="Percorso" class="mb-3">
+      <ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item"><a href="/">Home</a></li>
+        <li class="breadcrumb-item"><a href="/pendenze">Le mie pendenze</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Dettaglio</li>
+      </ol>
+    </nav>
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+      <div>
+        <h1 class="h3 mb-1">Dettaglio pendenza</h1>
+        <div class="text-muted">ID: <span class="font-monospace">{{ p.id_pendenza|default(raw.idPendenza|default('')) }}</span></div>
+      </div>
+      <div class="d-flex gap-2">
+        {% if back_url|default('') %}
+          <a class="btn btn-outline-secondary" href="{{ back_url }}">Torna all'elenco</a>
+        {% endif %}
+        <a class="btn btn-outline-danger" href="/logout">Logout</a>
+      </div>
+    </div>
+
+    <div class="row g-4">
+      <div class="col-12 col-lg-8">
+        <div class="card shadow-sm mb-4">
+          <div class="card-body">
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+              {% set badge = p.stato.code in ['NON_ESEGUITA','ESEGUITA_PARZIALE'] ? 'bg-success' : (p.stato.code in ['SCADUTA','ANOMALA'] ? 'bg-warning text-dark' : 'bg-secondary') %}
+              <span class="badge {{ badge }}">{{ p.stato.label|default('—') }}</span>
+              {% if p.numero_avviso %}
+                <span class="text-muted">Numero avviso:</span>
+                <span class="font-monospace">{{ p.numero_avviso }}</span>
+              {% endif %}
+            </div>
+
+            <dl class="row mb-0">
+              <dt class="col-sm-4">Causale</dt>
+              <dd class="col-sm-8">{{ p.causale|default('—') }}</dd>
+
+              <dt class="col-sm-4">Importo</dt>
+              <dd class="col-sm-8">
+                {% if p.importo is not null %}
+                  € {{ p.importo|number_format(2, ',', '.') }}
+                {% else %}
+                  —
+                {% endif %}
+              </dd>
+
+              <dt class="col-sm-4">Data scadenza</dt>
+              <dd class="col-sm-8">
+                {% if p.data_scadenza %}
+                  {{ p.data_scadenza|date('d/m/Y') }}
+                {% else %}
+                  —
+                {% endif %}
+              </dd>
+
+              <dt class="col-sm-4">Pagatore</dt>
+              <dd class="col-sm-8">
+                <strong>{{ pagatore.anagrafica|default('—') }}</strong><br>
+                <span class="text-muted">{{ pagatore.identificativo|default('') }}</span>
+              </dd>
+            </dl>
+          </div>
+          <div class="card-footer d-flex flex-wrap gap-2">
+            {% if p.download_url %}
+              <a class="btn btn-primary" href="{{ p.download_url }}" target="_blank" rel="noopener">Scarica PDF avviso</a>
+            {% endif %}
+            {% if p.is_payable and p.checkout_url %}
+              <a class="btn btn-outline-primary" href="{{ p.checkout_url }}" target="_blank" rel="noopener">Paga su pagoPA</a>
+            {% endif %}
+          </div>
+        </div>
+
+        {% if voci %}
+          <div class="card shadow-sm">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <span class="fw-semibold">Dettaglio voci</span>
+              <span class="text-muted small">{{ voci|length }} voce{{ voci|length > 1 ? 'i' : '' }}</span>
+            </div>
+            <div class="table-responsive">
+              <table class="table mb-0 align-middle">
+                <thead>
+                  <tr>
+                    <th>Descrizione</th>
+                    <th class="text-end">Importo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for voce in voci %}
+                    <tr>
+                      <td>{{ voce.descrizione|default('—') }}</td>
+                      <td class="text-end">
+                        {% if voce.importo is defined %}
+                          € {{ voce.importo|number_format(2, ',', '.') }}
+                        {% else %}
+                          —
+                        {% endif %}
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="col-12 col-lg-4">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h2 class="h6">Intestatario sessione</h2>
+            <div class="text-muted small mb-2">Codice fiscale: <strong>{{ codice_fiscale|default('') }}</strong></div>
+            <a class="btn btn-outline-primary w-100" href="/pendenze">Vai all'elenco</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

@@ -16,6 +16,9 @@
                 <div class="link-list-wrapper collapse" id="menuC1">
                   <ul class="link-list">
                       <li>
+                        <a class="dropdown-item list-item {{ current_path == '/pendenze' ? 'active' : '' }}" href="/pendenze">Le mie pendenze</a>
+                      </li>
+                      <li>
                         <a class="dropdown-item list-item {{ current_path == '/guida' ? 'active' : '' }}" href="/guida">Guida</a>
                       </li>
                     </ul>
@@ -71,6 +74,9 @@
                               <a class="list-item d-block text-dark py-1 {{ current_path == '/profile' ? 'active' : '' }}" href="/profile">Profilo</a>
                             </li>
                             <li>
+                              <a class="list-item d-block text-dark py-1 {{ current_path == '/pendenze' ? 'active' : '' }}" href="/pendenze">Le mie pendenze</a>
+                            </li>
+                            <li>
                               <a class="list-item d-block text-danger py-1" href="/logout">Logout</a>
                             </li>
                           </ul>
@@ -80,7 +86,9 @@
                   </div>
                 </div>
                 {% else %}
-                  <a class="btn btn-primary btn-sm" href="/login">Accedi</a>
+                  {% if spid_enabled %}
+                    <a class="btn btn-primary btn-sm" href="/login">Accedi</a>
+                  {% endif %}
                 {% endif %}
               </div>
             </div>
