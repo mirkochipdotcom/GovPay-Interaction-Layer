@@ -296,6 +296,92 @@ if (!function_exists('frontoffice_spid_enabled')) {
     }
 }
 
+if (!function_exists('frontoffice_spid_proxy_insecure_ssl')) {
+    function frontoffice_spid_proxy_insecure_ssl(string $proxyBaseUrl): bool
+    {
+        $host = (string)(parse_url($proxyBaseUrl, PHP_URL_HOST) ?: '');
+        return in_array($host, ['localhost', '127.0.0.1', '::1'], true);
+    }
+}
+
+if (!function_exists('frontoffice_http_get')) {
+    function frontoffice_http_get(string $url, bool $insecureSsl = false): ?array
+    {
+        // Preferisci cURL se disponibile (gestione timeouts/SSL più robusta).
+        if (function_exists('curl_init')) {
+            $ch = curl_init($url);
+            if ($ch === false) {
+                return null;
+            }
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+            if ($insecureSsl) {
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+            }
+
+            $body = curl_exec($ch);
+            $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $err = curl_error($ch);
+            curl_close($ch);
+            if (!is_string($body) || $body === '' || $status < 200 || $status >= 300) {
+                if ($err !== '') {
+                    Logger::getInstance()->warning('HTTP GET fallita', ['url' => $url, 'error' => $err, 'status' => $status]);
+                }
+                return null;
+            }
+            $data = json_decode($body, true);
+            return is_array($data) ? $data : null;
+        }
+
+        $opts = [
+            'http' => [
+                'method' => 'GET',
+                'timeout' => 15,
+                'ignore_errors' => true,
+            ],
+        ];
+        if (stripos($url, 'https://') === 0) {
+            $opts['ssl'] = [
+                'verify_peer' => !$insecureSsl,
+                'verify_peer_name' => !$insecureSsl,
+            ];
+        }
+        $ctx = stream_context_create($opts);
+        $body = @file_get_contents($url, false, $ctx);
+        if (!is_string($body) || $body === '') {
+            return null;
+        }
+        $data = json_decode($body, true);
+        return is_array($data) ? $data : null;
+    }
+}
+
+if (!function_exists('frontoffice_spid_decode_proxy_token')) {
+    /**
+     * Decodifica un token (JWS o JWS+JWE) usando l'endpoint verify del proxy.
+     * Nota: in DEV con certificati self-signed (localhost) disabilitiamo la verifica SSL.
+     */
+    function frontoffice_spid_decode_proxy_token(string $proxyBase, string $token, bool $decrypt, string $secret, string $service = 'spid'): ?array
+    {
+        $proxyBase = rtrim($proxyBase, '/');
+        if ($proxyBase === '' || $token === '') {
+            return null;
+        }
+        $decryptFlag = $decrypt ? 'Y' : 'N';
+        $url = $proxyBase . '/proxy.php?action=verify'
+            . '&token=' . rawurlencode($token)
+            . '&decrypt=' . rawurlencode($decryptFlag)
+            . '&service=' . rawurlencode($service);
+        if ($decrypt) {
+            $url .= '&secret=' . rawurlencode($secret);
+        }
+        return frontoffice_http_get($url, frontoffice_spid_proxy_insecure_ssl($proxyBase));
+    }
+}
+
 if (!function_exists('frontoffice_normalize_amount')) {
     function frontoffice_normalize_amount($value): float
     {
@@ -1217,6 +1303,29 @@ $routes = [
         $proxyBase = rtrim($env('SPID_PROXY_PUBLIC_BASE_URL', ''), '/');
         $clientId = $env('SPID_PROXY_CLIENT_ID', '');
 
+        $signResponse = trim((string)$env('SPID_PROXY_SIGN_RESPONSE', '1')) === '1';
+        $encryptResponse = trim((string)$env('SPID_PROXY_ENCRYPT_RESPONSE', '0')) === '1';
+        $clientSecret = trim((string)$env('SPID_PROXY_CLIENT_SECRET', ''));
+
+        if ($encryptResponse && !$signResponse) {
+            http_response_code(503);
+            return [
+                'template' => 'errors/503.html.twig',
+                'context' => [
+                    'message' => 'Login SPID non configurato: SPID_PROXY_ENCRYPT_RESPONSE=1 richiede anche SPID_PROXY_SIGN_RESPONSE=1.',
+                ],
+            ];
+        }
+        if ($encryptResponse && $clientSecret === '') {
+            http_response_code(503);
+            return [
+                'template' => 'errors/503.html.twig',
+                'context' => [
+                    'message' => 'Login SPID non configurato: SPID_PROXY_ENCRYPT_RESPONSE=1 richiede SPID_PROXY_CLIENT_SECRET (la stessa chiave va configurata anche lato proxy).',
+                ],
+            ];
+        }
+
         $redirectUri = $env('FRONTOFFICE_SPID_REDIRECT_URI', '');
         $allowedRedirectsRaw = $env('SPID_PROXY_REDIRECT_URIS', '');
         $allowedRedirects = array_values(array_filter(array_map('trim', preg_split('/[\s,]+/', $allowedRedirectsRaw))));
@@ -1279,7 +1388,7 @@ $routes = [
         header('Location: ' . $target, true, 302);
         exit;
     },
-    '/spid/callback' => static function () use ($method): array {
+    '/spid/callback' => static function () use ($method, $env): array {
         if (!frontoffice_spid_enabled()) {
             http_response_code(404);
             return [
@@ -1312,21 +1421,53 @@ $routes = [
             ];
         }
 
+        $providerId = (string)($_POST['providerId'] ?? '');
+        $providerName = (string)($_POST['providerName'] ?? '');
+        $responseId = (string)($_POST['responseId'] ?? '');
+
+        $token = isset($_POST['data']) && is_string($_POST['data']) ? trim($_POST['data']) : '';
+        $attrs = null;
+        if ($token !== '') {
+            $proxyBase = rtrim((string)$env('SPID_PROXY_PUBLIC_BASE_URL', ''), '/');
+            $encryptResponse = trim((string)$env('SPID_PROXY_ENCRYPT_RESPONSE', '0')) === '1';
+            $clientSecret = trim((string)$env('SPID_PROXY_CLIENT_SECRET', ''));
+            if ($encryptResponse && $clientSecret === '') {
+                http_response_code(503);
+                return [
+                    'template' => 'errors/503.html.twig',
+                    'context' => [
+                        'message' => 'Callback SPID non valida: response cifrata ma SPID_PROXY_CLIENT_SECRET non è configurato.',
+                    ],
+                ];
+            }
+
+            $service = (stripos($providerId, 'CIE') === 0) ? 'cie' : 'spid';
+            $decoded = frontoffice_spid_decode_proxy_token($proxyBase, $token, $encryptResponse, $clientSecret, $service);
+            if (!is_array($decoded) || !isset($decoded['data']) || !is_array($decoded['data'])) {
+                http_response_code(503);
+                return [
+                    'template' => 'errors/503.html.twig',
+                    'context' => [
+                        'message' => 'Callback SPID non valida: impossibile decodificare la response del proxy. Verifica SPID_PROXY_SIGN_RESPONSE/SPID_PROXY_ENCRYPT_RESPONSE e la chiave SPID_PROXY_CLIENT_SECRET.',
+                    ],
+                ];
+            }
+            $attrs = $decoded['data'];
+        }
+
         $user = [
-            'first_name' => (string)($_POST['name'] ?? ''),
-            'last_name' => (string)($_POST['familyName'] ?? ''),
-            'email' => (string)($_POST['email'] ?? ''),
-            'fiscal_number' => (string)($_POST['fiscalNumber'] ?? ''),
-            'spid_code' => (string)($_POST['spidCode'] ?? ''),
-            'provider_id' => (string)($_POST['providerId'] ?? ''),
-            'provider_name' => (string)($_POST['providerName'] ?? ''),
-            'response_id' => (string)($_POST['responseId'] ?? ''),
+            'first_name' => (string)(($attrs['name'] ?? null) ?? ($_POST['name'] ?? '')),
+            'last_name' => (string)(($attrs['familyName'] ?? null) ?? ($_POST['familyName'] ?? '')),
+            'email' => (string)(($attrs['email'] ?? null) ?? ($_POST['email'] ?? '')),
+            'fiscal_number' => (string)(($attrs['fiscalNumber'] ?? null) ?? ($_POST['fiscalNumber'] ?? '')),
+            'spid_code' => (string)(($attrs['spidCode'] ?? null) ?? ($_POST['spidCode'] ?? '')),
+            'provider_id' => $providerId,
+            'provider_name' => $providerName,
+            'response_id' => $responseId,
         ];
 
-        // Se il proxy usa handler Sign/Encrypt, qui arriverebbe anche `data` (JWS/JWE).
-        // Per ora manteniamo compatibilità con handler Plain (campi in chiaro).
-        if (isset($_POST['data']) && is_string($_POST['data']) && $_POST['data'] !== '') {
-            $user['token'] = (string)$_POST['data'];
+        if ($token !== '') {
+            $user['token'] = $token;
         }
 
         $_SESSION['frontoffice_user'] = $user;
