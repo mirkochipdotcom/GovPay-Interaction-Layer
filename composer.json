@@ -6,6 +6,7 @@
     "license": "proprietary",
     "require": {
         "php": "^8.3",
+        "pagopa/checkout-ec-client": "dev-main",
         "slim/slim": "^4.13",
         "slim/psr7": "^1.6",
         "nyholm/psr7": "^1.5",
@@ -17,6 +18,11 @@
         "govpay/backoffice-client": "dev-main"
     },
     "repositories": [
+        {
+            "type": "path",
+            "url": "pagopa-clients/generated-clients/checkout-ec-v1/checkout-ec-client",
+            "options": { "symlink": false }
+        },
         {
             "type": "path",
             "url": "govpay-clients/generated-clients/pagamenti-v3/pagamenti-client",
@@ -40,15 +46,15 @@
     ],
     "config": {
         "sort-packages": true,
+        "platform": {
+            "php": "8.4.0"
+        },
         "allow-plugins": {
             "php-http/discovery": true
         }
     },
-    "config.platform": {
-        "php": "8.4"
-    },
-        "minimum-stability": "dev",
-        "prefer-stable": true,
+    "minimum-stability": "dev",
+    "prefer-stable": true,
     "autoload": {
         "psr-4": {
             "App\\": [
