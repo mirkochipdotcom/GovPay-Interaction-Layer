@@ -545,7 +545,10 @@ if [ -n "${SPID_PROXY_PUBLIC_BASE_URL}" ]; then
     SPID_PROXY_PUBLIC_HOST="${SPID_PROXY_PUBLIC_HOST}" \
     SPID_PROXY_ENTITY_ID="${SPID_PROXY_ENTITY_ID}" \
     SPID_PROXY_CLIENT_ID="${SPID_PROXY_CLIENT_ID:-}" \
+    SPID_PROXY_CLIENT_SECRET="${SPID_PROXY_CLIENT_SECRET:-}" \
     SPID_PROXY_REDIRECT_URIS="${SPID_PROXY_REDIRECT_URIS:-}" \
+    SPID_PROXY_SIGN_RESPONSE="${SPID_PROXY_SIGN_RESPONSE:-}" \
+    SPID_PROXY_ENCRYPT_RESPONSE="${SPID_PROXY_ENCRYPT_RESPONSE:-}" \
     APP_ENTITY_NAME="${APP_ENTITY_NAME:-}" \
     URL_ENTE="${URL_ENTE:-}" \
     php -r '
@@ -582,13 +585,24 @@ if [ -n "${SPID_PROXY_PUBLIC_BASE_URL}" ]; then
       file_put_contents($path, json_encode($cfg));
     };
 
-    $applyProxy = function() use ($target, $host, $clientId, $redirectsRaw) {
+    $clientSecret = getenv("SPID_PROXY_CLIENT_SECRET") ?: "";
+    $signResponse = (getenv("SPID_PROXY_SIGN_RESPONSE") ?: "1") === "1";
+    $encryptResponseRequested = (getenv("SPID_PROXY_ENCRYPT_RESPONSE") ?: "0") === "1";
+    // Il flusso "encrypt" ha senso solo se almeno firmi la response.
+    // Inoltre richiede un secret condiviso con il client che deve decifrare.
+    $encryptResponse = $encryptResponseRequested && $signResponse && $clientSecret !== "";
+
+    $applyProxy = function() use ($target, $host, $clientId, $redirectsRaw, $clientSecret, $signResponse, $encryptResponse) {
       $path = $target . "/spid-php-proxy.json";
       if (!file_exists($path)) return;
       $cfg = json_decode(file_get_contents($path), true);
       if (!is_array($cfg)) $cfg = [];
 
       $cfg["spDomain"] = $host;
+
+      // Allinea modalità di response lato proxy.
+      $cfg["signProxyResponse"] = (bool)$signResponse;
+      $cfg["encryptProxyResponse"] = (bool)$encryptResponse;
 
       if (!isset($cfg["clients"]) || !is_array($cfg["clients"])) {
         $cfg["clients"] = [];
@@ -604,6 +618,19 @@ if [ -n "${SPID_PROXY_PUBLIC_BASE_URL}" ]; then
           unset($cfg["clients"][$oldKey]);
         }
         $cfg["clients"][$clientId]["client_id"] = $clientId;
+
+        // Secret condiviso per decifrare JWE (se encryptProxyResponse=true)
+        $cfg["clients"][$clientId]["client_secret"] = $clientSecret;
+
+        // Se l'handler è definito in modo errato o assente, proxy.php usa i flag globali.
+        // Qui forziamo un valore coerente, così il comportamento è esplicito.
+        if (!$signResponse) {
+          $cfg["clients"][$clientId]["handler"] = "Plain";
+        } elseif ($encryptResponse) {
+          $cfg["clients"][$clientId]["handler"] = "EncryptSign";
+        } else {
+          $cfg["clients"][$clientId]["handler"] = "Sign";
+        }
 
         if ($redirectsRaw !== "") {
           $parts = array_values(array_filter(array_map("trim", preg_split("/[\s,]+/", $redirectsRaw))));

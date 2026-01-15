@@ -130,6 +130,16 @@ Variabili principali (in `.env.spid`):
 - (opzionale) `FRONTOFFICE_SPID_REDIRECT_URI`
 - (opzionale) `SPID_PROXY_ENTITY_ID`
 
+Modalità response (firmata/cifrata):
+- `SPID_PROXY_SIGN_RESPONSE` (default `1`): se `1` il proxy invia la response come token JWS (firmato).
+- `SPID_PROXY_ENCRYPT_RESPONSE` (default `0`): se `1` il proxy cifra anche i dati utente (JWE dentro al JWS).
+- `SPID_PROXY_CLIENT_SECRET`: chiave condivisa usata per decifrare la response cifrata.
+
+Nota importante sulla chiave (`SPID_PROXY_CLIENT_SECRET`):
+- Deve essere configurata **con lo stesso valore** lato **frontoffice** (per decifrare) e lato **proxy** (per cifrare).
+- Con proxy **interno** (servizio `spid-proxy`) i container caricano già sia `.env` sia `.env.spid`, quindi puoi impostarla in uno dei due file.
+- Con proxy **esterno** devi impostarla nel frontoffice (qui) e anche nella configurazione dell'istanza proxy esterna.
+
 Operatività:
 - **Branding pagina proxy**: vedi `SPID_PROXY_CLIENT_NAME`, `SPID_PROXY_CLIENT_DESCRIPTION`, `SPID_PROXY_CLIENT_LOGO` in `.env.spid`. Per applicare modifiche basta ricreare il solo servizio: `docker compose up -d --force-recreate spid-proxy`.
 - **Logout “vero” SPID**: il frontoffice, se configurato, inoltra il logout al proxy (IdP logout) invece di fare solo logout locale.
