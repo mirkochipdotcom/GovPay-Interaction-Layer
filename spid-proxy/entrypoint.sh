@@ -622,7 +622,7 @@ if [ -n "${SPID_PROXY_PUBLIC_BASE_URL}" ]; then
         // Secret condiviso per decifrare JWE (se encryptProxyResponse=true)
         $cfg["clients"][$clientId]["client_secret"] = $clientSecret;
 
-        // Se l'handler è definito in modo errato o assente, proxy.php usa i flag globali.
+        // Se l handler è definito in modo errato o assente, proxy.php usa i flag globali.
         // Qui forziamo un valore coerente, così il comportamento è esplicito.
         if (!$signResponse) {
           $cfg["clients"][$clientId]["handler"] = "Plain";
