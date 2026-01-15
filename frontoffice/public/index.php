@@ -1556,6 +1556,48 @@ $routes = [
         'template' => 'home.html.twig',
         'context' => [],
     ],
+    '/checkout/ok' => static function (): array {
+        $idPendenza = trim((string)($_GET['idPendenza'] ?? $_GET['id_pendenza'] ?? ''));
+        $detailPath = $idPendenza !== '' ? ('/pendenze/' . rawurlencode($idPendenza)) : '/pendenze';
+
+        return [
+            'template' => 'checkout/ok.html.twig',
+            'context' => [
+                'id_pendenza' => $idPendenza !== '' ? $idPendenza : null,
+                'detail_path' => $detailPath,
+                'login_path' => '/login?return_to=' . rawurlencode($detailPath),
+                'is_logged_in' => frontoffice_get_logged_user() !== null,
+            ],
+        ];
+    },
+    '/checkout/cancel' => static function (): array {
+        $idPendenza = trim((string)($_GET['idPendenza'] ?? $_GET['id_pendenza'] ?? ''));
+        $detailPath = $idPendenza !== '' ? ('/pendenze/' . rawurlencode($idPendenza)) : '/pendenze';
+
+        return [
+            'template' => 'checkout/cancel.html.twig',
+            'context' => [
+                'id_pendenza' => $idPendenza !== '' ? $idPendenza : null,
+                'detail_path' => $detailPath,
+                'login_path' => '/login?return_to=' . rawurlencode($detailPath),
+                'is_logged_in' => frontoffice_get_logged_user() !== null,
+            ],
+        ];
+    },
+    '/checkout/error' => static function (): array {
+        $idPendenza = trim((string)($_GET['idPendenza'] ?? $_GET['id_pendenza'] ?? ''));
+        $detailPath = $idPendenza !== '' ? ('/pendenze/' . rawurlencode($idPendenza)) : '/pendenze';
+
+        return [
+            'template' => 'checkout/error.html.twig',
+            'context' => [
+                'id_pendenza' => $idPendenza !== '' ? $idPendenza : null,
+                'detail_path' => $detailPath,
+                'login_path' => '/login?return_to=' . rawurlencode($detailPath),
+                'is_logged_in' => frontoffice_get_logged_user() !== null,
+            ],
+        ];
+    },
     '/login' => static function () use ($env, $spidCallbackUrl): array {
         if (!frontoffice_spid_enabled()) {
             http_response_code(404);
@@ -2212,13 +2254,13 @@ if ($method === 'GET' && preg_match('#^/pendenze/([^/]+)/checkout$#', $normalize
     $cancelUrl = trim(frontoffice_env_value('PAGOPA_CHECKOUT_RETURN_CANCEL_URL', ''));
     $errorUrl = trim(frontoffice_env_value('PAGOPA_CHECKOUT_RETURN_ERROR_URL', ''));
     if ($okUrl === '') {
-        $okUrl = $frontofficeBaseUrl . '/pendenze/' . rawurlencode($idPendenza) . '?checkout=ok';
+        $okUrl = $frontofficeBaseUrl . '/checkout/ok?idPendenza=' . rawurlencode($idPendenza);
     }
     if ($cancelUrl === '') {
-        $cancelUrl = $frontofficeBaseUrl . '/pendenze/' . rawurlencode($idPendenza) . '?checkout=cancel';
+        $cancelUrl = $frontofficeBaseUrl . '/checkout/cancel?idPendenza=' . rawurlencode($idPendenza);
     }
     if ($errorUrl === '') {
-        $errorUrl = $frontofficeBaseUrl . '/pendenze/' . rawurlencode($idPendenza) . '?checkout=error';
+        $errorUrl = $frontofficeBaseUrl . '/checkout/error?idPendenza=' . rawurlencode($idPendenza);
     }
 
     try {
@@ -2237,6 +2279,12 @@ if ($method === 'GET' && preg_match('#^/pendenze/([^/]+)/checkout$#', $normalize
         $returnUrls->setReturnErrorUrl($errorUrl);
 
         $cart = new \PagoPA\CheckoutEc\Model\CartRequest();
+
+        $emailNotice = trim((string)($user['email'] ?? ''));
+        if ($emailNotice !== '' && filter_var($emailNotice, FILTER_VALIDATE_EMAIL) !== false) {
+            $cart->setEmailNotice($emailNotice);
+        }
+
         $cart->setPaymentNotices([$notice]);
         $cart->setReturnUrls($returnUrls);
 
