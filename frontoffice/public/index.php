@@ -846,6 +846,125 @@ if (!function_exists('frontoffice_stream_rt_pdf')) {
     }
 }
 
+if (!function_exists('frontoffice_find_paid_rpp_for_pendenza')) {
+    /**
+     * Ricava (iuv, ccp) interrogando Pendenze v2 (TransazioniApi::findRpp).
+     * Serve come fallback quando il dettaglio Pagamenti non contiene i riferimenti della RT.
+     */
+    function frontoffice_find_paid_rpp_for_pendenza(string $idDominio, string $idPendenza, ?string $idA2A = null): ?array
+    {
+        $pendenzeHost = frontoffice_govpay_pendenze_base_url();
+        if ($pendenzeHost === '' || $idDominio === '' || $idPendenza === '') {
+            return null;
+        }
+        if (!class_exists('\GovPay\Pendenze\Api\TransazioniApi') || !class_exists('\GovPay\Pendenze\Configuration')) {
+            return null;
+        }
+
+        try {
+            $config = new \GovPay\Pendenze\Configuration();
+            $config->setHost(rtrim($pendenzeHost, '/'));
+            $guzzleOptions = frontoffice_govpay_client_options();
+            if ($auth = frontoffice_basic_auth()) {
+                $guzzleOptions['auth'] = [$auth[0], $auth[1]];
+            }
+            $httpClient = new Client($guzzleOptions);
+            $api = new \GovPay\Pendenze\Api\TransazioniApi($httpClient, $config);
+
+            $esito = class_exists('\GovPay\Pendenze\Model\EsitoRpp')
+                ? \GovPay\Pendenze\Model\EsitoRpp::ESEGUITO
+                : 'ESEGUITO';
+
+            $result = $api->findRpp(
+                1,
+                25,
+                null,
+                null,
+                $idDominio,
+                null,
+                null,
+                ($idA2A !== null && $idA2A !== '') ? $idA2A : null,
+                $idPendenza,
+                null,
+                $esito
+            );
+
+            $data = json_decode(json_encode($result, JSON_THROW_ON_ERROR), true, 512, JSON_THROW_ON_ERROR);
+            $rows = $data['risultati'] ?? $data['rpps'] ?? null;
+            if (!is_array($rows) || $rows === []) {
+                return null;
+            }
+
+            $first = $rows[0] ?? null;
+            if (!is_array($first)) {
+                return null;
+            }
+
+            $pickScalar = static function ($value): string {
+                return is_scalar($value) ? trim((string)$value) : '';
+            };
+            $getPath = static function (array $root, array $path) use ($pickScalar): string {
+                $current = $root;
+                foreach ($path as $segment) {
+                    if (!is_array($current) || !array_key_exists($segment, $current)) {
+                        return '';
+                    }
+                    $current = $current[$segment];
+                }
+                return $pickScalar($current);
+            };
+
+            // GovPay Pendenze v2: i campi possono essere top-level oppure annidati in pendenza/rpt/rt.
+            $iuv = $pickScalar($first['iuv'] ?? null);
+            if ($iuv === '') {
+                foreach ([
+                    ['pendenza', 'iuvPagamento'],
+                    ['pendenza', 'iuvAvviso'],
+                    ['rpt', 'datiVersamento', 'identificativoUnivocoVersamento'],
+                    ['rt', 'datiPagamento', 'identificativoUnivocoVersamento'],
+                ] as $path) {
+                    $iuv = $getPath($first, $path);
+                    if ($iuv !== '') {
+                        break;
+                    }
+                }
+            }
+
+            $ccp = $pickScalar($first['ccp'] ?? null);
+            if ($ccp === '') {
+                foreach ([
+                    ['codiceContestoPagamento'],
+                    ['pendenza', 'codiceContestoPagamento'],
+                    ['rpt', 'datiVersamento', 'codiceContestoPagamento'],
+                    // In alcune RT il campo arriva con iniziale maiuscola.
+                    ['rt', 'datiPagamento', 'CodiceContestoPagamento'],
+                    ['rt', 'datiPagamento', 'codiceContestoPagamento'],
+                    // Fallback: spesso coincide col CCP.
+                    ['rt', 'datiPagamento', 'datiSingoloPagamento', 0, 'identificativoUnivocoRiscossione'],
+                ] as $path) {
+                    $ccp = $getPath($first, $path);
+                    if ($ccp !== '') {
+                        break;
+                    }
+                }
+            }
+
+            if ($iuv === '' || $ccp === '') {
+                return null;
+            }
+
+            return ['iuv' => $iuv, 'ccp' => $ccp];
+        } catch (\Throwable $e) {
+            Logger::getInstance()->warning('Impossibile recuperare RPP da Pendenze v2 per scarico RT', [
+                'idDominio' => $idDominio,
+                'idPendenza' => $idPendenza,
+                'error' => Logger::sanitizeErrorForDisplay($e->getMessage()),
+            ]);
+            return null;
+        }
+    }
+}
+
 if (!function_exists('frontoffice_stream_ricevuta_pdf')) {
     function frontoffice_stream_ricevuta_pdf(string $idDominio, string $iuv, string $idRicevuta): void
     {
@@ -1989,6 +2108,21 @@ if ($method === 'GET' && preg_match('#^/pendenze/([^/]+)/ricevuta$#', $normalize
     $iuv = trim((string)($ids['iuv'] ?? ''));
     $idRicevuta = trim((string)($ids['idRicevuta'] ?? ''));
     $ccp = trim((string)($ids['ccp'] ?? ''));
+
+    // Fallback forte: se mancano IUV/CCP nel dettaglio, ricaviamoli da Pendenze v2 (RPP eseguite).
+    $idA2AFromDetail = trim((string)($detail['idA2A'] ?? $detail['id_a2a'] ?? ''));
+    if (($iuv === '' || $ccp === '')) {
+        $rpp = frontoffice_find_paid_rpp_for_pendenza($idDominio, $idPendenza, ($idA2AFromDetail !== '' ? $idA2AFromDetail : null));
+        if (is_array($rpp)) {
+            if ($iuv === '') {
+                $iuv = trim((string)($rpp['iuv'] ?? ''));
+            }
+            if ($ccp === '') {
+                $ccp = trim((string)($rpp['ccp'] ?? ''));
+            }
+        }
+    }
+
     if ($iuv === '') {
         http_response_code(404);
         echo 'Ricevuta non disponibile.';
