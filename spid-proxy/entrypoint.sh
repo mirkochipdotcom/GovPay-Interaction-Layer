@@ -154,6 +154,13 @@ if [ ! -f "${TARGET_DIR}/spid-php-setup.json" ]; then
     $appEntityName = getenv("APP_ENTITY_NAME") ?: "Service Provider Name";
     $orgName = getenv("SPID_PROXY_ORG_NAME") ?: $appEntityName;
     $orgDisplayName = getenv("SPID_PROXY_ORG_DISPLAY_NAME") ?: $orgName;
+
+    // Branding UI del proxy (header/logo nella pagina /proxy-home.php)
+    $frontofficeBaseUrl = rtrim(getenv("FRONTOFFICE_PUBLIC_BASE_URL") ?: "", "/");
+    $defaultLogo = $frontofficeBaseUrl !== "" ? ($frontofficeBaseUrl . "/img/stemma_ente.png") : "/assets/img/logo.png";
+    $clientName = getenv("SPID_PROXY_CLIENT_NAME") ?: $orgDisplayName;
+    $clientDescription = getenv("SPID_PROXY_CLIENT_DESCRIPTION") ?: $orgName;
+    $clientLogo = getenv("SPID_PROXY_CLIENT_LOGO") ?: $defaultLogo;
     $orgUrlSource = getenv("SPID_PROXY_ORG_URL") ?: (getenv("URL_ENTE") ?: ($base !== "" ? ($base . "/") : "https://www.organization.org"));
     $orgUrl = rtrim($orgUrlSource, "/") . "/";
 
@@ -265,8 +272,9 @@ if [ ! -f "${TARGET_DIR}/spid-php-setup.json" ]; then
       "proxyConfig" => [
         "clients" => [
           $clientId => [
-            "name" => "Default client",
-            "logo" => "/assets/img/logo.png",
+            "name" => $clientName,
+            "description" => $clientDescription,
+            "logo" => $clientLogo,
             "client_id" => $clientId,
             "client_secret" => $clientSecret,
             "level" => $level,
@@ -331,6 +339,89 @@ SPID_PROXY_ENTITY_ID="${SPID_PROXY_ENTITY_ID:-}"
 if [ -z "${SPID_PROXY_ENTITY_ID}" ] && [ -n "${SPID_PROXY_PUBLIC_BASE_URL}" ]; then
   SPID_PROXY_ENTITY_ID="${SPID_PROXY_PUBLIC_BASE_URL}/spid-metadata.xml"
 fi
+
+# ---- Branding UI del proxy (nome/descrizione/logo) ----
+# La pagina /proxy-home.php legge questi valori da spid-php-proxy.json (client.name/client.logo) e, in parte,
+# da spid-php-setup.json (proxyConfig). Aggiorniamo entrambi in modo idempotente ad ogni avvio.
+TARGET_DIR="${TARGET_DIR}" \
+SPID_PROXY_CLIENT_ID="${SPID_PROXY_CLIENT_ID:-}" \
+SPID_PROXY_CLIENT_NAME="${SPID_PROXY_CLIENT_NAME:-}" \
+SPID_PROXY_CLIENT_DESCRIPTION="${SPID_PROXY_CLIENT_DESCRIPTION:-}" \
+SPID_PROXY_CLIENT_LOGO="${SPID_PROXY_CLIENT_LOGO:-}" \
+FRONTOFFICE_PUBLIC_BASE_URL="${FRONTOFFICE_PUBLIC_BASE_URL:-}" \
+APP_ENTITY_NAME="${APP_ENTITY_NAME:-}" \
+php -r '
+  $target = getenv("TARGET_DIR") ?: "/var/www/spid-cie-php";
+  $clientIdEnv = trim(getenv("SPID_PROXY_CLIENT_ID") ?: "");
+  $clientNameEnv = trim(getenv("SPID_PROXY_CLIENT_NAME") ?: "");
+  $clientDescEnv = trim(getenv("SPID_PROXY_CLIENT_DESCRIPTION") ?: "");
+  $clientLogoEnv = trim(getenv("SPID_PROXY_CLIENT_LOGO") ?: "");
+  $frontofficeBase = rtrim(trim(getenv("FRONTOFFICE_PUBLIC_BASE_URL") ?: ""), "/");
+  $appEntityName = trim(getenv("APP_ENTITY_NAME") ?: "");
+
+  $deriveName = function(string $existing) use ($clientNameEnv, $appEntityName): string {
+    if ($clientNameEnv !== "") return $clientNameEnv;
+    if ($appEntityName !== "") return $appEntityName;
+    return $existing;
+  };
+  $deriveDesc = function(string $existing) use ($clientDescEnv, $appEntityName): string {
+    if ($clientDescEnv !== "") return $clientDescEnv;
+    if ($appEntityName !== "") return $appEntityName;
+    return $existing;
+  };
+  $deriveLogo = function(string $existing) use ($clientLogoEnv, $frontofficeBase): string {
+    if ($clientLogoEnv !== "") return $clientLogoEnv;
+    if ($frontofficeBase !== "") return $frontofficeBase . "/img/stemma_ente.png";
+    return $existing;
+  };
+
+  $updateProxyJson = function() use ($target, $clientIdEnv, $deriveName, $deriveDesc, $deriveLogo) {
+    $path = $target . "/spid-php-proxy.json";
+    if (!file_exists($path)) return;
+    $cfg = json_decode(file_get_contents($path), true);
+    if (!is_array($cfg)) return;
+    if (!isset($cfg["clients"]) || !is_array($cfg["clients"]) || $cfg["clients"] === []) return;
+
+    $clientId = $clientIdEnv !== "" ? $clientIdEnv : (array_keys($cfg["clients"])[0] ?? "");
+    if ($clientId === "" || !isset($cfg["clients"][$clientId]) || !is_array($cfg["clients"][$clientId])) return;
+
+    $existingName = (string)($cfg["clients"][$clientId]["name"] ?? "");
+    $existingDesc = (string)($cfg["clients"][$clientId]["description"] ?? "");
+    $existingLogo = (string)($cfg["clients"][$clientId]["logo"] ?? "");
+
+    $cfg["clients"][$clientId]["name"] = $deriveName($existingName);
+    $cfg["clients"][$clientId]["description"] = $deriveDesc($existingDesc);
+    $cfg["clients"][$clientId]["logo"] = $deriveLogo($existingLogo);
+
+    file_put_contents($path, json_encode($cfg));
+  };
+
+  $updateSetupJson = function() use ($target, $clientIdEnv, $deriveName, $deriveDesc, $deriveLogo) {
+    $path = $target . "/spid-php-setup.json";
+    if (!file_exists($path)) return;
+    $cfg = json_decode(file_get_contents($path), true);
+    if (!is_array($cfg)) return;
+
+    if (!isset($cfg["proxyConfig"]) || !is_array($cfg["proxyConfig"])) return;
+    if (!isset($cfg["proxyConfig"]["clients"]) || !is_array($cfg["proxyConfig"]["clients"]) || $cfg["proxyConfig"]["clients"] === []) return;
+
+    $clientId = $clientIdEnv !== "" ? $clientIdEnv : (array_keys($cfg["proxyConfig"]["clients"])[0] ?? "");
+    if ($clientId === "" || !isset($cfg["proxyConfig"]["clients"][$clientId]) || !is_array($cfg["proxyConfig"]["clients"][$clientId])) return;
+
+    $existingName = (string)($cfg["proxyConfig"]["clients"][$clientId]["name"] ?? "");
+    $existingDesc = (string)($cfg["proxyConfig"]["clients"][$clientId]["description"] ?? "");
+    $existingLogo = (string)($cfg["proxyConfig"]["clients"][$clientId]["logo"] ?? "");
+
+    $cfg["proxyConfig"]["clients"][$clientId]["name"] = $deriveName($existingName);
+    $cfg["proxyConfig"]["clients"][$clientId]["description"] = $deriveDesc($existingDesc);
+    $cfg["proxyConfig"]["clients"][$clientId]["logo"] = $deriveLogo($existingLogo);
+
+    file_put_contents($path, json_encode($cfg));
+  };
+
+  $updateProxyJson();
+  $updateSetupJson();
+' || true
 
 if [ -n "${SPID_PROXY_PUBLIC_BASE_URL}" ]; then
   echo "[spid-proxy] Configuro dominio pubblico: ${SPID_PROXY_PUBLIC_BASE_URL} (host=${SPID_PROXY_PUBLIC_HOST})"
