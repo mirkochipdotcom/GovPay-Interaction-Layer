@@ -2,7 +2,7 @@
 
 Piattaforma containerizzata (PHP/Apache + frontend) per migliorare il flusso di lavoro degli enti che usano GovPay come soluzione PagoPA.
 Lo scopo è avere un portale da cui gli uffici possano creare e gestire le pendenze, rendicontare e controllare i flussi di pagamento, in maniera più semplice rispetto alla GUI di GovPay.
-Inoltre è possibile esporre un frontend semplificato per i cittadini (in sviluppo), con la possibilità di esporre altri portali di pagamento esterni per alcune tipologie di pagamento.
+Include anche un **frontoffice** (portale cittadini/sportello) e, opzionalmente, un **proxy SPID/CIE** integrato (profilo Docker Compose) per gestire login/logout e metadata.
 
 [![GitHub Repository](https://img.shields.io/badge/GitHub-mirkochipdotcom%2FGovPay--Interaction--Layer-blue?style=flat&logo=github)](https://github.com/mirkochipdotcom/GovPay-Interaction-Layer.git)
 
@@ -61,7 +61,11 @@ La prima build può impiegare qualche minuto perché scarica dipendenze e compil
 ### 4. Primo accesso
 
 - **URL principale (default)**: https://localhost:8443 *(configurabile tramite `BACKOFFICE_HTTPS_PORT`)*
+- **Frontoffice (default)**: https://localhost:8444 *(configurabile tramite `FRONTOFFICE_HTTPS_PORT`)*
 - **Debug tool**: https://localhost:8443/debug/ *(solo nel container backoffice, stessa porta)*
+
+Se abiliti il proxy SPID/CIE (`COMPOSE_PROFILES=spid-proxy`):
+- **SPID/CIE Proxy (default)**: https://localhost:8445 *(configurabile tramite `SPID_PROXY_HTTPS_PORT`)*
 
 Il seed creerà automaticamente un utente `superadmin` con le credenziali impostate nel `.env`. Accedi a `/login` e, subito dopo, crea nuovi utenti o aggiorna la password del seed.
 
@@ -332,12 +336,15 @@ docker exec -it govpay-interaction-backoffice find /var/www/html -name "*.php" |
 GovPay-Interaction-Layer/
 ├── docker-compose.yml      # Configurazione servizi Docker
 ├── Dockerfile              # Build dell'immagine PHP/Apache
-├── src/                    # Codice sorgente PHP (copiato in build)
-├── templates/              # Template Twig (copiati in build)
+├── backoffice/             # Backoffice (operatori ente)
+├── frontoffice/            # Frontoffice (cittadini/sportello)
+├── spid-proxy/              # Proxy SPID/CIE (opzionale)
+├── templates/              # Template condivisi / backoffice
 ├── debug/                  # Tool di debug (montato come volume solo nel backoffice)
 ├── govpay-clients/         # Client API generati da OpenAPI
 ├── ssl/                    # Certificati SSL personalizzati
-└── .env                    # Configurazione ambiente (da creare)
+├── .env                    # Configurazione ambiente (da creare)
+└── .env.spid               # Configurazione SPID/CIE (opzionale)
 ```
 
 ## 🤝 Contribuire
@@ -360,11 +367,11 @@ Per domande, problemi o suggerimenti:
 
 Breve riepilogo dello stato corrente (aggiornamento):
 
-- DB/migrations: script di first-run e migrations implementati per creare tabelle e seed idempotente (superadmin seed).
-- Template/Twig: correzioni ai template (incluso `templates/partials/header.html.twig`) per risolvere errori di parsing e fix del menu hamburger.
-- Frontend: aggiunto `assets/js/app.js` con fallback per il toggler della navbar su mobile e miglioramenti alla lista utenti.
-- Logging: logger su file in `storage/logs/app.log` e integrazione delle eccezioni con log.
-- Sicurezza: guardie server-side per prevenire la rimozione involontaria dell'ultimo superadmin e miglioramenti degli accessi.
+- Backoffice: operativo (seed superadmin + gestione utenti + strumenti operativi).
+- Frontoffice: operativo (portale cittadini/sportello).
+- Proxy SPID/CIE: incluso e attivabile via profilo (`COMPOSE_PROFILES=spid-proxy`), con branding configurabile.
+- Logout SPID: il frontoffice può inoltrare il logout al proxy (non solo logout locale).
+- Metadata SPID: supporto a freeze “current” + generazione “next” in working directory separata per rotazione/attestazione AgID.
 
 ## TODO - Elenco degli sviluppi successivi
 [![TODO](https://img.shields.io/badge/TODO-Lista%20attivit%C3%A0-blue)](.github/TODO.md)
