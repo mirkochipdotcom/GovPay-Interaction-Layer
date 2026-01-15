@@ -1066,11 +1066,48 @@ $routes = [
             ],
         ];
     },
-    '/logout' => static function (): array {
+    '/logout' => static function () use ($env, $frontofficeBaseUrl): array {
         unset($_SESSION['frontoffice_user']);
 
-        // Logout locale; opzionalmente puoi aggiungere logout IdP via proxy in futuro.
-        header('Location: /', true, 302);
+        // Prova logout remoto via SPID proxy (IdP logout). Se non configurato, fallback a logout locale.
+        $proxyBase = rtrim($env('SPID_PROXY_PUBLIC_BASE_URL', ''), '/');
+        $clientId = trim($env('SPID_PROXY_CLIENT_ID', ''));
+
+        $returnTo = trim((string)($_GET['return_to'] ?? '/'));
+        if ($returnTo === '' || $returnTo[0] !== '/') {
+            $returnTo = '/';
+        }
+
+        $frontofficeBase = rtrim((string)$frontofficeBaseUrl, '/');
+        $redirectUri = $frontofficeBase !== '' ? ($frontofficeBase . $returnTo) : '';
+
+        // Chiudi la sessione PHP locale (così il logout è immediato anche se il proxy impiega qualche redirect).
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            $_SESSION = [];
+            if (ini_get('session.use_cookies')) {
+                $params = session_get_cookie_params();
+                setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], $params['secure'], $params['httponly']);
+            }
+            session_destroy();
+        }
+
+        if ($proxyBase !== '' && $clientId !== '' && $redirectUri !== '') {
+            try {
+                $state = bin2hex(random_bytes(16));
+            } catch (\Throwable $e) {
+                $state = md5((string)microtime(true));
+            }
+            $target = $proxyBase . '/proxy.php'
+                . '?action=logout'
+                . '&client_id=' . rawurlencode($clientId)
+                . '&redirect_uri=' . rawurlencode($redirectUri)
+                . '&state=' . rawurlencode($state);
+
+            header('Location: ' . $target, true, 302);
+            exit;
+        }
+
+        header('Location: ' . $returnTo, true, 302);
         exit;
     },
     '/pagamento-spontaneo' => static function () use ($method, $serviceCatalog, $serviceInternalOptions, $serviceExternalOptions, $env): array {
