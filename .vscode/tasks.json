@@ -11,6 +11,24 @@
       "problemMatcher": []
     },
     {
+      "label": "rebuild-spid-proxy-quiet",
+      "type": "shell",
+      "command": "docker compose build --quiet spid-proxy; docker compose up -d --force-recreate spid-proxy",
+      "args": [],
+      "isBackground": false,
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "restart-spid-proxy",
+      "type": "shell",
+      "command": "docker compose up -d --force-recreate spid-proxy",
+      "args": [],
+      "isBackground": false,
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
       "label": "logs",
       "type": "shell",
       "command": "docker compose logs -f",
