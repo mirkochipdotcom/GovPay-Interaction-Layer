@@ -64,8 +64,9 @@ La prima build può impiegare qualche minuto perché scarica dipendenze e compil
 - **Frontoffice (default)**: https://localhost:8444 *(configurabile tramite `FRONTOFFICE_HTTPS_PORT`)*
 - **Debug tool**: https://localhost:8443/debug/ *(solo nel container backoffice, stessa porta)*
 
-Se abiliti il proxy SPID/CIE (`COMPOSE_PROFILES=spid-proxy`):
-- **SPID/CIE Proxy (default)**: https://localhost:8445 *(configurabile tramite `SPID_PROXY_HTTPS_PORT`)*
+Se abiliti SPID/CIE:
+- **Proxy interno** (`COMPOSE_PROFILES=spid-proxy`): https://localhost:8445 *(configurabile tramite `SPID_PROXY_HTTPS_PORT`)*
+- **Proxy esterno** (`COMPOSE_PROFILES=external`): usa l'URL configurato in `SPID_PROXY_PUBLIC_BASE_URL`
 
 Il seed creerà automaticamente un utente `superadmin` con le credenziali impostate nel `.env`. Accedi a `/login` e, subito dopo, crea nuovi utenti o aggiorna la password del seed.
 
@@ -104,22 +105,30 @@ Variabili porte di rete:
 - `BACKOFFICE_HTTPS_PORT`: porta HTTPS esposta dal container backoffice (default 8443)
 - `FRONTOFFICE_HTTPS_PORT`: porta HTTPS esposta dal container frontoffice (default 8444)
 
-### SPID/CIE Proxy (opzionale)
-Il servizio `spid-proxy` è definito con un **profile** Docker Compose, quindi **non parte** a meno che tu non lo abiliti.
+### SPID/CIE (3 scenari)
+Il supporto SPID/CIE del frontoffice dipende dal valore di `COMPOSE_PROFILES` nel `.env`:
 
-Nel tuo `.env`:
-- per abilitarlo: `COMPOSE_PROFILES=spid-proxy`
-- per disabilitarlo: lascia `COMPOSE_PROFILES` vuoto o commentato
+- **Proxy interno**: `COMPOSE_PROFILES=spid-proxy` (avvia anche il servizio `spid-proxy`)
+- **Proxy esterno**: `COMPOSE_PROFILES=external` (non avvia `spid-proxy`, ma il frontoffice usa un proxy esterno)
+- **No SPID**: `COMPOSE_PROFILES=none` (disabilita login SPID nel frontoffice: UI + rotte)
 
-Le variabili SPID/CIE sono tenute in un file dedicato per non appesantire il `.env` principale:
+Se lasci `COMPOSE_PROFILES` vuoto/commentato, per default è equivalente a `none`.
+
+In tutti i casi in cui SPID è abilitato (interno/esterno), imposta in `.env`:
+- `SPID_PROXY_PUBLIC_BASE_URL`: base URL pubblico del proxy (usato dal browser per raggiungere `/proxy-home.php`)
+
+Le restanti variabili SPID/CIE sono tenute in un file dedicato per non appesantire il `.env` principale:
 ```bash
 cp .env.spid.example .env.spid
 ```
 
-Variabili principali:
-- `SPID_PROXY_HTTPS_PORT`: porta HTTPS esposta dal proxy (default 8445)
-- `SPID_PROXY_PUBLIC_BASE_URL`: base URL pubblico del proxy (usato per metadata e redirect)
-- `SPID_PROXY_ENTITY_ID`: (opzionale) entityID del proxy; default `${SPID_PROXY_PUBLIC_BASE_URL}/spid-metadata.xml`
+Variabili principali (in `.env.spid`):
+- `SPID_PROXY_CLIENT_ID`
+- `SPID_PROXY_REDIRECT_URIS`
+- `FRONTOFFICE_PUBLIC_BASE_URL`
+- `FRONTOFFICE_SPID_CALLBACK_PATH`
+- (opzionale) `FRONTOFFICE_SPID_REDIRECT_URI`
+- (opzionale) `SPID_PROXY_ENTITY_ID`
 
 Operatività:
 - **Branding pagina proxy**: vedi `SPID_PROXY_CLIENT_NAME`, `SPID_PROXY_CLIENT_DESCRIPTION`, `SPID_PROXY_CLIENT_LOGO` in `.env.spid`. Per applicare modifiche basta ricreare il solo servizio: `docker compose up -d --force-recreate spid-proxy`.
@@ -369,7 +378,7 @@ Breve riepilogo dello stato corrente (aggiornamento):
 
 - Backoffice: operativo (seed superadmin + gestione utenti + strumenti operativi).
 - Frontoffice: operativo (portale cittadini/sportello).
-- Proxy SPID/CIE: incluso e attivabile via profilo (`COMPOSE_PROFILES=spid-proxy`), con branding configurabile.
+- Proxy SPID/CIE: incluso e attivabile via profilo (`COMPOSE_PROFILES=spid-proxy` oppure `COMPOSE_PROFILES=external`), con branding configurabile.
 - Logout SPID: il frontoffice può inoltrare il logout al proxy (non solo logout locale).
 - Metadata SPID: supporto a freeze “current” + generazione “next” in working directory separata per rotazione/attestazione AgID.
 

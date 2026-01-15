@@ -16,13 +16,33 @@ require dirname(__DIR__) . '/vendor/autoload.php';
 
 if (session_status() !== PHP_SESSION_ACTIVE) {
     session_name('govpay_frontoffice');
+
     $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
+    if (!$isHttps && isset($_SERVER['HTTP_X_FORWARDED_PROTO'])) {
+        $isHttps = strtolower((string)$_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https';
+    }
+
+    $rawProfiles = (string)($_ENV['COMPOSE_PROFILES'] ?? getenv('COMPOSE_PROFILES') ?? '');
+    $profiles = $rawProfiles !== ''
+        ? array_values(array_filter(array_map('trim', preg_split('/[\s,]+/', $rawProfiles))))
+        : [];
+    $profiles = array_values(array_unique($profiles));
+
+    $spidEnabledByProfile = in_array('spid-proxy', $profiles, true) || in_array('external', $profiles, true);
+    if (in_array('none', $profiles, true) || $profiles === []) {
+        $spidEnabledByProfile = false;
+    }
+
+    // Per callback SPID via POST cross-site (dal proxy al frontoffice) i browser non inviano cookie SameSite=Lax.
+    // Quindi, quando SPID è abilitato, serve SameSite=None (che richiede anche Secure).
+    $sameSite = ($spidEnabledByProfile && $isHttps) ? 'None' : 'Lax';
+
     session_set_cookie_params([
         'lifetime' => 0,
         'path' => '/',
         'secure' => $isHttps,
         'httponly' => true,
-        'samesite' => 'Lax',
+        'samesite' => $sameSite,
     ]);
     session_start();
 }
@@ -214,6 +234,65 @@ if (!function_exists('frontoffice_pagamenti_api_client')) {
             ]);
             return null;
         }
+    }
+}
+
+if (!function_exists('frontoffice_get_logged_user')) {
+    function frontoffice_get_logged_user(): ?array
+    {
+        $user = $_SESSION['frontoffice_user'] ?? null;
+        return (is_array($user) && $user !== []) ? $user : null;
+    }
+}
+
+if (!function_exists('frontoffice_get_logged_user_fiscal_number')) {
+    function frontoffice_get_logged_user_fiscal_number(): string
+    {
+        $user = frontoffice_get_logged_user();
+        if ($user === null) {
+            return '';
+        }
+        $raw = (string)($user['fiscal_number'] ?? '');
+        return strtoupper(preg_replace('/\s+/', '', trim($raw)));
+    }
+}
+
+if (!function_exists('frontoffice_compose_profiles')) {
+    function frontoffice_compose_profiles(): array
+    {
+        $raw = frontoffice_env_value('COMPOSE_PROFILES', '');
+        if ($raw === '') {
+            return [];
+        }
+        $parts = array_values(array_filter(array_map('trim', preg_split('/[\s,]+/', $raw))));
+        return array_values(array_unique($parts));
+    }
+}
+
+if (!function_exists('frontoffice_spid_mode')) {
+    /**
+     * @return 'none'|'external'|'internal'
+     */
+    function frontoffice_spid_mode(): string
+    {
+        $profiles = frontoffice_compose_profiles();
+        if (in_array('none', $profiles, true)) {
+            return 'none';
+        }
+        if (in_array('spid-proxy', $profiles, true)) {
+            return 'internal';
+        }
+        if (in_array('external', $profiles, true)) {
+            return 'external';
+        }
+        return 'none';
+    }
+}
+
+if (!function_exists('frontoffice_spid_enabled')) {
+    function frontoffice_spid_enabled(): bool
+    {
+        return frontoffice_spid_mode() !== 'none';
     }
 }
 
@@ -937,6 +1016,16 @@ $routes = [
         'context' => [],
     ],
     '/login' => static function () use ($env, $spidCallbackUrl): array {
+        if (!frontoffice_spid_enabled()) {
+            http_response_code(404);
+            return [
+                'template' => 'errors/404.html.twig',
+                'context' => [
+                    'requested_path' => '/login',
+                ],
+            ];
+        }
+
         $proxyBase = rtrim($env('SPID_PROXY_PUBLIC_BASE_URL', ''), '/');
         $clientId = $env('SPID_PROXY_CLIENT_ID', '');
 
@@ -1003,6 +1092,16 @@ $routes = [
         exit;
     },
     '/spid/callback' => static function () use ($method): array {
+        if (!frontoffice_spid_enabled()) {
+            http_response_code(404);
+            return [
+                'template' => 'errors/404.html.twig',
+                'context' => [
+                    'requested_path' => '/spid/callback',
+                ],
+            ];
+        }
+
         if ($method !== 'POST') {
             http_response_code(405);
             return [
@@ -1054,6 +1153,16 @@ $routes = [
         exit;
     },
     '/profile' => static function (): array {
+        if (!frontoffice_spid_enabled()) {
+            http_response_code(404);
+            return [
+                'template' => 'errors/404.html.twig',
+                'context' => [
+                    'requested_path' => '/profile',
+                ],
+            ];
+        }
+
         $user = $_SESSION['frontoffice_user'] ?? null;
         if (!is_array($user) || $user === []) {
             header('Location: /login?return_to=%2Fprofile', true, 302);
@@ -1067,6 +1176,16 @@ $routes = [
         ];
     },
     '/logout' => static function () use ($env, $frontofficeBaseUrl): array {
+        if (!frontoffice_spid_enabled()) {
+            http_response_code(404);
+            return [
+                'template' => 'errors/404.html.twig',
+                'context' => [
+                    'requested_path' => '/logout',
+                ],
+            ];
+        }
+
         unset($_SESSION['frontoffice_user']);
 
         // Prova logout remoto via SPID proxy (IdP logout). Se non configurato, fallback a logout locale.
@@ -1221,6 +1340,166 @@ $routes = [
             ],
         ];
     },
+    '/pendenze' => static function () use ($method, $env): array {
+        if (!frontoffice_spid_enabled()) {
+            http_response_code(404);
+            return [
+                'template' => 'errors/404.html.twig',
+                'context' => [
+                    'requested_path' => '/pendenze',
+                ],
+            ];
+        }
+
+        if ($method !== 'GET') {
+            http_response_code(405);
+            return [
+                'template' => 'errors/404.html.twig',
+                'context' => [
+                    'requested_path' => '/pendenze',
+                ],
+            ];
+        }
+
+        $user = frontoffice_get_logged_user();
+        if ($user === null) {
+            header('Location: /login?return_to=%2Fpendenze', true, 302);
+            exit;
+        }
+
+        $codiceFiscale = frontoffice_get_logged_user_fiscal_number();
+        if ($codiceFiscale === '') {
+            http_response_code(503);
+            return [
+                'template' => 'errors/503.html.twig',
+                'context' => [
+                    'message' => 'Profilo SPID incompleto: codice fiscale non presente. Riprovare il login.',
+                ],
+            ];
+        }
+
+        $page = (int)($_GET['page'] ?? 1);
+        if ($page < 1) {
+            $page = 1;
+        }
+        $perPage = (int)($_GET['per_page'] ?? 25);
+        if ($perPage < 1) {
+            $perPage = 25;
+        }
+        if ($perPage > 100) {
+            $perPage = 100;
+        }
+
+        $idDominio = frontoffice_env_value('ID_DOMINIO', '');
+        $idA2A = frontoffice_env_value('ID_A2A', '');
+        $statoRaw = strtoupper(trim((string)($_GET['stato'] ?? '')));
+        $allowedStates = [
+            \GovPay\Pagamenti\Model\StatoPendenza::ESEGUITA,
+            \GovPay\Pagamenti\Model\StatoPendenza::NON_ESEGUITA,
+            \GovPay\Pagamenti\Model\StatoPendenza::ESEGUITA_PARZIALE,
+            \GovPay\Pagamenti\Model\StatoPendenza::ANNULLATA,
+            \GovPay\Pagamenti\Model\StatoPendenza::SCADUTA,
+            \GovPay\Pagamenti\Model\StatoPendenza::ANOMALA,
+        ];
+        $stato = in_array($statoRaw, $allowedStates, true) ? $statoRaw : null;
+
+        $api = frontoffice_pagamenti_api_client();
+        if ($api === null) {
+            http_response_code(503);
+            return [
+                'template' => 'errors/503.html.twig',
+                'context' => [
+                    'message' => 'Al momento non riusciamo a interrogare il sistema dei pagamenti. Riprova più tardi.',
+                ],
+            ];
+        }
+
+        try {
+            $result = $api->findPendenze(
+                $page,
+                $perPage,
+                null,
+                $idDominio !== '' ? $idDominio : null,
+                null,
+                null,
+                null,
+                $idA2A !== '' ? $idA2A : null,
+                null,
+                $codiceFiscale,
+                $stato,
+                null,
+                null,
+                null,
+                false,
+                true,
+                true
+            );
+            $data = json_decode(json_encode($result, JSON_THROW_ON_ERROR), true, 512, JSON_THROW_ON_ERROR);
+        } catch (\Throwable $e) {
+            Logger::getInstance()->warning('Errore durante la ricerca pendenze per utente frontoffice', [
+                'codiceFiscale' => $codiceFiscale,
+                'error' => Logger::sanitizeErrorForDisplay($e->getMessage()),
+            ]);
+            http_response_code(503);
+            return [
+                'template' => 'errors/503.html.twig',
+                'context' => [
+                    'message' => 'Al momento non riusciamo a interrogare il sistema dei pagamenti. Riprova più tardi.',
+                ],
+            ];
+        }
+
+        $risultati = $data['risultati'] ?? [];
+        if (!is_array($risultati)) {
+            $risultati = [];
+        }
+
+        $rows = [];
+        foreach ($risultati as $pendenza) {
+            if (!is_array($pendenza)) {
+                continue;
+            }
+            $state = strtoupper((string)($pendenza['stato'] ?? ''));
+            $numeroAvviso = trim((string)($pendenza['numeroAvviso'] ?? ''));
+            $rows[] = [
+                'id_pendenza' => (string)($pendenza['idPendenza'] ?? ''),
+                'id_a2a' => (string)($pendenza['idA2A'] ?? ''),
+                'numero_avviso' => $numeroAvviso,
+                'causale' => trim((string)($pendenza['causale'] ?? '')),
+                'importo' => isset($pendenza['importo']) && is_numeric($pendenza['importo']) ? (float)$pendenza['importo'] : null,
+                'data_scadenza' => $pendenza['dataScadenza'] ?? null,
+                'data_validita' => $pendenza['dataValidita'] ?? null,
+                'stato' => [
+                    'code' => $state,
+                    'label' => frontoffice_map_pendenza_state($state),
+                ],
+                'is_payable' => frontoffice_is_pendenza_payable($state),
+                'download_url' => ($numeroAvviso !== '' && $idDominio !== '')
+                    ? '/avvisi/' . rawurlencode($idDominio) . '/' . rawurlencode($numeroAvviso)
+                    : null,
+                'detail_url' => (string)($pendenza['idPendenza'] ?? '') !== ''
+                    ? '/pendenze/' . rawurlencode((string)$pendenza['idPendenza'])
+                    : null,
+            ];
+        }
+
+        return [
+            'template' => 'pendenze/index.html.twig',
+            'context' => [
+                'profile' => $user,
+                'codice_fiscale' => $codiceFiscale,
+                'pendenze' => $rows,
+                'filters' => [
+                    'stato' => $statoRaw,
+                ],
+                'pagination' => [
+                    'pagina' => (int)($data['pagina'] ?? $page),
+                    'risultati_per_pagina' => (int)($data['risultatiPerPagina'] ?? $perPage),
+                    'num_risultati' => (int)($data['numRisultati'] ?? 0),
+                ],
+            ],
+        ];
+    },
 ];
 
 $routeDefinition = null;
@@ -1230,7 +1509,62 @@ if ($method === 'GET' && preg_match('#^/avvisi/([^/]+)/([^/]+)$#', $normalizedPa
     return;
 }
 
-$routeDefinition = $routes[$normalizedPath] ?? null;
+if ($method === 'GET' && preg_match('#^/pendenze/([^/]+)$#', $normalizedPath, $match)) {
+    if (!frontoffice_spid_enabled()) {
+        http_response_code(404);
+        $routeDefinition = [
+            'template' => 'errors/404.html.twig',
+            'context' => [
+                'requested_path' => $requestPath,
+            ],
+        ];
+    } else {
+    $user = frontoffice_get_logged_user();
+    if ($user === null) {
+        header('Location: /login?return_to=%2Fpendenze', true, 302);
+        exit;
+    }
+
+    $idPendenza = rawurldecode($match[1]);
+    $idPendenza = trim($idPendenza);
+    if ($idPendenza === '') {
+        http_response_code(404);
+        $routeDefinition = [
+            'template' => 'errors/404.html.twig',
+            'context' => [
+                'requested_path' => $requestPath,
+            ],
+        ];
+    } else {
+        $detail = frontoffice_fetch_pagamenti_detail($idPendenza);
+        if (!$detail) {
+            http_response_code(404);
+            $routeDefinition = [
+                'template' => 'errors/404.html.twig',
+                'context' => [
+                    'requested_path' => $requestPath,
+                ],
+            ];
+        } else {
+            $idDominio = frontoffice_env_value('ID_DOMINIO', '');
+            $routeDefinition = [
+                'template' => 'pendenze/detail.html.twig',
+                'context' => [
+                    'profile' => $user,
+                    'codice_fiscale' => frontoffice_get_logged_user_fiscal_number(),
+                    'pendenza' => $detail,
+                    'pendenza_preview' => frontoffice_build_avviso_preview($detail, $idDominio),
+                    'back_url' => '/pendenze',
+                ],
+            ];
+        }
+    }
+    }
+}
+
+if ($routeDefinition === null) {
+    $routeDefinition = $routes[$normalizedPath] ?? null;
+}
 if ($routeDefinition === null) {
     http_response_code(404);
     $route = [
@@ -1276,6 +1610,8 @@ $baseContext = [
     'app_logo' => $appLogo,
     'app_favicon' => $appFavicon,
     'current_user' => (isset($_SESSION['frontoffice_user']) && is_array($_SESSION['frontoffice_user'])) ? $_SESSION['frontoffice_user'] : null,
+    'spid_enabled' => frontoffice_spid_enabled(),
+    'spid_mode' => frontoffice_spid_mode(),
     'support_email' => $supportEmail,
     'support_phone' => $env('FRONTOFFICE_SUPPORT_PHONE', '800.000.000'),
     'support_hours' => $env('FRONTOFFICE_SUPPORT_HOURS', 'Lun-Ven 8:30-17:30'),

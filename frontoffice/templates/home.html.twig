@@ -131,7 +131,11 @@
         <div class="col-lg-6">
           <div class="p-4 p-lg-5 rounded-4 bg-primary text-white h-100 d-flex flex-column justify-content-center">
             <h3 class="h4 mb-3">Paghi da smartphone o computer</h3>
-            <p class="mb-0">Accedi con SPID/CIE sui canali abilitati PagoPA oppure completa il pagamento con carta e wallet digitali. Lo stato dell'avviso sara' aggiornato automaticamente senza dover presentare ricevute agli sportelli.</p>
+            {% if spid_enabled %}
+              <p class="mb-0">Accedi con SPID/CIE sui canali abilitati PagoPA oppure completa il pagamento con carta e wallet digitali. Lo stato dell'avviso sara' aggiornato automaticamente senza dover presentare ricevute agli sportelli.</p>
+            {% else %}
+              <p class="mb-0">Completa il pagamento con carta e wallet digitali. Lo stato dell'avviso sara' aggiornato automaticamente senza dover presentare ricevute agli sportelli.</p>
+            {% endif %}
           </div>
         </div>
       </div>
