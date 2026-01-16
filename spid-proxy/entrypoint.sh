@@ -50,35 +50,127 @@ fi
 # Directory web persistente dove Setup.php scrive proxy.php e pagine di esempio
 mkdir -p "${TARGET_DIR}/www" || true
 
-# ---- UI overrides (NO vendor changes in git) ----
-# Il progetto spid-cie-php non lega sempre la UI al flag addCIE; qui applichiamo un override minimo e idempotente.
-# Strategia: inseriamo un blocco CSS condizionale che nasconde tab/pannello CIE se SPID_PROXY_ADD_CIE!=1.
-PROXY_HOME_FILE="${TARGET_DIR}/www/proxy-home.php"
-if [ -f "${PROXY_HOME_FILE}" ]; then
-  if ! grep -q "GOVPAY_CIE_UI_TOGGLE" "${PROXY_HOME_FILE}"; then
-    echo "[spid-proxy] Applico override UI CIE (toggle via SPID_PROXY_ADD_CIE) su proxy-home.php"
-    php -r '
-      $p = getenv("PROXY_HOME_FILE");
-      if (!$p || !is_file($p)) { exit(0); }
-      $c = file_get_contents($p);
-      if ($c === false) { exit(0); }
-      if (strpos($c, "GOVPAY_CIE_UI_TOGGLE") !== false) { exit(0); }
-      $needle = "<?php \$spidsdk->insertSPIDButtonCSS(); ?>";
-      if (strpos($c, $needle) === false) { exit(0); }
+apply_cie_ui_override() {
+  # ---- UI overrides (NO vendor changes in git) ----
+  # Il progetto spid-cie-php non lega sempre la UI al flag addCIE; qui applichiamo un override minimo e idempotente.
+  # Nota: Setup::setup può rigenerare `www/proxy-home.php` durante l'avvio; per questo applichiamo l'override
+  # dopo aver garantito che i file web siano stati generati.
+  local proxy_home_file
+  proxy_home_file="${TARGET_DIR}/www/proxy-home.php"
 
-      $injection = "<!-- GOVPAY_CIE_UI_TOGGLE -->\n" .
-        "<?php if ((getenv(\"SPID_PROXY_ADD_CIE\") ?: \"0\") !== \"1\") { ?>\n" .
-        "<style>\n" .
-        "  /* Hide CIE UI when disabled via env */\n" .
-        "  a[href=\"#tab-cie\"], a[aria-controls=\"tab-cie\"], #tab-cie { display: none !important; }\n" .
-        "</style>\n" .
-        "<?php } ?>\n";
+  if [ -f "${proxy_home_file}" ]; then
+    if ! grep -q "GOVPAY_CIE_UI_TOGGLE" "${proxy_home_file}"; then
+      echo "[spid-proxy] Applico override UI CIE (toggle via SPID_PROXY_ADD_CIE) su proxy-home.php"
+      php -r '
+        $p = getenv("PROXY_HOME_FILE");
+        if (!$p || !is_file($p)) { exit(0); }
+        $c = file_get_contents($p);
+        if ($c === false) { exit(0); }
+        if (strpos($c, "GOVPAY_CIE_UI_TOGGLE") !== false) { exit(0); }
+        // Trova un punto stabile di inserimento senza dipendere da escaping di $spidsdk
+        $needle = "insertSPIDButtonCSS();";
+        $pos = strpos($c, $needle);
+        if ($pos === false) { exit(0); }
+        $before = substr($c, 0, $pos);
+        $start = strrpos($before, "<?php");
+        if ($start === false) { exit(0); }
 
-      $c = str_replace($needle, $injection . $needle, $c);
-      file_put_contents($p, $c);
-    ' PROXY_HOME_FILE="${PROXY_HOME_FILE}"
+        $injection = "<!-- GOVPAY_CIE_UI_TOGGLE -->\n" .
+          "<?php if ((getenv(\"SPID_PROXY_ADD_CIE\") ?: \"0\") !== \"1\") { ?>\n" .
+          "<style>\n" .
+          "  /* Hide CIE UI when disabled via env */\n" .
+          "  a[href=\"#tab-cie\"], a[aria-controls=\"tab-cie\"], #tab-cie { display: none !important; }\n" .
+          "</style>\n" .
+          "<?php } ?>\n";
+
+        $c = substr_replace($c, $injection, $start, 0);
+        file_put_contents($p, $c);
+      ' PROXY_HOME_FILE="${proxy_home_file}"
+    fi
   fi
-fi
+}
+
+apply_cie_server_guards() {
+  # Guard server-side: anche se qualcuno chiama direttamente /proxy.php?idp=CIE, blocchiamo quando disabilitato.
+
+  local proxy_php_file
+  proxy_php_file="${TARGET_DIR}/www/proxy.php"
+  if [ -f "${proxy_php_file}" ]; then
+    if ! grep -q "GOVPAY_CIE_GUARD_PROXY_PHP" "${proxy_php_file}"; then
+      echo "[spid-proxy] Applico guard server-side CIE su proxy.php"
+      php -r '
+        $p = getenv("PROXY_PHP_FILE");
+        if (!$p || !is_file($p)) { exit(0); }
+        $c = file_get_contents($p);
+        if ($c === false) { exit(0); }
+        if (strpos($c, "GOVPAY_CIE_GUARD_PROXY_PHP") !== false) { exit(0); }
+
+        $needle = "\n    $isCIE = (";
+        $pos = strpos($c, $needle);
+        if ($pos === false) {
+          // fallback: match meno rigido
+          $needle = "$isCIE = (";
+          $pos = strpos($c, $needle);
+          if ($pos === false) { exit(0); }
+        }
+
+        $lineEnd = strpos($c, "\n", $pos + 1);
+        if ($lineEnd === false) { exit(0); }
+        $insertAt = $lineEnd + 1;
+
+        $guard =
+          "    // GOVPAY_CIE_GUARD_PROXY_PHP\n" .
+          "    if (\$isCIE && (getenv('SPID_PROXY_ADD_CIE') ?: '0') !== '1') {\n" .
+          "        http_response_code(404);\n" .
+          "        if (defined('DEBUG') && DEBUG) { echo 'CIE disabled'; }\n" .
+          "        die();\n" .
+          "    }\n\n";
+
+        $c = substr_replace($c, $guard, $insertAt, 0);
+        file_put_contents($p, $c);
+      ' PROXY_PHP_FILE="${proxy_php_file}"
+    fi
+  fi
+
+  local proxy_home_file
+  proxy_home_file="${TARGET_DIR}/www/proxy-home.php"
+  if [ -f "${proxy_home_file}" ]; then
+    if ! grep -q "GOVPAY_CIE_GUARD_PROXY_HOME" "${proxy_home_file}"; then
+      echo "[spid-proxy] Applico guard server-side CIE su proxy-home.php"
+      php -r '
+        $p = getenv("PROXY_HOME_FILE");
+        if (!$p || !is_file($p)) { exit(0); }
+        $c = file_get_contents($p);
+        if ($c === false) { exit(0); }
+        if (strpos($c, "GOVPAY_CIE_GUARD_PROXY_HOME") !== false) { exit(0); }
+
+        $needle = "\n    $idp = isset($_GET['idp'])";
+        $pos = strpos($c, $needle);
+        if ($pos === false) {
+          $needle = "$idp = isset($_GET['idp'])";
+          $pos = strpos($c, $needle);
+          if ($pos === false) { exit(0); }
+        }
+
+        $lineEnd = strpos($c, "\n", $pos + 1);
+        if ($lineEnd === false) { exit(0); }
+        $insertAt = $lineEnd + 1;
+
+        $guard =
+          "\n    // GOVPAY_CIE_GUARD_PROXY_HOME\n" .
+          "    \$isCIE = (\$idp == 'CIE' || \$idp == 'CIE TEST');\n" .
+          "    if (\$isCIE && (getenv('SPID_PROXY_ADD_CIE') ?: '0') !== '1') {\n" .
+          "        http_response_code(404);\n" .
+          "        if (defined('DEBUG') && DEBUG) { echo 'CIE disabled'; } else { header('Location: ' . ERR_REDIRECT); }\n" .
+          "        die();\n" .
+          "    }\n\n";
+
+        $c = substr_replace($c, $guard, $insertAt, 0);
+        file_put_contents($p, $c);
+      ' PROXY_HOME_FILE="${proxy_home_file}"
+    fi
+  fi
+}
 
 # ---- Forzatura rigenerazione setup/metadata ----
 # Per default, spid-cie-php salva la configurazione su volume e non rigenera ad ogni avvio.
@@ -751,6 +843,10 @@ if [ -d "${TARGET_DIR}/vendor" ] && [ ! -f "${TARGET_DIR}/www/proxy.php" ]; then
   (COMPOSER_ALLOW_SUPERUSER=1 composer config --global audit.block-insecure false >/dev/null 2>&1) || true
   (cd "${TARGET_DIR}" && COMPOSER_ALLOW_SUPERUSER=1 composer run-script post-update-cmd --no-interaction --no-ansi) || true
 fi
+
+# Applica override UI DOPO che i file web sono stati generati/rigenerati.
+apply_cie_ui_override
+apply_cie_server_guards
 
 # Esegue eventuale snapshot metadata DOPO che vendor/config sono presenti.
 if [ "${SPID_PROXY_METADATA_SNAPSHOT_ON_START}" = "1" ]; then
