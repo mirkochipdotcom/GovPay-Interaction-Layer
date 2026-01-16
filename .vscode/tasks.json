@@ -31,7 +31,7 @@
 		{
 			"label": "generate-spid-metadata-next",
 			"type": "shell",
-			"command": "docker compose --profile spid-proxy-metadata run --rm spid-proxy-metadata",
+			"command": "docker compose build --quiet spid-proxy; docker compose --profile spid-proxy-metadata run --rm spid-proxy-metadata",
 			"args": [],
 			"isBackground": false,
 			"group": "build",
@@ -61,9 +61,9 @@
 			"problemMatcher": []
 		},
 		{
-			"label": "inspect-entrypoint-snippet",
+			"label": "debug-spid-proxy-metadata-500",
 			"type": "shell",
-			"command": "docker compose run --rm --entrypoint bash spid-proxy -lc \"nl -ba /usr/local/bin/spid-proxy-entrypoint.sh | sed -n '80,190p'\"",
+			"command": "docker compose --profile spid-proxy-metadata run --rm --entrypoint bash spid-proxy-metadata -lc 'set -e; mkdir -p /ssl; if [ ! -s /ssl/server.crt ] || [ ! -s /ssl/server.key ]; then openssl req -x509 -nodes -days 2 -newkey rsa:2048 -keyout /ssl/server.key -out /ssl/server.crt -subj "/C=IT/ST=NA/L=Locality/O=GovPay/OU=Dev/CN=localhost" >/dev/null 2>&1; fi; apache2ctl start; echo "--- SPID ---"; curl -ksS -o /tmp/spid.out -w "%{http_code}\\n" https://127.0.0.1/myservice/module.php/saml/sp/metadata.php/spid; sed -n "1,60p" /tmp/spid.out; echo "--- CIE ---"; curl -ksS -o /tmp/cie.out -w "%{http_code}\\n" https://127.0.0.1/myservice/module.php/saml/sp/metadata.php/cie; sed -n "1,60p" /tmp/cie.out; echo "--- APACHE error.log ---"; if [ -f /var/log/apache2/error.log ]; then tail -n 200 /var/log/apache2/error.log; fi'",
 			"isBackground": false,
 			"problemMatcher": []
 		}
