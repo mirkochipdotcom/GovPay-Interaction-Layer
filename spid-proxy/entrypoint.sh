@@ -375,6 +375,12 @@ if [ -z "${SPID_PROXY_ENTITY_ID}" ] && [ -n "${SPID_PROXY_PUBLIC_BASE_URL}" ]; t
   SPID_PROXY_ENTITY_ID="${SPID_PROXY_PUBLIC_BASE_URL}/spid-metadata.xml"
 fi
 
+# CIE EntityID (default: ${base}/cie-metadata.xml)
+SPID_PROXY_CIE_ENTITY_ID="${SPID_PROXY_CIE_ENTITY_ID:-}"
+if [ -z "${SPID_PROXY_CIE_ENTITY_ID}" ] && [ -n "${SPID_PROXY_PUBLIC_BASE_URL}" ]; then
+  SPID_PROXY_CIE_ENTITY_ID="${SPID_PROXY_PUBLIC_BASE_URL}/cie-metadata.xml"
+fi
+
 # ---- Branding UI del proxy (nome/descrizione/logo) ----
 # La pagina /proxy-home.php legge questi valori da spid-php-proxy.json (client.name/client.logo) e, in parte,
 # da spid-php-setup.json (proxyConfig). Aggiorniamo entrambi in modo idempotente ad ogni avvio.
@@ -515,6 +521,7 @@ if [ -n "${SPID_PROXY_PUBLIC_BASE_URL}" ]; then
     SPID_PROXY_PUBLIC_BASE_URL="${SPID_PROXY_PUBLIC_BASE_URL}" \
     SPID_PROXY_PUBLIC_HOST="${SPID_PROXY_PUBLIC_HOST}" \
     SPID_PROXY_ENTITY_ID="${SPID_PROXY_ENTITY_ID}" \
+    SPID_PROXY_CIE_ENTITY_ID="${SPID_PROXY_CIE_ENTITY_ID}" \
     SPID_PROXY_CLIENT_ID="${SPID_PROXY_CLIENT_ID:-}" \
     SPID_PROXY_CLIENT_SECRET="${SPID_PROXY_CLIENT_SECRET:-}" \
     SPID_PROXY_REDIRECT_URIS="${SPID_PROXY_REDIRECT_URIS:-}" \
@@ -527,6 +534,7 @@ if [ -n "${SPID_PROXY_PUBLIC_BASE_URL}" ]; then
     $base = getenv("SPID_PROXY_PUBLIC_BASE_URL") ?: "";
     $host = getenv("SPID_PROXY_PUBLIC_HOST") ?: "localhost";
     $entityId = getenv("SPID_PROXY_ENTITY_ID") ?: "";
+    $cieEntityId = getenv("SPID_PROXY_CIE_ENTITY_ID") ?: "";
     $clientId = getenv("SPID_PROXY_CLIENT_ID") ?: "";
     $redirectsRaw = getenv("SPID_PROXY_REDIRECT_URIS") ?: "";
     $appEntityName = getenv("APP_ENTITY_NAME") ?: "";
@@ -614,14 +622,30 @@ if [ -n "${SPID_PROXY_PUBLIC_BASE_URL}" ]; then
       file_put_contents($path, json_encode($cfg));
     };
 
-    $applyAuthsources = function() use ($target, $entityId, $base, $urlEnte) {
-      if ($entityId === "" && $base === "" && $urlEnte === "") return;
+    $applyAuthsources = function() use ($target, $entityId, $cieEntityId, $base, $urlEnte) {
+      if ($entityId === "" && $cieEntityId === "" && $base === "" && $urlEnte === "") return;
       $path = $target . "/vendor/simplesamlphp/simplesamlphp/config/authsources.php";
       if (!file_exists($path)) return;
       $content = file_get_contents($path);
+
+      // Imposta entityID per SPID e CIE separatamente.
       if ($entityId !== "") {
-          $content = preg_replace("/\x27entityID\x27\s*=>\s*\x27[^\x27]*\x27/", "\x27entityID\x27 => \x27" . addslashes($entityId) . "\x27", $content);
+        $content = preg_replace(
+          "/(\x27spid\x27\s*=>\s*array\(.*?\x27entityID\x27\s*=>\s*)\x27[^\x27]*\x27/s",
+          "\\1\x27" . addslashes($entityId) . "\x27",
+          $content,
+          1
+        );
       }
+      if ($cieEntityId !== "") {
+        $content = preg_replace(
+          "/(\x27cie\x27\s*=>\s*array\(.*?\x27entityID\x27\s*=>\s*)\x27[^\x27]*\x27/s",
+          "\\1\x27" . addslashes($cieEntityId) . "\x27",
+          $content,
+          1
+        );
+      }
+
       $orgSource = $urlEnte !== "" ? $urlEnte : $base;
       if ($orgSource !== "") {
         $orgUrl = rtrim($orgSource, "/") . "/";
@@ -688,12 +712,30 @@ fi
 
 # Nota: composer install di spid-cie-php può richiedere input (setup interattivo).
 # Se esistono già i file di config (spid-php-setup.json) possiamo eseguire il setup in modo non-interattivo.
-if [ ! -d "${TARGET_DIR}/vendor" ]; then
-  echo "[spid-proxy] vendor/ mancante: eseguo composer update (no-interaction) per installare dipendenze e lanciare Setup::setup"
+# IMPORTANT: trattiamo vendor come "incompleto" se mancano pezzi fondamentali (autoload o sorgenti SAML2).
+VENDOR_OK=1
+if [ ! -f "${TARGET_DIR}/vendor/autoload.php" ]; then
+  VENDOR_OK=0
+fi
+if [ ! -f "${TARGET_DIR}/vendor/simplesamlphp/saml2/src/SAML2/Constants.php" ]; then
+  VENDOR_OK=0
+fi
+
+if [ "${VENDOR_OK}" -ne 1 ]; then
+  echo "[spid-proxy] vendor/ incompleto: rigenero dipendenze con composer (autoload/SAML2 mancanti)"
+
   # Composer 2.9+ può bloccare dipendenze con security advisories (es. Twig 2 richiesto da SimpleSAMLphp 1.19.x).
   # Per questo progetto, lasciamo proseguire l'install evitando il blocco "insecure".
   (COMPOSER_ALLOW_SUPERUSER=1 composer config --global audit.block-insecure false >/dev/null 2>&1) || true
+
+  # Preferisci install (rispetta composer.lock); fallback a update se necessario.
+  (cd "${TARGET_DIR}" && COMPOSER_ALLOW_SUPERUSER=1 composer install --no-interaction --no-progress) || \
   (cd "${TARGET_DIR}" && COMPOSER_ALLOW_SUPERUSER=1 composer update --no-interaction --no-progress) || true
+
+  if [ ! -f "${TARGET_DIR}/vendor/autoload.php" ] || [ ! -f "${TARGET_DIR}/vendor/simplesamlphp/saml2/src/SAML2/Constants.php" ]; then
+    echo "[spid-proxy] ERROR: vendor ancora incompleto dopo composer (autoload/SAML2 mancanti)." >&2
+    exit 1
+  fi
 fi
 
 # Se richiesto, forza l'esecuzione dello script di setup anche se i file web esistono già.
@@ -724,6 +766,40 @@ if [ -d "${TARGET_DIR}/vendor" ] && [ ! -f "${TARGET_DIR}/www/proxy.php" ]; then
   echo "[spid-proxy] vendor/ presente ma www/proxy.php mancante: rilancio composer post-update-cmd (Setup::setup)"
   (COMPOSER_ALLOW_SUPERUSER=1 composer config --global audit.block-insecure false >/dev/null 2>&1) || true
   (cd "${TARGET_DIR}" && COMPOSER_ALLOW_SUPERUSER=1 composer run-script post-update-cmd --no-interaction --no-ansi) || true
+fi
+
+# Dopo Setup::setup/update-metadata, authsources.php può essere riscritto.
+# Riallineiamo qui gli entityID per SPID e CIE così che CIE punti a /cie-metadata.xml.
+if [ "${SPID_PROXY_METADATA_MODE}" != "locked" ]; then
+  TARGET_DIR="${TARGET_DIR}" \
+  SPID_PROXY_ENTITY_ID="${SPID_PROXY_ENTITY_ID}" \
+  SPID_PROXY_CIE_ENTITY_ID="${SPID_PROXY_CIE_ENTITY_ID}" \
+  php -r '
+    $target = getenv("TARGET_DIR") ?: "/var/www/spid-cie-php";
+    $spidEntityId = trim(getenv("SPID_PROXY_ENTITY_ID") ?: "");
+    $cieEntityId = trim(getenv("SPID_PROXY_CIE_ENTITY_ID") ?: "");
+    if ($spidEntityId === "" && $cieEntityId === "") return;
+    $path = $target . "/vendor/simplesamlphp/simplesamlphp/config/authsources.php";
+    if (!file_exists($path)) return;
+    $content = file_get_contents($path);
+    if ($spidEntityId !== "") {
+      $content = preg_replace(
+        "/(\x27spid\x27\s*=>\s*array\(.*?\x27entityID\x27\s*=>\s*)\x27[^\x27]*\x27/s",
+        "\\1\x27" . addslashes($spidEntityId) . "\x27",
+        $content,
+        1
+      );
+    }
+    if ($cieEntityId !== "") {
+      $content = preg_replace(
+        "/(\x27cie\x27\s*=>\s*array\(.*?\x27entityID\x27\s*=>\s*)\x27[^\x27]*\x27/s",
+        "\\1\x27" . addslashes($cieEntityId) . "\x27",
+        $content,
+        1
+      );
+    }
+    file_put_contents($path, $content);
+  ' || true
 fi
 
 # Esegue eventuale snapshot metadata DOPO che vendor/config sono presenti.
@@ -757,16 +833,17 @@ if [ "${SPID_PROXY_METADATA_SNAPSHOT_ON_START}" = "1" ]; then
       if [ "${http_code}" != "200" ]; then
         echo "[spid-proxy] WARNING: snapshot metadata ${kind} HTTP ${http_code} (${url})" >&2
 
+        echo "[spid-proxy] curl -v diagnostics (tail):" >&2
+        curl -kvsS --max-time 10 "${url}" -o /dev/null 2>&1 | tail -n 80 >&2 || true
+
         if [ -s "${out_file}" ]; then
           echo "[spid-proxy] Response body (first 2000 bytes):" >&2
           head -c 2000 "${out_file}" 2>/dev/null | tr -d '\r' >&2 || true
           echo >&2
         fi
 
-        if [ -f /var/log/apache2/error.log ]; then
-          echo "[spid-proxy] Apache error.log (tail):" >&2
-          tail -n 120 /var/log/apache2/error.log >&2 || true
-        fi
+        echo "[spid-proxy] Apache error.log (tail):" >&2
+        tail -n 120 /var/log/apache2/error.log >&2 || true
         echo "[spid-proxy] NOTICE: lascio il file di output per debug: ${out_file}" >&2
         return 1
       fi
