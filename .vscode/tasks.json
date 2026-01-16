@@ -1,57 +1,71 @@
 {
-  "version": "2.0.0",
-  "tasks": [
-    {
-      "label": "rebuild-and-restart",
-      "type": "shell",
-      "command": "docker compose up -d --build --force-recreate",
-      "args": [],
-      "isBackground": false,
-      "group": "build",
-      "problemMatcher": []
-    },
-    {
-      "label": "rebuild-spid-proxy-quiet",
-      "type": "shell",
-      "command": "docker compose build --quiet spid-proxy; docker compose up -d --force-recreate spid-proxy",
-      "args": [],
-      "isBackground": false,
-      "group": "build",
-      "problemMatcher": []
-    },
-    {
-      "label": "restart-spid-proxy",
-      "type": "shell",
-      "command": "docker compose up -d --force-recreate spid-proxy",
-      "args": [],
-      "isBackground": false,
-      "group": "build",
-      "problemMatcher": []
-    },
-    {
-      "label": "generate-spid-metadata-next",
-      "type": "shell",
-      "command": "docker compose --profile spid-proxy-metadata run --rm spid-proxy-metadata",
-      "args": [],
-      "isBackground": false,
-      "group": "build",
-      "problemMatcher": []
-    },
-    {
-      "label": "logs",
-      "type": "shell",
-      "command": "docker compose logs -f",
-      "isBackground": true,
-      "group": "none",
-      "problemMatcher": []
-    },
-    {
-      "label": "down",
-      "type": "shell",
-      "command": "docker compose down --remove-orphans",
-      "isBackground": false,
-      "group": "build",
-      "problemMatcher": []
-    }
-  ]
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "rebuild-and-restart",
+			"type": "shell",
+			"command": "docker compose up -d --build --force-recreate",
+			"args": [],
+			"isBackground": false,
+			"group": "build",
+			"problemMatcher": []
+		},
+		{
+			"label": "rebuild-spid-proxy-quiet",
+			"type": "shell",
+			"command": "docker compose build --quiet spid-proxy; docker compose up -d --force-recreate spid-proxy",
+			"args": [],
+			"isBackground": false,
+			"group": "build",
+			"problemMatcher": []
+		},
+		{
+			"label": "restart-spid-proxy",
+			"type": "shell",
+			"command": "docker compose up -d --force-recreate spid-proxy",
+			"args": [],
+			"isBackground": false,
+			"group": "build",
+			"problemMatcher": []
+		},
+		{
+			"label": "generate-spid-metadata-next",
+			"type": "shell",
+			"command": "docker compose --profile spid-proxy-metadata run --rm spid-proxy-metadata",
+			"args": [],
+			"isBackground": false,
+			"group": "build",
+			"problemMatcher": []
+		},
+		{
+			"label": "logs",
+			"type": "shell",
+			"command": "docker compose logs -f",
+			"isBackground": true,
+			"group": "none",
+			"problemMatcher": []
+		},
+		{
+			"label": "down",
+			"type": "shell",
+			"command": "docker compose down --remove-orphans",
+			"isBackground": false,
+			"group": "build",
+			"problemMatcher": []
+		},
+		{
+			"label": "logs-spid-proxy-tail",
+			"type": "shell",
+			"command": "docker compose logs --tail=80 spid-proxy",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "inspect-entrypoint-snippet",
+			"type": "shell",
+			"command": "docker compose run --rm --entrypoint bash spid-proxy -lc \"nl -ba /usr/local/bin/spid-proxy-entrypoint.sh | sed -n '80,190p'\"",
+			"isBackground": false,
+			"problemMatcher": []
+		}
+	]
 }
