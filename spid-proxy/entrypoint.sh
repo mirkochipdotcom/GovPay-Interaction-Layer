@@ -61,7 +61,7 @@ apply_cie_ui_override() {
   if [ -f "${proxy_home_file}" ]; then
     if ! grep -q "GOVPAY_CIE_UI_TOGGLE" "${proxy_home_file}"; then
       echo "[spid-proxy] Applico override UI CIE (toggle via SPID_PROXY_ADD_CIE) su proxy-home.php"
-      php -r '
+      PROXY_HOME_FILE="${proxy_home_file}" php -r '
         $p = getenv("PROXY_HOME_FILE");
         if (!$p || !is_file($p)) { exit(0); }
         $c = file_get_contents($p);
@@ -85,7 +85,7 @@ apply_cie_ui_override() {
 
         $c = substr_replace($c, $injection, $start, 0);
         file_put_contents($p, $c);
-      ' PROXY_HOME_FILE="${proxy_home_file}"
+      '
     fi
   fi
 }
@@ -98,18 +98,18 @@ apply_cie_server_guards() {
   if [ -f "${proxy_php_file}" ]; then
     if ! grep -q "GOVPAY_CIE_GUARD_PROXY_PHP" "${proxy_php_file}"; then
       echo "[spid-proxy] Applico guard server-side CIE su proxy.php"
-      php -r '
+      PROXY_PHP_FILE="${proxy_php_file}" php -r '
         $p = getenv("PROXY_PHP_FILE");
         if (!$p || !is_file($p)) { exit(0); }
         $c = file_get_contents($p);
         if ($c === false) { exit(0); }
         if (strpos($c, "GOVPAY_CIE_GUARD_PROXY_PHP") !== false) { exit(0); }
 
-        $needle = "\n    \\$isCIE = (";
+        $needle = "\n    \$isCIE = (";
         $pos = strpos($c, $needle);
         if ($pos === false) {
           // fallback: match meno rigido
-          $needle = "\\$isCIE = (";
+          $needle = "\$isCIE = (";
           $pos = strpos($c, $needle);
           if ($pos === false) { exit(0); }
         }
@@ -128,16 +128,55 @@ apply_cie_server_guards() {
 
         $c = substr_replace($c, $guard, $insertAt, 0);
         file_put_contents($p, $c);
-      ' PROXY_PHP_FILE="${proxy_php_file}"
+      '
     fi
   fi
 
   local proxy_home_file
   proxy_home_file="${TARGET_DIR}/www/proxy-home.php"
   if [ -f "${proxy_home_file}" ]; then
+    # V2: rimuove il tab/bottone CIE direttamente dal markup HTML (utile anche se qualche CSS non viene applicato).
+    if ! grep -q "GOVPAY_CIE_UI_STRIP_PROXY_HOME_V2" "${proxy_home_file}"; then
+      echo "[spid-proxy] Applico strip markup CIE (V2) su proxy-home.php"
+      PROXY_HOME_FILE="${proxy_home_file}" php -r '
+        $p = getenv("PROXY_HOME_FILE");
+        if (!$p || !is_file($p)) { exit(0); }
+        $c = file_get_contents($p);
+        if ($c === false) { exit(0); }
+        if (strpos($c, "GOVPAY_CIE_UI_STRIP_PROXY_HOME_V2") !== false) { exit(0); }
+
+        $needle = "\n    \$idp = isset(\$_GET";
+        $pos = strpos($c, $needle);
+        if ($pos === false) {
+          $needle = "\$idp = isset(\$_GET";
+          $pos = strpos($c, $needle);
+          if ($pos === false) { exit(0); }
+        }
+
+        $lineEnd = strpos($c, "\n", $pos + 1);
+        if ($lineEnd === false) { exit(0); }
+        $insertAt = $lineEnd + 1;
+
+        $strip =
+          "\n    // GOVPAY_CIE_UI_STRIP_PROXY_HOME_V2\n" .
+          "    if ((getenv(\"SPID_PROXY_ADD_CIE\") ?: \"0\") !== \"1\") {\n" .
+          "        header(\"X-GovPay-CIE: disabled\");\n" .
+          "        ob_start(function(\$html) {\n" .
+          "            // Drop the CIE tab button (and its li wrapper if present)\n" .
+          "            \$html = preg_replace('~<li[^>]*>\\s*<a[^>]*(?:href=\\\"#tab-cie\\\"|aria-controls=\\\"tab-cie\\\")[^>]*>.*?</a>\\s*</li>~si', '', \$html);\n" .
+          "            \$html = preg_replace('~<a[^>]*(?:href=\\\"#tab-cie\\\"|aria-controls=\\\"tab-cie\\\")[^>]*>.*?</a>~si', '', \$html);\n" .
+          "            return \$html;\n" .
+          "        });\n" .
+          "    }\n\n";
+
+        $c = substr_replace($c, $strip, $insertAt, 0);
+        file_put_contents($p, $c);
+      '
+    fi
+
     if ! grep -q "GOVPAY_CIE_GUARD_PROXY_HOME" "${proxy_home_file}"; then
       echo "[spid-proxy] Applico guard server-side CIE su proxy-home.php"
-      php -r '
+      PROXY_HOME_FILE="${proxy_home_file}" php -r '
         $p = getenv("PROXY_HOME_FILE");
         if (!$p || !is_file($p)) { exit(0); }
         $c = file_get_contents($p);
@@ -145,10 +184,10 @@ apply_cie_server_guards() {
         if (strpos($c, "GOVPAY_CIE_GUARD_PROXY_HOME") !== false) { exit(0); }
 
         // Cerchiamo un pezzo senza apici singoli, così questo blocco resta bash-safe.
-        $needle = "\n    \\$idp = isset(\\$_GET";
+        $needle = "\n    \$idp = isset(\$_GET";
         $pos = strpos($c, $needle);
         if ($pos === false) {
-          $needle = "\\$idp = isset(\\$_GET";
+          $needle = "\$idp = isset(\$_GET";
           $pos = strpos($c, $needle);
           if ($pos === false) { exit(0); }
         }
@@ -159,8 +198,8 @@ apply_cie_server_guards() {
 
         $guard =
           "\n    // GOVPAY_CIE_GUARD_PROXY_HOME\n" .
-          "    \\$isCIE = (\\$idp == \"CIE\" || \\$idp == \"CIE TEST\");\n" .
-          "    if (\\$isCIE && (getenv(\"SPID_PROXY_ADD_CIE\") ?: \"0\") !== \"1\") {\n" .
+          "    \$isCIE = (\$idp == \"CIE\" || \$idp == \"CIE TEST\");\n" .
+          "    if (\$isCIE && (getenv(\"SPID_PROXY_ADD_CIE\") ?: \"0\") !== \"1\") {\n" .
           "        http_response_code(404);\n" .
           "        if (defined(\"DEBUG\") && DEBUG) { echo \"CIE disabled\"; } else { header(\"Location: \" . ERR_REDIRECT); }\n" .
           "        die();\n" .
@@ -168,9 +207,41 @@ apply_cie_server_guards() {
 
         $c = substr_replace($c, $guard, $insertAt, 0);
         file_put_contents($p, $c);
-      ' PROXY_HOME_FILE="${proxy_home_file}"
+      '
     fi
   fi
+}
+
+configure_apache_disable_cie_metadata() {
+  # Blocca l'endpoint metadata CIE (se esposto da SimpleSAML) quando CIE è disabilitato.
+  # Non tocca file su volume; è solo configurazione runtime nel container.
+  local conf_path
+  conf_path="/etc/apache2/conf-available/zz-govpay-disable-cie-metadata.conf"
+
+  if [ "${SPID_PROXY_ADD_CIE:-0}" = "1" ]; then
+    if [ -f "${conf_path}" ]; then
+      a2disconf zz-govpay-disable-cie-metadata >/dev/null 2>&1 || true
+    fi
+    return 0
+  fi
+
+  cat >"${conf_path}" <<'EOF'
+PassEnv SPID_PROXY_ADD_CIE
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # Se CIE è disabilitato, non esporre metadata CIE (comune naming: /.../metadata.php/cie)
+  RewriteCond %{ENV:SPID_PROXY_ADD_CIE} !^1$
+  RewriteRule ^myservice/module\.php/saml/sp/metadata\.php/cie$ - [R=404,L]
+
+  # Alcune installazioni usano path diversi; fallback conservativo
+  RewriteCond %{ENV:SPID_PROXY_ADD_CIE} !^1$
+  RewriteRule ^myservice/module\.php/saml/sp/metadata\.php/CIE$ - [R=404,L]
+</IfModule>
+EOF
+
+  a2enconf zz-govpay-disable-cie-metadata >/dev/null 2>&1 || true
 }
 
 # ---- Forzatura rigenerazione setup/metadata ----
@@ -848,6 +919,9 @@ fi
 # Applica override UI DOPO che i file web sono stati generati/rigenerati.
 apply_cie_ui_override
 apply_cie_server_guards
+
+# Applica regole Apache (no-volume) per disabilitare endpoint metadata CIE quando richiesto.
+configure_apache_disable_cie_metadata
 
 # Esegue eventuale snapshot metadata DOPO che vendor/config sono presenti.
 if [ "${SPID_PROXY_METADATA_SNAPSHOT_ON_START}" = "1" ]; then
