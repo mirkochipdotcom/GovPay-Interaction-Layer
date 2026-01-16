@@ -105,11 +105,11 @@ apply_cie_server_guards() {
         if ($c === false) { exit(0); }
         if (strpos($c, "GOVPAY_CIE_GUARD_PROXY_PHP") !== false) { exit(0); }
 
-        $needle = "\n    $isCIE = (";
+        $needle = "\n    \\$isCIE = (";
         $pos = strpos($c, $needle);
         if ($pos === false) {
           // fallback: match meno rigido
-          $needle = "$isCIE = (";
+          $needle = "\\$isCIE = (";
           $pos = strpos($c, $needle);
           if ($pos === false) { exit(0); }
         }
@@ -120,9 +120,9 @@ apply_cie_server_guards() {
 
         $guard =
           "    // GOVPAY_CIE_GUARD_PROXY_PHP\n" .
-          "    if (\$isCIE && (getenv('SPID_PROXY_ADD_CIE') ?: '0') !== '1') {\n" .
+          "    if (\$isCIE && (getenv(\"SPID_PROXY_ADD_CIE\") ?: \"0\") !== \"1\") {\n" .
           "        http_response_code(404);\n" .
-          "        if (defined('DEBUG') && DEBUG) { echo 'CIE disabled'; }\n" .
+          "        if (defined(\"DEBUG\") && DEBUG) { echo \"CIE disabled\"; }\n" .
           "        die();\n" .
           "    }\n\n";
 
@@ -144,10 +144,11 @@ apply_cie_server_guards() {
         if ($c === false) { exit(0); }
         if (strpos($c, "GOVPAY_CIE_GUARD_PROXY_HOME") !== false) { exit(0); }
 
-        $needle = "\n    $idp = isset($_GET['idp'])";
+        // Cerchiamo un pezzo senza apici singoli, così questo blocco resta bash-safe.
+        $needle = "\n    \\$idp = isset(\\$_GET";
         $pos = strpos($c, $needle);
         if ($pos === false) {
-          $needle = "$idp = isset($_GET['idp'])";
+          $needle = "\\$idp = isset(\\$_GET";
           $pos = strpos($c, $needle);
           if ($pos === false) { exit(0); }
         }
@@ -158,10 +159,10 @@ apply_cie_server_guards() {
 
         $guard =
           "\n    // GOVPAY_CIE_GUARD_PROXY_HOME\n" .
-          "    \$isCIE = (\$idp == 'CIE' || \$idp == 'CIE TEST');\n" .
-          "    if (\$isCIE && (getenv('SPID_PROXY_ADD_CIE') ?: '0') !== '1') {\n" .
+          "    \\$isCIE = (\\$idp == \"CIE\" || \\$idp == \"CIE TEST\");\n" .
+          "    if (\\$isCIE && (getenv(\"SPID_PROXY_ADD_CIE\") ?: \"0\") !== \"1\") {\n" .
           "        http_response_code(404);\n" .
-          "        if (defined('DEBUG') && DEBUG) { echo 'CIE disabled'; } else { header('Location: ' . ERR_REDIRECT); }\n" .
+          "        if (defined(\"DEBUG\") && DEBUG) { echo \"CIE disabled\"; } else { header(\"Location: \" . ERR_REDIRECT); }\n" .
           "        die();\n" .
           "    }\n\n";
 
