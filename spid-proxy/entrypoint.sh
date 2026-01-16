@@ -136,44 +136,36 @@ apply_cie_server_guards() {
   proxy_home_file="${TARGET_DIR}/www/proxy-home.php"
   if [ -f "${proxy_home_file}" ]; then
     # V2: rimuove il tab/bottone CIE direttamente dal markup HTML (utile anche se qualche CSS non viene applicato).
-    if ! grep -q "GOVPAY_CIE_UI_STRIP_PROXY_HOME_V2" "${proxy_home_file}"; then
-      echo "[spid-proxy] Applico strip markup CIE (V2) su proxy-home.php"
-      PROXY_HOME_FILE="${proxy_home_file}" php <<'PHP'
+    echo "[spid-proxy] Strip markup CIE (V2) su proxy-home.php (idempotente, ripara eventuali patch rotte)"
+    PROXY_HOME_FILE="${proxy_home_file}" php <<'PHP'
 <?php
 $p = getenv('PROXY_HOME_FILE');
 if (!$p || !is_file($p)) { exit(0); }
-$c = file_get_contents($p);
-if ($c === false) { exit(0); }
-if (strpos($c, 'GOVPAY_CIE_UI_STRIP_PROXY_HOME_V2') !== false) { exit(0); }
 
-$needle = "\n    \$idp = isset(\$_GET";
-$pos = strpos($c, $needle);
-if ($pos === false) {
-  $needle = "\$idp = isset(\$_GET";
-  $pos = strpos($c, $needle);
-  if ($pos === false) { exit(0); }
+$orig = file_get_contents($p);
+if ($orig === false) { exit(0); }
+$c = $orig;
+
+// Cleanup: rimuove eventuale blocco "iniettato" in passato che può aver rotto la sintassi (es. variabile $html interpolata).
+$cleanupPattern = '~\n\s*//\s*GOVPAY_CIE_UI_STRIP_PROXY_HOME_V2\s*\n\s*if\s*\(\(getenv\("SPID_PROXY_ADD_CIE"\)\s*\?:\s*"0"\)\s*!==\s*"1"\)\s*\{\s*\n\s*header\("X-GovPay-CIE: disabled"\);\s*\n\s*ob_start\(function\([^)]*\)\s*\{\s*\n.*?\n\s*\}\);\s*\n\s*\}\s*\n~s';
+$c = preg_replace($cleanupPattern, "\n", $c);
+
+$cieEnabled = (getenv('SPID_PROXY_ADD_CIE') ?: '0') === '1';
+if (!$cieEnabled) {
+  // Rimuove tab/bottone CIE e contenuti (se presenti). Conservativo: se non matcha, non cambia nulla.
+  $c = preg_replace('~<li[^>]*>\s*<a[^>]*(?:href=["\']#tab-cie["\']|aria-controls=["\']tab-cie["\'])[^>]*>.*?</a>\s*</li>~si', '', $c);
+  $c = preg_replace('~<a[^>]*(?:href=["\']#tab-cie["\']|aria-controls=["\']tab-cie["\'])[^>]*>.*?</a>~si', '', $c);
+  $c = preg_replace('~<div[^>]*(?:id=["\']tab-cie["\']|aria-labelledby=["\']tab-cie["\'])[^>]*>.*?</div>~si', '', $c);
 }
 
-$lineEnd = strpos($c, "\n", $pos + 1);
-if ($lineEnd === false) { exit(0); }
-$insertAt = $lineEnd + 1;
+if (strpos($c, 'GOVPAY_CIE_UI_STRIP_PROXY_HOME_V2') === false) {
+  $c .= "\n<!-- GOVPAY_CIE_UI_STRIP_PROXY_HOME_V2 -->\n";
+}
 
-$strip =
-  "\n    // GOVPAY_CIE_UI_STRIP_PROXY_HOME_V2\n" .
-  "    if ((getenv(\"SPID_PROXY_ADD_CIE\") ?: \"0\") !== \"1\") {\n" .
-  "        header(\"X-GovPay-CIE: disabled\");\n" .
-  "        ob_start(function($html) {\n" .
-  "            // Drop the CIE tab button (and its li wrapper if present)\n" .
-  "            $html = preg_replace('~<li[^>]*>\\s*<a[^>]*(?:href=\\\"#tab-cie\\\"|aria-controls=\\\"tab-cie\\\")[^>]*>.*?</a>\\s*</li>~si', '', $html);\n" .
-  "            $html = preg_replace('~<a[^>]*(?:href=\\\"#tab-cie\\\"|aria-controls=\\\"tab-cie\\\")[^>]*>.*?</a>~si', '', $html);\n" .
-  "            return $html;\n" .
-  "        });\n" .
-  "    }\n\n";
-
-$c = substr_replace($c, $strip, $insertAt, 0);
-file_put_contents($p, $c);
+if ($c !== $orig) {
+  file_put_contents($p, $c);
+}
 PHP
-    fi
 
     if ! grep -q "GOVPAY_CIE_GUARD_PROXY_HOME" "${proxy_home_file}"; then
       echo "[spid-proxy] Applico guard server-side CIE su proxy-home.php"
