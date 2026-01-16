@@ -486,6 +486,7 @@ if [ -n "${SPID_PROXY_PUBLIC_BASE_URL}" ]; then
     # Allinea Alias + rewrite al serviceName scelto (evita che cambiare SPID_PROXY_SERVICE_NAME rompa il proxy).
     sed -i -E "s#^[[:space:]]*Alias[[:space:]]+/[^[:space:]]+[[:space:]]+/var/www/spid-cie-php/vendor/simplesamlphp/simplesamlphp/www#    Alias /${SPID_PROXY_SERVICE_NAME} /var/www/spid-cie-php/vendor/simplesamlphp/simplesamlphp/www#" /etc/apache2/sites-available/000-default.conf || true
     sed -i -E "s#^([[:space:]]*RewriteRule[[:space:]]+\^/\(metadata\\\.xml\|spid-metadata\\\.xml\)\$)[[:space:]]+/[^/]+/module\\.php/saml/sp/metadata\\.php/spid(.*)#\1 /${SPID_PROXY_SERVICE_NAME}/module.php/saml/sp/metadata.php/spid\2#" /etc/apache2/sites-available/000-default.conf || true
+    sed -i -E "s#^([[:space:]]*RewriteRule[[:space:]]+\^/cie-metadata\\\.xml\$)[[:space:]]+/[^/]+/module\\.php/saml/sp/metadata\\.php/cie(.*)#\1 /${SPID_PROXY_SERVICE_NAME}/module.php/saml/sp/metadata.php/cie\2#" /etc/apache2/sites-available/000-default.conf || true
   fi
 
   # Allinea baseurlpath di SimpleSAML (config.php) al serviceName scelto.
@@ -665,8 +666,11 @@ if [ "${needs_cert}" = true ]; then
   echo "[spid-proxy] Certificati SSL mancanti/non idonei: genero self-signed in /ssl"
   mkdir -p /ssl
   rm -f /ssl/server.crt /ssl/server.key || true
-  CERT_HOST="${SPID_PROXY_PUBLIC_HOST}"
+  CERT_HOST="${SPID_PROXY_PUBLIC_HOST:-localhost}"
   CERT_HOST="${CERT_HOST%%:*}"
+  if [ -z "${CERT_HOST}" ]; then
+    CERT_HOST="localhost"
+  fi
   SAN="DNS:${CERT_HOST}"
   if [ "${CERT_HOST}" != "localhost" ]; then
     SAN="${SAN},DNS:localhost"
@@ -728,31 +732,87 @@ if [ "${SPID_PROXY_METADATA_SNAPSHOT_ON_START}" = "1" ]; then
     META_DIR="${TARGET_DIR}/www/metadata"
     mkdir -p "${META_DIR}" || true
     TS="$(date -u +"%Y%m%dT%H%M%SZ" 2>/dev/null || date +"%Y%m%d%H%M%S")"
-    OUT_FILE="${META_DIR}/spid-metadata-${TS}.xml"
-    echo "[spid-proxy] Snapshot metadata: ${OUT_FILE}"
+    SERVICE_NAME="${SPID_PROXY_SERVICE_NAME:-myservice}"
+    # Usa 127.0.0.1 (IPv4) perché in questo container Apache ascolta su 0.0.0.0:443
+    # e curl può risolvere localhost su ::1 (IPv6) causando connection refused.
+    META_BASE_URL="https://127.0.0.1/${SERVICE_NAME}/module.php/saml/sp/metadata.php"
 
-    apache2ctl start >/dev/null 2>&1 || true
-    if command -v curl >/dev/null 2>&1; then
-      curl -ksS --max-time 30 "https://localhost/myservice/module.php/saml/sp/metadata.php/spid" -o "${OUT_FILE}" || true
-    else
-      echo "[spid-proxy] WARNING: curl non disponibile, impossibile fare snapshot metadata" >&2
-    fi
-    apache2ctl stop >/dev/null 2>&1 || true
+    snapshot_one() {
+      local kind
+      local url
+      local out_file
+      local http_code
+      kind="$1"
+      url="$2"
+      out_file="$3"
 
-    if [ ! -s "${OUT_FILE}" ]; then
-      echo "[spid-proxy] WARNING: snapshot metadata vuoto o fallito (${OUT_FILE})" >&2
-      rm -f "${OUT_FILE}" || true
-    else
+      echo "[spid-proxy] Snapshot metadata ${kind}: ${out_file} (${url})"
+      if command -v curl >/dev/null 2>&1; then
+        http_code="$(curl -ksS --max-time 30 -o "${out_file}" -w "%{http_code}" "${url}" || echo "000")"
+      else
+        echo "[spid-proxy] WARNING: curl non disponibile, impossibile fare snapshot metadata ${kind}" >&2
+        return 1
+      fi
+
+      if [ "${http_code}" != "200" ]; then
+        echo "[spid-proxy] WARNING: snapshot metadata ${kind} HTTP ${http_code} (${url})" >&2
+
+        if [ -s "${out_file}" ]; then
+          echo "[spid-proxy] Response body (first 2000 bytes):" >&2
+          head -c 2000 "${out_file}" 2>/dev/null | tr -d '\r' >&2 || true
+          echo >&2
+        fi
+
+        if [ -f /var/log/apache2/error.log ]; then
+          echo "[spid-proxy] Apache error.log (tail):" >&2
+          tail -n 120 /var/log/apache2/error.log >&2 || true
+        fi
+        echo "[spid-proxy] NOTICE: lascio il file di output per debug: ${out_file}" >&2
+        return 1
+      fi
+
+      if [ ! -s "${out_file}" ]; then
+        echo "[spid-proxy] WARNING: snapshot metadata ${kind} vuoto o fallito (${out_file})" >&2
+        rm -f "${out_file}" || true
+        return 1
+      fi
+
       if [ "${SPID_PROXY_METADATA_PUBLISH_ON_START}" = "1" ]; then
         if [ "${SPID_PROXY_METADATA_PUBLISH_TARGET}" = "next" ]; then
-          cp -f "${OUT_FILE}" "${META_DIR}/spid-metadata-next.xml" || true
-          echo "[spid-proxy] Pubblicato metadata NEXT: ${META_DIR}/spid-metadata-next.xml"
+          cp -f "${out_file}" "${META_DIR}/${kind}-metadata-next.xml" || true
+          echo "[spid-proxy] Pubblicato metadata ${kind} NEXT: ${META_DIR}/${kind}-metadata-next.xml"
         else
-          cp -f "${OUT_FILE}" "${META_DIR}/spid-metadata-current.xml" || true
-          echo "[spid-proxy] Pubblicato metadata CURRENT: ${META_DIR}/spid-metadata-current.xml"
+          cp -f "${out_file}" "${META_DIR}/${kind}-metadata-current.xml" || true
+          echo "[spid-proxy] Pubblicato metadata ${kind} CURRENT: ${META_DIR}/${kind}-metadata-current.xml"
         fi
       fi
+
+      return 0
+    }
+
+    if apache2ctl -t >/dev/null 2>&1; then
+      apache2ctl start >/dev/null 2>&1 || true
+    else
+      echo "[spid-proxy] WARNING: apache2ctl -t fallito; provo comunque ad avviare Apache" >&2
+      apache2ctl -t || true
+      apache2ctl start || true
     fi
+
+    # Attendi che Apache sia raggiungibile sul loopback (evita snapshot vuoti su container lenti).
+    for _i in $(seq 1 30 2>/dev/null || echo "1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30"); do
+      _code="$(curl -ksS --max-time 2 -o /dev/null -w "%{http_code}" "https://127.0.0.1/" 2>/dev/null || echo "000")"
+      if [ "${_code}" != "000" ]; then
+        break
+      fi
+      sleep 1
+    done
+
+    snapshot_one "spid" "${META_BASE_URL}/spid" "${META_DIR}/spid-metadata-${TS}.xml" || true
+    # CIE espone metadata su un path diverso (/metadata.php/cie). Lo gestiamo con lo stesso meccanismo.
+    if [ "${SPID_PROXY_ADD_CIE:-0}" = "1" ]; then
+      snapshot_one "cie" "${META_BASE_URL}/cie" "${META_DIR}/cie-metadata-${TS}.xml" || true
+    fi
+    apache2ctl stop >/dev/null 2>&1 || true
   else
     echo "[spid-proxy] WARNING: vendor SimpleSAML assente, salto snapshot metadata" >&2
   fi
