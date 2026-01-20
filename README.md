@@ -73,6 +73,29 @@ Note:
 - Se non usi SPID/CIE, puoi lasciare `.env.proxyspid` con i valori dell'example (non verranno usati dalle rotte UI quando `COMPOSE_PROFILES=none`).
 - `.env.metadata` è necessario solo se avvii il proxy interno (`COMPOSE_PROFILES=spid-proxy`) o il generator metadata (`--profile spid-proxy-metadata`).
 
+#### Dati minimi necessari (GovPay e PagoPA Checkout)
+
+L'app si avvia anche lasciando gli example, ma per usare davvero le funzioni principali servono endpoint e credenziali reali.
+
+GovPay:
+
+- Identità ente/app: `ID_DOMINIO` (CF/P.IVA ente creditore) e `ID_A2A` (id applicazione).
+- Endpoint API: compila i `GOVPAY_*_URL` nel `.env` (pendenze/pagamenti/ragioneria/backoffice).
+- Autenticazione: scegli `AUTHENTICATION_GOVPAY` e configura di conseguenza:
+   - `basic` / `form`: imposta `GOVPAY_USER` e `GOVPAY_PASSWORD`.
+   - `ssl` / `sslheader`: monta i certificati client in `certificate/` e imposta `GOVPAY_TLS_CERT` e `GOVPAY_TLS_KEY` (opzionale `GOVPAY_TLS_KEY_PASSWORD`).
+
+PagoPA Checkout (EC API):
+
+- `PAGOPA_CHECKOUT_EC_BASE_URL` (DEV/PROD).
+- `PAGOPA_CHECKOUT_SUBSCRIPTION_KEY` (header `Ocp-Apim-Subscription-Key`, deve restare server-side).
+- `PAGOPA_CHECKOUT_COMPANY_NAME` (nome ente mostrato nel checkout).
+- (Opzionale) `PAGOPA_CHECKOUT_RETURN_OK_URL`, `PAGOPA_CHECKOUT_RETURN_CANCEL_URL`, `PAGOPA_CHECKOUT_RETURN_ERROR_URL`.
+
+Approfondimenti:
+- certificati GovPay: `certificate/README.md`
+- configurazione Checkout: `pagopa-clients/README.md`
+
 ### 3) Avvia i container
 
 ```bash
@@ -195,9 +218,21 @@ Questo repository supporta il pattern “freeze + next generator”:
 ### 1) Congelare il metadata attestato (CURRENT)
 
 - Il runtime serve **solo** i file presenti in `spid-proxy/metadata-current/`.
-- Copia il file attestato in:
-- Issues: https://github.com/mirkochipdotcom/GovPay-Interaction-Layer/issues
-- `cie-metadata-next.xml` (se CIE è abilitato)
+- Copia i file attestati in `spid-proxy/metadata-current/` con questi nomi:
+   - `spid-metadata-current.xml`
+   - `cie-metadata-current.xml` (se CIE è abilitato)
+
+### 2) Generare un metadata “NEXT” (senza toccare CURRENT)
+
+Esegui il generator (non modifica `metadata-current/`):
+
+```bash
+docker compose --profile spid-proxy-metadata run --rm spid-proxy-metadata
+```
+
+Output:
+- `spid-proxy/metadata/spid-metadata-next.xml`
+- `spid-proxy/metadata/cie-metadata-next.xml` (se CIE)
 
 ### 3) Cutover (quando AgID attesta NEXT)
 
