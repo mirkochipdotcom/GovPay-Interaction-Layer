@@ -14,7 +14,9 @@
             </p>
           </div>
           <div class="text-end">
-            <a class="btn btn-outline-primary" href="/pendenze"><i class="fas fa-receipt me-2"></i>Vai alle mie pendenze</a>
+            {% if spid_enabled and current_user %}
+              <a class="btn btn-outline-primary" href="/pendenze"><i class="fas fa-receipt me-2"></i>Vai alle mie pendenze</a>
+            {% endif %}
           </div>
         </div>
 

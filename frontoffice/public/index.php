@@ -1557,27 +1557,9 @@ $routes = [
         'context' => [],
     ],
     '/guida' => static function (): array {
-        if (!frontoffice_spid_enabled()) {
-            http_response_code(404);
-            return [
-                'template' => 'errors/404.html.twig',
-                'context' => [
-                    'requested_path' => '/guida',
-                ],
-            ];
-        }
-
-        $user = frontoffice_get_logged_user();
-        if ($user === null) {
-            header('Location: /login?return_to=%2Fguida', true, 302);
-            exit;
-        }
-
         return [
             'template' => 'guida.html.twig',
-            'context' => [
-                'profile' => $user,
-            ],
+            'context' => [],
         ];
     },
     '/checkout/ok' => static function (): array {
@@ -1952,6 +1934,52 @@ $routes = [
             }
         } else {
             $baseContext['form_data'] = $baseContext['form_data'] ?? ['idTipoPendenza' => $selectedService['id'] ?? ''];
+
+            // Precompila i dati del soggetto pagatore quando l'utente è loggato (SPID/CIE).
+            // Non sovrascrive quanto già presente in form_data.
+            $loggedUser = frontoffice_get_logged_user();
+            if (is_array($loggedUser) && $loggedUser !== []) {
+                $fiscalNumber = frontoffice_get_logged_user_fiscal_number();
+                $fiscalCompact = strtoupper(preg_replace('/\s+/', '', trim($fiscalNumber)));
+                $fiscalDigits = preg_replace('/\D+/', '', $fiscalCompact);
+
+                $isLegalEntity = ($fiscalDigits !== '' && strlen($fiscalDigits) === 11);
+                $defaultTipo = $isLegalEntity ? 'G' : 'F';
+                $defaultIdent = $isLegalEntity ? $fiscalDigits : $fiscalCompact;
+
+                $defaultNome = trim((string)($loggedUser['first_name'] ?? ''));
+                $defaultCognome = trim((string)($loggedUser['last_name'] ?? ''));
+                $defaultEmail = trim((string)($loggedUser['email'] ?? ''));
+
+                $defaultAnagrafica = $defaultTipo === 'F'
+                    ? $defaultCognome
+                    : trim(($defaultCognome !== '' ? $defaultCognome : $defaultNome));
+                if ($defaultTipo === 'G' && $defaultAnagrafica === '') {
+                    $defaultAnagrafica = $defaultEmail;
+                }
+
+                $existing = (isset($baseContext['form_data']['soggettoPagatore']) && is_array($baseContext['form_data']['soggettoPagatore']))
+                    ? $baseContext['form_data']['soggettoPagatore']
+                    : [];
+
+                $prefill = [
+                    'tipo' => $defaultTipo,
+                    'identificativo' => $defaultIdent,
+                    'anagrafica' => $defaultAnagrafica,
+                    'nome' => $defaultTipo === 'F' ? $defaultNome : '',
+                    'email' => $defaultEmail,
+                ];
+
+                foreach ($prefill as $k => $v) {
+                    if (!isset($existing[$k]) || trim((string)$existing[$k]) === '') {
+                        if ($v !== '') {
+                            $existing[$k] = $v;
+                        }
+                    }
+                }
+
+                $baseContext['form_data']['soggettoPagatore'] = $existing;
+            }
         }
 
         return [
