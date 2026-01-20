@@ -56,6 +56,15 @@
 			"problemMatcher": []
 		},
 		{
+			"label": "regenerate-spid-proxy-config",
+			"type": "shell",
+			"command": "powershell -ExecutionPolicy Bypass -File .\\scripts\\regenerate-spid-proxy-config.ps1 -Restart",
+			"args": [],
+			"isBackground": false,
+			"group": "build",
+			"problemMatcher": []
+		},
+		{
 			"label": "logs",
 			"type": "shell",
 			"command": "docker compose logs -f",
