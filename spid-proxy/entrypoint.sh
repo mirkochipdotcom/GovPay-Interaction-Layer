@@ -635,9 +635,9 @@ if [ ! -f "${TARGET_DIR}/vendor/autoload.php" ]; then
 fi
 
 # Recovery: se le dipendenze sono installate ma i file web non sono stati generati (es. primo avvio fallito),
-# rilancia lo script di setup che scrive `www/proxy.php` e i metadata.
-if [ -d "${TARGET_DIR}/vendor" ] && [ ! -f "${TARGET_DIR}/www/proxy.php" ]; then
-  echo "[spid-proxy] vendor/ presente ma www/proxy.php mancante: rilancio composer post-update-cmd (Setup::setup)"
+# rilancia lo script di setup che scrive `www/proxy.php` / `www/proxy-home.php` e i metadata.
+if [ -d "${TARGET_DIR}/vendor" ] && { [ ! -f "${TARGET_DIR}/www/proxy.php" ] || [ ! -f "${TARGET_DIR}/www/proxy-home.php" ]; }; then
+  echo "[spid-proxy] vendor/ presente ma file web mancanti: rilancio composer post-update-cmd (Setup::setup)"
   (COMPOSER_ALLOW_SUPERUSER=1 composer config --global audit.block-insecure false >/dev/null 2>&1) || true
   (cd "${TARGET_DIR}" && COMPOSER_ALLOW_SUPERUSER=1 composer run-script post-update-cmd --no-interaction --no-ansi) || true
 fi
