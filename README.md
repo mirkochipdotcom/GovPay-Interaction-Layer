@@ -119,16 +119,17 @@ In tutti i casi in cui SPID è abilitato (interno/esterno), imposta in `.env`:
 
 Le restanti variabili SPID/CIE sono tenute in un file dedicato per non appesantire il `.env` principale:
 ```bash
-cp .env.spid.example .env.spid
+cp .env.proxyspid.example .env.proxyspid
+cp .env.metadata.example .env.metadata
 ```
 
-Variabili principali (in `.env.spid`):
+Variabili principali (in `.env.proxyspid`):
 - `SPID_PROXY_CLIENT_ID`
 - `SPID_PROXY_REDIRECT_URIS`
 - `FRONTOFFICE_PUBLIC_BASE_URL`
 - `FRONTOFFICE_SPID_CALLBACK_PATH`
 - (opzionale) `FRONTOFFICE_SPID_REDIRECT_URI`
-- (opzionale) `SPID_PROXY_ENTITY_ID`
+
 
 Modalità response (firmata/cifrata):
 - `SPID_PROXY_SIGN_RESPONSE` (default `1`): se `1` il proxy invia la response come token JWS (firmato).
@@ -137,11 +138,11 @@ Modalità response (firmata/cifrata):
 
 Nota importante sulla chiave (`SPID_PROXY_CLIENT_SECRET`):
 - Deve essere configurata **con lo stesso valore** lato **frontoffice** (per decifrare) e lato **proxy** (per cifrare).
-- Con proxy **interno** (servizio `spid-proxy`) i container caricano già sia `.env` sia `.env.spid`, quindi puoi impostarla in uno dei due file.
-- Con proxy **esterno** devi impostarla nel frontoffice (qui) e anche nella configurazione dell'istanza proxy esterna.
+- Con proxy **interno** (servizio `spid-proxy`) i container caricano già sia `.env` sia `.env.proxyspid`.
+- Con proxy **esterno** devi impostarla nel frontoffice (.env) e anche nella configurazione dell'istanza proxy esterna.
 
 Operatività:
-- **Branding pagina proxy**: vedi `SPID_PROXY_CLIENT_NAME`, `SPID_PROXY_CLIENT_DESCRIPTION`, `SPID_PROXY_CLIENT_LOGO` in `.env.spid`. Per applicare modifiche basta ricreare il solo servizio: `docker compose up -d --force-recreate spid-proxy`.
+- **Branding pagina proxy**: vedi `SPID_PROXY_CLIENT_NAME`, `SPID_PROXY_CLIENT_DESCRIPTION`, `SPID_PROXY_CLIENT_LOGO` in `.env.proxyspid`. Per applicare modifiche basta ricreare il solo servizio: `docker compose up -d --force-recreate spid-proxy`.
 - **Logout “vero” SPID**: il frontoffice, se configurato, inoltra il logout al proxy (IdP logout) invece di fare solo logout locale.
 
 #### Metadata in produzione (immutabile + rotazione)
@@ -154,17 +155,17 @@ Questo repository supporta il pattern “freeze + next generator”:
 Checklist pre-produzione / pre-attestazione AgID (consigliata):
 - Verifica che `SPID_PROXY_PUBLIC_BASE_URL` sia l’URL pubblico reale (niente `localhost`/`127.0.0.1` in produzione).
 - Verifica che `${SPID_PROXY_PUBLIC_BASE_URL}/spid-metadata.xml` risponda `200` e scarichi un XML valido (anche se in dev con certificato self-signed).
-- Compila correttamente i dati organizzazione in `.env.spid` (campi `SPID_PROXY_ORG_*`) e tienili stabili: una variazione cambia il metadata.
+- Compila correttamente i dati organizzazione in `.env.metadata` (campi `SPID_PROXY_ORG_*`) e tienili stabili: una variazione cambia il metadata.
 - Se usi il branding (`SPID_PROXY_CLIENT_*`), usa un `SPID_PROXY_CLIENT_LOGO` raggiungibile pubblicamente.
 - Controlla che i redirect URI usati dal frontoffice siano presenti in `SPID_PROXY_REDIRECT_URIS` (match esatto).
 - Prima di inviare ad AgID, genera un file “da consegna” e archivialo (non usare il metadata “dinamico” come unica fonte):
    - puoi ottenere il file direttamente dall’URL `/spid-metadata.xml`, oppure
    - usare il generator `spid-proxy-metadata` e prelevare `spid-metadata-next.xml`.
-- Dopo attestazione, fai subito freeze del “current” e abilita `SPID_PROXY_METADATA_MODE=locked`.
+- Dopo attestazione, fai subito freeze del “current” (file statico) e archivia una copia del file attestato.
 
 1) **Congelare il metadata attestato (CURRENT)**
-- Copia il file attestato in `spid-proxy/data/www/metadata/spid-metadata-current.xml`.
-- Imposta in `.env.spid`: `SPID_PROXY_METADATA_MODE=locked`.
+- Il runtime serve SOLO i file presenti in `spid-proxy/metadata-current/`.
+- Copia il file attestato in `spid-proxy/metadata-current/spid-metadata-current.xml` (e, se usi CIE, anche `cie-metadata-current.xml`).
 - Ricrea solo il proxy per rileggere le env: `docker compose up -d --force-recreate spid-proxy`.
 
 Da quel momento, l’URL pubblico `${SPID_PROXY_PUBLIC_BASE_URL}/spid-metadata.xml` serve il file “current” statico.
@@ -172,14 +173,44 @@ Da quel momento, l’URL pubblico `${SPID_PROXY_PUBLIC_BASE_URL}/spid-metadata.x
 2) **Generare il metadata NEXT in parallelo (senza impattare PROD)**
 - Esegui il generator (usa una working directory separata `spid-proxy/metadata-work/`):
    - `docker compose --profile spid-proxy-metadata run --rm spid-proxy-metadata`
-- Prendi il file: `spid-proxy/metadata-work/www/metadata/spid-metadata-next.xml` e invialo ad AgID per attestazione.
+- Prendi i file generati in `spid-proxy/metadata/`:
+   - `spid-metadata-next.xml`
+   - `cie-metadata-next.xml` (se CIE è abilitato)
+- Invia i file “next” ad AgID per attestazione.
 
 3) **Cutover (quando AgID attesta NEXT)**
-- Fai backup del current (rinomina il file in `spid-metadata-current.YYYYMMDD.xml`).
-- Sostituisci `spid-metadata-current.xml` con il nuovo attestato.
+- (Consigliato) Archivia il current prima del cutover.
+- Promuovi `*-metadata-next.xml` a `*-metadata-current.xml`:
+   - Windows: usa lo script `scripts/promote-spid-metadata.ps1` oppure la task VS Code `promote-spid-metadata-current`.
+   - Linux/macOS: `scripts/promote-spid-metadata.sh`
 - Ricrea `spid-proxy`.
 
-I dettagli e tutte le variabili sono documentati in `.env.spid.example`.
+#### Cartelle usate dal proxy (spid-proxy/)
+- `data/`: working copy del proxy runtime (vendor/config/cache). È lo stato persistente del container `spid-proxy`.
+- `metadata-work/`: working copy separata usata solo dal generator `spid-proxy-metadata` (serve per non toccare `data/`).
+- `metadata/`: output del generator (snapshot + file `*-metadata-next.xml`).
+- `metadata-current/`: UNICA cartella montata dal runtime per servire i metadata correnti (file statici `*-metadata-current.xml`).
+- `metadata-archive/`: archivio locale (backup/snapshot) non montato dal runtime.
+
+#### Primo avvio (dev) + metadata (procedura completa)
+1) Prepara i file env:
+   - `cp .env.example .env`
+   - `cp .env.proxyspid.example .env.proxyspid`
+   - `cp .env.metadata.example .env.metadata`
+2) Avvia con proxy interno:
+   - in `.env`: `COMPOSE_PROFILES=spid-proxy`
+   - `docker compose up -d --build`
+3) Genera “next” (SPID e, se abilitato, CIE):
+   - `docker compose --profile spid-proxy-metadata run --rm spid-proxy-metadata`
+   - output in `spid-proxy/metadata/*-metadata-next.xml`
+4) Promuovi a “current” (dev o dopo attestazione):
+   - Windows: `powershell -ExecutionPolicy Bypass -File .\\scripts\\promote-spid-metadata.ps1`
+   - poi: `docker compose up -d --force-recreate spid-proxy`
+5) Pulizia cartelle metadata (locale):
+   - Windows: `powershell -ExecutionPolicy Bypass -File .\\scripts\\cleanup-spid-metadata.ps1`
+   - Sposta snapshot/bak in `spid-proxy/metadata-archive/` e lascia in `spid-proxy/metadata/` solo i file `*-next.xml`.
+
+I dettagli e tutte le variabili sono documentati in `.env.proxyspid.example` e `.env.metadata.example`.
 
 Avvio (comando unico, stesso di sempre):
 ```bash
@@ -363,7 +394,8 @@ GovPay-Interaction-Layer/
 ├── govpay-clients/         # Client API generati da OpenAPI
 ├── ssl/                    # Certificati SSL personalizzati
 ├── .env                    # Configurazione ambiente (da creare)
-└── .env.spid               # Configurazione SPID/CIE (opzionale)
+└── .env.proxyspid          # Configurazione integrazione Frontoffice <-> Proxy (opzionale)
+└── .env.metadata           # Dati metadata SPID/CIE (opzionale)
 ```
 
 ## 🤝 Contribuire

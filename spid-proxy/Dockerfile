@@ -34,6 +34,10 @@ RUN a2ensite 000-default.conf
 COPY entrypoint.sh /usr/local/bin/spid-proxy-entrypoint.sh
 RUN sed -i 's/\r$//' /usr/local/bin/spid-proxy-entrypoint.sh && chmod 755 /usr/local/bin/spid-proxy-entrypoint.sh
 
+# Script dedicato: generazione/snapshot/publish metadata (SPID/CIE)
+COPY spid-proxy-generate-metadata.sh /usr/local/bin/spid-proxy-generate-metadata.sh
+RUN sed -i 's/\r$//' /usr/local/bin/spid-proxy-generate-metadata.sh && chmod 755 /usr/local/bin/spid-proxy-generate-metadata.sh
+
 WORKDIR /var/www/spid-cie-php
 
 EXPOSE 443

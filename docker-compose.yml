@@ -40,7 +40,7 @@ services:
       - DB_PASSWORD=${DB_PASSWORD_CITTADINI}
     env_file:
       - .env
-      - .env.spid
+      - .env.proxyspid
     depends_on:
       - db
     entrypoint: ["/usr/local/bin/docker-setup.sh"]
@@ -57,9 +57,12 @@ services:
       - "${SPID_PROXY_HTTPS_PORT:-8445}:443"
     env_file:
       - .env
-      - .env.spid
+      - .env.proxyspid
+      - .env.metadata
     volumes:
       - ./spid-proxy/data:/var/www/spid-cie-php
+      # Runtime: monta SOLO i metadata correnti (evita di esporre snapshot/next/backup)
+      - ./spid-proxy/metadata-current:/var/www/spid-cie-php/www/metadata:ro
       - ./ssl:/ssl
     restart: unless-stopped
 
@@ -67,7 +70,7 @@ services:
   # Uso tipico:
   #   docker compose --profile spid-proxy-metadata run --rm spid-proxy-metadata
   # Output:
-  #   spid-proxy/metadata-work/www/metadata/spid-metadata-next.xml
+  #   spid-proxy/metadata/spid-metadata-next.xml (+ cie-metadata-next.xml se abilitato)
   spid-proxy-metadata:
     build:
       context: ./spid-proxy
@@ -77,16 +80,14 @@ services:
       - spid-proxy-metadata
     env_file:
       - .env
-      - .env.spid
-    environment:
-      - SPID_PROXY_FORCE_SETUP=1
-      - SPID_PROXY_FORCE_CERT=1
-      - SPID_PROXY_METADATA_SNAPSHOT_ON_START=1
-      - SPID_PROXY_METADATA_PUBLISH_ON_START=1
-      - SPID_PROXY_METADATA_PUBLISH_TARGET=next
-      - SPID_PROXY_GENERATE_ONLY=1
+      - .env.proxyspid
+      - .env.metadata
+    command: ["bash", "-lc", "/usr/local/bin/spid-proxy-generate-metadata.sh"]
     volumes:
       - ./spid-proxy/metadata-work:/var/www/spid-cie-php
+      # Generator: scrive snapshot/next in una cartella non montata dal runtime
+      - ./spid-proxy/metadata:/var/www/spid-cie-php/www/metadata
+      - ./ssl:/ssl
     restart: "no"
   db:
     image: mariadb:11

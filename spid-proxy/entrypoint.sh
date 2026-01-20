@@ -5,31 +5,15 @@ set -euo pipefail
 TARGET_DIR="/var/www/spid-cie-php"
 SOURCE_DIR="/opt/spid-cie-php"
 
-# Modalità gestione metadata:
-# - mutable (default): comportamento attuale, aggiorna file di setup/config in base alle env.
-# - locked: NON modifica automaticamente file che impattano metadata (setup/authsources/openssl/proxy config).
-SPID_PROXY_METADATA_MODE="${SPID_PROXY_METADATA_MODE:-mutable}"
-if [ "${SPID_PROXY_METADATA_MODE}" != "mutable" ] && [ "${SPID_PROXY_METADATA_MODE}" != "locked" ]; then
-  echo "[spid-proxy] WARNING: SPID_PROXY_METADATA_MODE non valido ('${SPID_PROXY_METADATA_MODE}'), uso 'mutable'" >&2
-  SPID_PROXY_METADATA_MODE="mutable"
-fi
+# Nota: questo entrypoint è "write-once".
+# Genera i file (setup/config/cert) solo se MANCANO sul volume; se esistono, non li rigenera.
+# Per rigenerare: elimina i file dal volume (es. spid-php-setup.json) o usa un working-dir dedicato.
 
 # SimpleSAML baseurlpath (di default: myservice). Deve essere un path-segment semplice.
 SPID_PROXY_SERVICE_NAME="${SPID_PROXY_SERVICE_NAME:-myservice}"
 if ! echo "${SPID_PROXY_SERVICE_NAME}" | grep -Eq '^[A-Za-z0-9_-]+$'; then
   echo "[spid-proxy] WARNING: SPID_PROXY_SERVICE_NAME non valido ('${SPID_PROXY_SERVICE_NAME}'), uso 'myservice'" >&2
   SPID_PROXY_SERVICE_NAME="myservice"
-fi
-
-# Snapshot/Frozen metadata (file statici sotto www/metadata/)
-SPID_PROXY_METADATA_SNAPSHOT_ON_START="${SPID_PROXY_METADATA_SNAPSHOT_ON_START:-0}"
-SPID_PROXY_METADATA_PUBLISH_ON_START="${SPID_PROXY_METADATA_PUBLISH_ON_START:-0}"
-SPID_PROXY_METADATA_PUBLISH_TARGET="${SPID_PROXY_METADATA_PUBLISH_TARGET:-current}"
-SPID_PROXY_GENERATE_ONLY="${SPID_PROXY_GENERATE_ONLY:-0}"
-
-if [ "${SPID_PROXY_METADATA_PUBLISH_TARGET}" != "current" ] && [ "${SPID_PROXY_METADATA_PUBLISH_TARGET}" != "next" ]; then
-  echo "[spid-proxy] WARNING: SPID_PROXY_METADATA_PUBLISH_TARGET non valido ('${SPID_PROXY_METADATA_PUBLISH_TARGET}'), uso 'current'" >&2
-  SPID_PROXY_METADATA_PUBLISH_TARGET="current"
 fi
 
 if [ ! -f "${TARGET_DIR}/.spid_proxy_copied" ]; then
@@ -50,35 +34,6 @@ fi
 # Directory web persistente dove Setup.php scrive proxy.php e pagine di esempio
 mkdir -p "${TARGET_DIR}/www" || true
 
-# ---- Forzatura rigenerazione setup/metadata ----
-# Per default, spid-cie-php salva la configurazione su volume e non rigenera ad ogni avvio.
-# Imposta SPID_PROXY_FORCE_SETUP=1 per forzare una rigenerazione (utile quando cambi env e vuoi
-# rigenerare metadata/config senza cancellare tutto il volume).
-FORCE_SETUP_RUN=0
-echo "[spid-proxy] Force flags: SPID_PROXY_FORCE_SETUP=${SPID_PROXY_FORCE_SETUP:-0} SPID_PROXY_FORCE_CERT=${SPID_PROXY_FORCE_CERT:-0}"
-
-# Guardrail produzione: se metadata è locked, non permettere rigenerazioni accidentali.
-if [ "${SPID_PROXY_METADATA_MODE}" = "locked" ] && { [ "${SPID_PROXY_FORCE_SETUP:-0}" = "1" ] || [ "${SPID_PROXY_FORCE_CERT:-0}" = "1" ]; }; then
-  echo "[spid-proxy] WARNING: SPID_PROXY_METADATA_MODE=locked: ignoro SPID_PROXY_FORCE_SETUP/SPID_PROXY_FORCE_CERT per proteggere il metadata congelato" >&2
-  SPID_PROXY_FORCE_SETUP=0
-  SPID_PROXY_FORCE_CERT=0
-fi
-
-if [ "${SPID_PROXY_FORCE_SETUP:-0}" = "1" ]; then
-  echo "[spid-proxy] SPID_PROXY_FORCE_SETUP=1: forzo rigenerazione setup (spid-php-setup.json + config/metadata)"
-  FORCE_SETUP_RUN=1
-  rm -f "${TARGET_DIR}/spid-php-setup.json" "${TARGET_DIR}/spid-php-openssl.cnf" "${TARGET_DIR}/spid-php-proxy.json" || true
-  # Questi file sono generati dal Setup e vivono su bind-mount: se restano, rischi di vedere valori vecchi
-  # (es. spid.codeValue/IPACode) anche dopo aver cambiato .env.spid.
-  rm -f "${TARGET_DIR}/vendor/simplesamlphp/simplesamlphp/config/authsources.php" || true
-  echo "[spid-proxy] Cleanup done: $(ls -1 ${TARGET_DIR}/spid-php-setup.json ${TARGET_DIR}/spid-php-openssl.cnf ${TARGET_DIR}/spid-php-proxy.json 2>/dev/null | wc -l) files remain"
-  # Opzionale: rigenera anche i certificati SPID (cert/). Attenzione: cambierà la chiave del SP.
-  if [ "${SPID_PROXY_FORCE_CERT:-0}" = "1" ]; then
-    echo "[spid-proxy] SPID_PROXY_FORCE_CERT=1: rimuovo certificati SPID in ${TARGET_DIR}/cert/"
-    rm -rf "${TARGET_DIR}/cert"/* || true
-  fi
-fi
-
 # ---- Bootstrap non-interattivo (spid-php-setup.json) ----
 # spid-cie-php esegue un setup interattivo durante gli script composer.
 # Se spid-php-setup.json esiste ed include tutte le chiavi richieste, il setup diventa non-interattivo.
@@ -90,7 +45,7 @@ if [ ! -f "${TARGET_DIR}/spid-php-setup.json" ]; then
   if [ "${SPID_PROXY_ORG_IS_PUBLIC_ADMIN:-1}" = "1" ] && [ "${SPID_PROXY_ORG_CODE_TYPE:-}" = "IPACode" ]; then
     if [ -z "${SPID_PROXY_ORG_CODE:-}" ] || [ "${SPID_PROXY_ORG_CODE:-}" = "code" ]; then
       echo "[spid-proxy] ERROR: SPID_PROXY_ORG_CODE non valorizzato (o vale 'code') ma SPID_PROXY_ORG_CODE_TYPE=IPACode." >&2
-      echo "[spid-proxy]        Imposta SPID_PROXY_ORG_CODE=<codice_ipa_reale> in .env.spid (es. c_f646) e rigenera con SPID_PROXY_FORCE_SETUP=1 + force-recreate." >&2
+      echo "[spid-proxy]        Imposta SPID_PROXY_ORG_CODE=<codice_ipa_reale> in .env.metadata (es. c_f646) e rigenera eliminando ${TARGET_DIR}/spid-php-setup.json." >&2
       exit 1
     fi
   fi
@@ -98,7 +53,6 @@ if [ ! -f "${TARGET_DIR}/spid-php-setup.json" ]; then
   TARGET_DIR="${TARGET_DIR}" \
   SPID_PROXY_PUBLIC_BASE_URL="${SPID_PROXY_PUBLIC_BASE_URL:-}" \
   SPID_PROXY_PUBLIC_HOST="${SPID_PROXY_PUBLIC_HOST:-}" \
-  SPID_PROXY_ENTITY_ID="${SPID_PROXY_ENTITY_ID:-}" \
   SPID_PROXY_CLIENT_ID="${SPID_PROXY_CLIENT_ID:-govpay_client}" \
   SPID_PROXY_CLIENT_SECRET="${SPID_PROXY_CLIENT_SECRET:-}" \
   SPID_PROXY_REDIRECT_URIS="${SPID_PROXY_REDIRECT_URIS:-/proxy-sample.php}" \
@@ -155,10 +109,11 @@ if [ ! -f "${TARGET_DIR}/spid-php-setup.json" ]; then
     $target = getenv("TARGET_DIR") ?: "/var/www/spid-cie-php";
     $base = rtrim(getenv("SPID_PROXY_PUBLIC_BASE_URL") ?: "", "/");
     $host = getenv("SPID_PROXY_PUBLIC_HOST") ?: "localhost";
-    $entityId = getenv("SPID_PROXY_ENTITY_ID") ?: "";
-    if ($entityId === "" && $base !== "") {
-      $entityId = $base . "/spid-metadata.xml";
-    }
+    // entityID NON configurabile: è determinato da come serviamo i metadata (endpoint statici).
+    // - SPID: ${base}/spid-metadata.xml
+    // - CIE:  ${base}/cie-metadata.xml
+    $spidEntityId = $base !== "" ? ($base . "/spid-metadata.xml") : "https://localhost/spid-metadata.xml";
+    $cieEntityId = $base !== "" ? ($base . "/cie-metadata.xml") : "https://localhost/cie-metadata.xml";
 
     $clientId = getenv("SPID_PROXY_CLIENT_ID") ?: "govpay_client";
     $clientSecret = getenv("SPID_PROXY_CLIENT_SECRET") ?: "";
@@ -254,7 +209,8 @@ if [ ! -f "${TARGET_DIR}/spid-php-setup.json" ]; then
       "storeSqlUsername" => "admin",
       "storeSqlPassword" => "password",
 
-      "entityID" => $entityId !== "" ? $entityId : "https://localhost",
+      // entityID usato dal setup upstream come default (storicamente SPID). Noi lo impostiamo a SPID.
+      "entityID" => $spidEntityId,
       "spDomain" => $host,
       "spName" => $orgName,
       "spDescription" => $orgName,
@@ -330,7 +286,12 @@ if [ ! -f "${TARGET_DIR}/spid-php-setup.json" ]; then
     ];
 
     file_put_contents($target . "/spid-php-setup.json", json_encode($cfg));
-  ' || true
+  '
+
+  if [ ! -f "${TARGET_DIR}/spid-php-setup.json" ]; then
+    echo "[spid-proxy] ERROR: fallita generazione spid-php-setup.json" >&2
+    exit 1
+  fi
 fi
 
 # ---- Env-driven config (dominio/base URL) ----
@@ -369,21 +330,138 @@ php -r '
   }
 ' || true
 
-# EntityID (default: ${base}/spid-metadata.xml)
-SPID_PROXY_ENTITY_ID="${SPID_PROXY_ENTITY_ID:-}"
-if [ -z "${SPID_PROXY_ENTITY_ID}" ] && [ -n "${SPID_PROXY_PUBLIC_BASE_URL}" ]; then
-  SPID_PROXY_ENTITY_ID="${SPID_PROXY_PUBLIC_BASE_URL}/spid-metadata.xml"
-fi
+# ---- Proxy runtime config (spid-php-proxy.json) ----
+# Necessario per /proxy-home.php e /proxy.php.
+# In upstream viene creato dal setup interattivo; qui lo generiamo automaticamente se manca,
+# evitando di scrivere metadata sul volume (che in runtime è montato read-only).
+TARGET_DIR="${TARGET_DIR}" \
+SPID_PROXY_PRODUCTION="${SPID_PROXY_PRODUCTION:-0}" \
+SPID_PROXY_PUBLIC_HOST="${SPID_PROXY_PUBLIC_HOST:-localhost}" \
+SPID_PROXY_CLIENT_ID="${SPID_PROXY_CLIENT_ID:-}" \
+SPID_PROXY_CLIENT_SECRET="${SPID_PROXY_CLIENT_SECRET:-}" \
+SPID_PROXY_REDIRECT_URIS="${SPID_PROXY_REDIRECT_URIS:-}" \
+SPID_PROXY_SIGN_RESPONSE="${SPID_PROXY_SIGN_RESPONSE:-1}" \
+SPID_PROXY_ENCRYPT_RESPONSE="${SPID_PROXY_ENCRYPT_RESPONSE:-0}" \
+SPID_PROXY_LEVEL="${SPID_PROXY_LEVEL:-2}" \
+SPID_PROXY_ATCS_INDEX="${SPID_PROXY_ATCS_INDEX:-0}" \
+SPID_PROXY_TOKEN_EXP_TIME="${SPID_PROXY_TOKEN_EXP_TIME:-1200}" \
+SPID_PROXY_RESPONSE_ATTR_PREFIX="${SPID_PROXY_RESPONSE_ATTR_PREFIX:-}" \
+SPID_PROXY_CLIENT_NAME="${SPID_PROXY_CLIENT_NAME:-}" \
+SPID_PROXY_CLIENT_DESCRIPTION="${SPID_PROXY_CLIENT_DESCRIPTION:-}" \
+SPID_PROXY_CLIENT_LOGO="${SPID_PROXY_CLIENT_LOGO:-}" \
+FRONTOFFICE_PUBLIC_BASE_URL="${FRONTOFFICE_PUBLIC_BASE_URL:-}" \
+APP_ENTITY_NAME="${APP_ENTITY_NAME:-}" \
+php -r '
+  $target = getenv("TARGET_DIR") ?: "/var/www/spid-cie-php";
+  $path = $target . "/spid-php-proxy.json";
+  if (file_exists($path)) return;
 
-# CIE EntityID (default: ${base}/cie-metadata.xml)
-SPID_PROXY_CIE_ENTITY_ID="${SPID_PROXY_CIE_ENTITY_ID:-}"
-if [ -z "${SPID_PROXY_CIE_ENTITY_ID}" ] && [ -n "${SPID_PROXY_PUBLIC_BASE_URL}" ]; then
-  SPID_PROXY_CIE_ENTITY_ID="${SPID_PROXY_PUBLIC_BASE_URL}/cie-metadata.xml"
-fi
+  $production = (getenv("SPID_PROXY_PRODUCTION") ?: "0") === "1";
+  $spDomain = trim(getenv("SPID_PROXY_PUBLIC_HOST") ?: "localhost");
+  if ($spDomain === "") $spDomain = "localhost";
+
+  $clientId = trim(getenv("SPID_PROXY_CLIENT_ID") ?: "govpay_client");
+  if ($clientId === "") $clientId = "govpay_client";
+
+  $clientSecret = trim(getenv("SPID_PROXY_CLIENT_SECRET") ?: "");
+
+  $redirectsRaw = getenv("SPID_PROXY_REDIRECT_URIS") ?: "/proxy-sample.php";
+  $redirects = array_values(array_filter(array_map("trim", preg_split("/[\\s,]+/", $redirectsRaw))));
+  if ($redirects === []) $redirects = ["/proxy-sample.php"];
+
+  $signResponse = trim((string)(getenv("SPID_PROXY_SIGN_RESPONSE") ?: "1")) === "1";
+  $encryptResponse = trim((string)(getenv("SPID_PROXY_ENCRYPT_RESPONSE") ?: "0")) === "1";
+  $level = (int)(getenv("SPID_PROXY_LEVEL") ?: "2");
+  $atcsIndex = (int)(getenv("SPID_PROXY_ATCS_INDEX") ?: "0");
+  $tokenExp = (int)(getenv("SPID_PROXY_TOKEN_EXP_TIME") ?: "1200");
+  $attrPrefix = (string)(getenv("SPID_PROXY_RESPONSE_ATTR_PREFIX") ?: "");
+
+  // Branding default (coerente con quanto usiamo per spid-php-setup.json)
+  $frontofficeBaseUrl = rtrim(trim(getenv("FRONTOFFICE_PUBLIC_BASE_URL") ?: ""), "/");
+  $appEntityName = trim(getenv("APP_ENTITY_NAME") ?: "");
+  $defaultName = $appEntityName !== "" ? $appEntityName : "Service Provider";
+  $name = trim(getenv("SPID_PROXY_CLIENT_NAME") ?: "");
+  if ($name === "") $name = $defaultName;
+  $desc = trim(getenv("SPID_PROXY_CLIENT_DESCRIPTION") ?: "");
+  if ($desc === "") $desc = $defaultName;
+  $logo = trim(getenv("SPID_PROXY_CLIENT_LOGO") ?: "");
+  if ($logo === "" && $frontofficeBaseUrl !== "") $logo = $frontofficeBaseUrl . "/img/stemma_ente.png";
+  if ($logo === "") $logo = "/assets/img/logo.png";
+
+  $cfg = [
+    "production" => $production,
+    "spDomain" => $spDomain,
+    "clients" => [
+      $clientId => [
+        "name" => $name,
+        "description" => $desc,
+        "logo" => $logo,
+        "client_id" => $clientId,
+        "client_secret" => $clientSecret,
+        "level" => $level,
+        "atcs_index" => $atcsIndex,
+        "handler" => "Plain",
+        "tokenExpTime" => $tokenExp,
+        "response_attributes_prefix" => $attrPrefix,
+        "redirect_uri" => $redirects,
+      ],
+    ],
+    "signProxyResponse" => $signResponse,
+    "encryptProxyResponse" => $encryptResponse,
+    "tokenExpTime" => $tokenExp,
+  ];
+
+  file_put_contents($path, json_encode($cfg));
+' || true
+
+# ---- Patch runtime: conserva contesto login su proxy-home.php ----
+# In upstream, il bottone SPID può generare un link GET con solo ?idp=..., perdendo client_id/redirect_uri/state.
+# Senza questi parametri proxy-home.php redirige a /metadata.xml. Qui rendiamo il comportamento robusto:
+# al primo caricamento salviamo i parametri in sessione, e li ripristiniamo se manca il contesto.
+TARGET_DIR="${TARGET_DIR}" \
+php -r '
+  $target = getenv("TARGET_DIR") ?: "/var/www/spid-cie-php";
+  $path = $target . "/www/proxy-home.php";
+  if (!file_exists($path)) return;
+  $content = file_get_contents($path);
+  if (!is_string($content) || $content === "") return;
+  if (strpos($content, "GOVPAY_PATCH_CTX_SESSION") !== false) return;
+
+  $needle = "\n    \$client_id = isset(\$_GET['client_id'])? \$_GET['client_id'] : null;\n";
+  $pos = strpos($content, $needle);
+  if ($pos === false) return;
+
+  // Inserisci subito dopo il blocco che legge i parametri GET (client_id/level/redirect_uri/state/idp).
+  $insertAfter = "    \$idp = isset(\$_GET['idp'])? \$_GET['idp'] : null;\n";
+  $pos2 = strpos($content, $insertAfter, $pos);
+  if ($pos2 === false) return;
+  $pos2 += strlen($insertAfter);
+
+  $patch = "\n" .
+    "    // GOVPAY_PATCH_CTX_SESSION: keep context across IdP GET links\n" .
+    "    if (session_status() !== PHP_SESSION_ACTIVE) { @session_start(); }\n" .
+    "    if (\$client_id != null && \$client_id !== '' && \$redirect_uri != null && \$redirect_uri !== '') {\n" .
+    "        \$_SESSION['govpay_proxy_ctx'] = array(\n" .
+    "            'client_id' => \$client_id,\n" .
+    "            'level' => \$level,\n" .
+    "            'redirect_uri' => \$redirect_uri,\n" .
+    "            'state' => \$state,\n" .
+    "        );\n" .
+    "    } elseif ((\$idp != null && \$idp !== '') && isset(\$_SESSION['govpay_proxy_ctx']) && is_array(\$_SESSION['govpay_proxy_ctx'])) {\n" .
+    "        \$ctx = \$_SESSION['govpay_proxy_ctx'];\n" .
+    "        if (\$client_id == null || \$client_id === '') \$client_id = \$ctx['client_id'] ?? \$client_id;\n" .
+    "        if (\$redirect_uri == null || \$redirect_uri === '') \$redirect_uri = \$ctx['redirect_uri'] ?? \$redirect_uri;\n" .
+    "        if (\$state == null || \$state === '') \$state = \$ctx['state'] ?? \$state;\n" .
+    "        if (!isset(\$_GET['level']) && isset(\$ctx['level'])) \$level = \$ctx['level'];\n" .
+    "    }\n";
+
+  $updated = substr($content, 0, $pos2) . $patch . substr($content, $pos2);
+  file_put_contents($path, $updated);
+' || true
 
 # ---- Branding UI del proxy (nome/descrizione/logo) ----
-# La pagina /proxy-home.php legge questi valori da spid-php-proxy.json (client.name/client.logo) e, in parte,
-# da spid-php-setup.json (proxyConfig). Aggiorniamo entrambi in modo idempotente ad ogni avvio.
+# La pagina /proxy-home.php legge questi valori da spid-php-proxy.json.
+# Nota: per evitare side-effect sul metadata, NON modifichiamo spid-php-setup.json su volumi già inizializzati.
 TARGET_DIR="${TARGET_DIR}" \
 SPID_PROXY_CLIENT_ID="${SPID_PROXY_CLIENT_ID:-}" \
 SPID_PROXY_CLIENT_NAME="${SPID_PROXY_CLIENT_NAME:-}" \
@@ -439,43 +517,7 @@ php -r '
     file_put_contents($path, json_encode($cfg));
   };
 
-  $updateSetupJson = function() use ($target, $clientIdEnv, $deriveName, $deriveDesc, $deriveLogo) {
-    $path = $target . "/spid-php-setup.json";
-    if (!file_exists($path)) return;
-    $cfg = json_decode(file_get_contents($path), true);
-    if (!is_array($cfg)) return;
-
-    if (!isset($cfg["proxyConfig"]) || !is_array($cfg["proxyConfig"])) return;
-    if (!isset($cfg["proxyConfig"]["clients"]) || !is_array($cfg["proxyConfig"]["clients"]) || $cfg["proxyConfig"]["clients"] === []) return;
-
-    $clientId = $clientIdEnv !== "" ? $clientIdEnv : (array_keys($cfg["proxyConfig"]["clients"])[0] ?? "");
-    if ($clientId === "" || !isset($cfg["proxyConfig"]["clients"][$clientId]) || !is_array($cfg["proxyConfig"]["clients"][$clientId])) return;
-
-    $existingName = (string)($cfg["proxyConfig"]["clients"][$clientId]["name"] ?? "");
-    $existingDesc = (string)($cfg["proxyConfig"]["clients"][$clientId]["description"] ?? "");
-    $existingLogo = (string)($cfg["proxyConfig"]["clients"][$clientId]["logo"] ?? "");
-
-    $cfg["proxyConfig"]["clients"][$clientId]["name"] = $deriveName($existingName);
-    $cfg["proxyConfig"]["clients"][$clientId]["description"] = $deriveDesc($existingDesc);
-    $cfg["proxyConfig"]["clients"][$clientId]["logo"] = $deriveLogo($existingLogo);
-
-    file_put_contents($path, json_encode($cfg));
-  };
-
-  $updateServiceName = function() use ($target, $serviceNameEnv) {
-    if ($serviceNameEnv === "") return;
-    $path = $target . "/spid-php-setup.json";
-    if (!file_exists($path)) return;
-    $cfg = json_decode(file_get_contents($path), true);
-    if (!is_array($cfg)) return;
-    // serviceName è usato per baseurlpath di SimpleSAML (es. /myservice).
-    $cfg["serviceName"] = $serviceNameEnv;
-    file_put_contents($path, json_encode($cfg));
-  };
-
   $updateProxyJson();
-  $updateSetupJson();
-  $updateServiceName();
 ' || true
 
 if [ -n "${SPID_PROXY_PUBLIC_BASE_URL}" ]; then
@@ -505,174 +547,33 @@ if [ -n "${SPID_PROXY_PUBLIC_BASE_URL}" ]; then
     $path = $target . "/vendor/simplesamlphp/simplesamlphp/config/config.php";
     if (!file_exists($path)) return;
     $content = file_get_contents($path);
-    $replacement = "\x27baseurlpath\x27 => \"{$serviceName}/\",";
-    // Rimpiazza qualunque baseurlpath esistente (stringa) con quello desiderato.
-    $updated = preg_replace("/^\s*\x27baseurlpath\x27\s*=>\s*\x27[^\x27]*\x27\s*,\s*$/m", "    {$replacement}", $content);
+    if (!is_string($content) || $content === "") return;
+
+    $desired = $serviceName . "/";
+
+    // Sostituzione robusta: intercetta qualunque riga con baseurlpath (indentazione/virgolette variabili).
+    $updated = preg_replace(
+      "/(^\s*[\x27\"]baseurlpath[\x27\"]\s*=>\s*)[\x27\"][^\x27\"]*[\x27\"](\s*,\s*$)/m",
+      "\\1" . chr(39) . addslashes($desired) . chr(39) . "\\2",
+      $content
+    );
+
+    // Se baseurlpath non esiste, inseriscilo subito dopo l'apertura dell'array di config.
+    if ($updated !== null && $updated === $content && strpos($content, "baseurlpath") === false) {
+      $insert = "    " . chr(39) . "baseurlpath" . chr(39) . " => " . chr(39) . $desired . chr(39) . ",\n";
+      $updated = preg_replace("/(\$config\s*=\s*array\s*\(\s*\n)/", "\\1" . $insert, $content, 1);
+      if ($updated === null) {
+        $updated = $content;
+      }
+    }
+
     if ($updated !== null && $updated !== $content) {
       file_put_contents($path, $updated);
     }
   ' || true
 
-  if [ "${SPID_PROXY_METADATA_MODE}" = "locked" ]; then
-    echo "[spid-proxy] Metadata LOCKED: salto aggiornamento automatico di setup/authsources/openssl/proxy config"
-  else
-    # Override file di configurazione (persistenti su bind-mount)
-    TARGET_DIR="${TARGET_DIR}" \
-    SPID_PROXY_PUBLIC_BASE_URL="${SPID_PROXY_PUBLIC_BASE_URL}" \
-    SPID_PROXY_PUBLIC_HOST="${SPID_PROXY_PUBLIC_HOST}" \
-    SPID_PROXY_ENTITY_ID="${SPID_PROXY_ENTITY_ID}" \
-    SPID_PROXY_CIE_ENTITY_ID="${SPID_PROXY_CIE_ENTITY_ID}" \
-    SPID_PROXY_CLIENT_ID="${SPID_PROXY_CLIENT_ID:-}" \
-    SPID_PROXY_CLIENT_SECRET="${SPID_PROXY_CLIENT_SECRET:-}" \
-    SPID_PROXY_REDIRECT_URIS="${SPID_PROXY_REDIRECT_URIS:-}" \
-    SPID_PROXY_SIGN_RESPONSE="${SPID_PROXY_SIGN_RESPONSE:-}" \
-    SPID_PROXY_ENCRYPT_RESPONSE="${SPID_PROXY_ENCRYPT_RESPONSE:-}" \
-    APP_ENTITY_NAME="${APP_ENTITY_NAME:-}" \
-    URL_ENTE="${URL_ENTE:-}" \
-    php -r '
-    $target = getenv("TARGET_DIR") ?: "/var/www/spid-cie-php";
-    $base = getenv("SPID_PROXY_PUBLIC_BASE_URL") ?: "";
-    $host = getenv("SPID_PROXY_PUBLIC_HOST") ?: "localhost";
-    $entityId = getenv("SPID_PROXY_ENTITY_ID") ?: "";
-    $cieEntityId = getenv("SPID_PROXY_CIE_ENTITY_ID") ?: "";
-    $clientId = getenv("SPID_PROXY_CLIENT_ID") ?: "";
-    $redirectsRaw = getenv("SPID_PROXY_REDIRECT_URIS") ?: "";
-    $appEntityName = getenv("APP_ENTITY_NAME") ?: "";
-    $urlEnte = getenv("URL_ENTE") ?: "";
-
-    $applySetup = function() use ($target, $base, $host, $entityId, $appEntityName, $urlEnte) {
-      $path = $target . "/spid-php-setup.json";
-      if (!file_exists($path)) return;
-      $cfg = json_decode(file_get_contents($path), true);
-      if (!is_array($cfg)) $cfg = [];
-
-      if ($base !== "") {
-        $cfg["spOrganizationURL"] = $base . "/";
-      }
-      $cfg["spDomain"] = $host;
-      if ($entityId !== "") {
-        $cfg["entityID"] = $entityId;
-      }
-      if ($appEntityName !== "") {
-        $cfg["spOrganizationName"] = $appEntityName;
-        $cfg["spOrganizationDisplayName"] = $appEntityName;
-      }
-      if ($urlEnte !== "") {
-        $cfg["spOrganizationURL"] = rtrim($urlEnte, "/") . "/";
-      }
-
-      file_put_contents($path, json_encode($cfg));
-    };
-
-    $clientSecret = getenv("SPID_PROXY_CLIENT_SECRET") ?: "";
-    $signResponse = (getenv("SPID_PROXY_SIGN_RESPONSE") ?: "1") === "1";
-    $encryptResponseRequested = (getenv("SPID_PROXY_ENCRYPT_RESPONSE") ?: "0") === "1";
-    // Il flusso "encrypt" ha senso solo se almeno firmi la response.
-    // Inoltre richiede un secret condiviso con il client che deve decifrare.
-    $encryptResponse = $encryptResponseRequested && $signResponse && $clientSecret !== "";
-
-    $applyProxy = function() use ($target, $host, $clientId, $redirectsRaw, $clientSecret, $signResponse, $encryptResponse) {
-      $path = $target . "/spid-php-proxy.json";
-      if (!file_exists($path)) return;
-      $cfg = json_decode(file_get_contents($path), true);
-      if (!is_array($cfg)) $cfg = [];
-
-      $cfg["spDomain"] = $host;
-
-      // Allinea modalità di response lato proxy.
-      $cfg["signProxyResponse"] = (bool)$signResponse;
-      $cfg["encryptProxyResponse"] = (bool)$encryptResponse;
-
-      if (!isset($cfg["clients"]) || !is_array($cfg["clients"])) {
-        $cfg["clients"] = [];
-      }
-
-      if ($clientId !== "") {
-        $currentKeys = array_keys($cfg["clients"]);
-        $oldKey = $currentKeys[0] ?? $clientId;
-        if (!isset($cfg["clients"][$clientId])) {
-          $cfg["clients"][$clientId] = $cfg["clients"][$oldKey] ?? ["client_id" => $clientId];
-        }
-        if ($oldKey !== $clientId && isset($cfg["clients"][$oldKey])) {
-          unset($cfg["clients"][$oldKey]);
-        }
-        $cfg["clients"][$clientId]["client_id"] = $clientId;
-
-        // Secret condiviso per decifrare JWE (se encryptProxyResponse=true)
-        $cfg["clients"][$clientId]["client_secret"] = $clientSecret;
-
-        // Se l handler è definito in modo errato o assente, proxy.php usa i flag globali.
-        // Qui forziamo un valore coerente, così il comportamento è esplicito.
-        if (!$signResponse) {
-          $cfg["clients"][$clientId]["handler"] = "Plain";
-        } elseif ($encryptResponse) {
-          $cfg["clients"][$clientId]["handler"] = "EncryptSign";
-        } else {
-          $cfg["clients"][$clientId]["handler"] = "Sign";
-        }
-
-        if ($redirectsRaw !== "") {
-          $parts = array_values(array_filter(array_map("trim", preg_split("/[\s,]+/", $redirectsRaw))));
-          if (count($parts) > 0) {
-            $cfg["clients"][$clientId]["redirect_uri"] = $parts;
-          }
-        }
-      }
-
-      file_put_contents($path, json_encode($cfg));
-    };
-
-    $applyAuthsources = function() use ($target, $entityId, $cieEntityId, $base, $urlEnte) {
-      if ($entityId === "" && $cieEntityId === "" && $base === "" && $urlEnte === "") return;
-      $path = $target . "/vendor/simplesamlphp/simplesamlphp/config/authsources.php";
-      if (!file_exists($path)) return;
-      $content = file_get_contents($path);
-
-      // Imposta entityID per SPID e CIE separatamente.
-      if ($entityId !== "") {
-        $content = preg_replace(
-          "/(\x27spid\x27\s*=>\s*array\(.*?\x27entityID\x27\s*=>\s*)\x27[^\x27]*\x27/s",
-          "\\1\x27" . addslashes($entityId) . "\x27",
-          $content,
-          1
-        );
-      }
-      if ($cieEntityId !== "") {
-        $content = preg_replace(
-          "/(\x27cie\x27\s*=>\s*array\(.*?\x27entityID\x27\s*=>\s*)\x27[^\x27]*\x27/s",
-          "\\1\x27" . addslashes($cieEntityId) . "\x27",
-          $content,
-          1
-        );
-      }
-
-      $orgSource = $urlEnte !== "" ? $urlEnte : $base;
-      if ($orgSource !== "") {
-        $orgUrl = rtrim($orgSource, "/") . "/";
-          $content = preg_replace(
-            "/\x27OrganizationURL\x27\s*=>\s*array\(\x27\\w+\x27\s*=>\s*\x27[^\x27]*\x27\)/",
-            "\x27OrganizationURL\x27 => array(\x27it\x27=> \x27" . addslashes($orgUrl) . "\x27)",
-            $content
-          );
-      }
-      file_put_contents($path, $content);
-    };
-
-    $applyOpenSSL = function() use ($target, $entityId) {
-      if ($entityId === "") return;
-      $path = $target . "/spid-php-openssl.cnf";
-      if (!file_exists($path)) return;
-      $content = file_get_contents($path);
-      $content = preg_replace("/^uri=.*$/m", "uri=" . $entityId, $content);
-      file_put_contents($path, $content);
-    };
-
-    $applySetup();
-    $applyProxy();
-    $applyAuthsources();
-    $applyOpenSSL();
-  ' || true
-  fi
+  # Nota: non riscriviamo file persistenti (setup/proxy/authsources/openssl) su volumi già inizializzati.
+  # L'output dei metadata è gestito dalla presenza/assenza dei file sul volume e dalla pipeline generate->promote.
 fi
 
 # Cert self-signed se mancante (dev)
@@ -712,50 +613,23 @@ fi
 
 # Nota: composer install di spid-cie-php può richiedere input (setup interattivo).
 # Se esistono già i file di config (spid-php-setup.json) possiamo eseguire il setup in modo non-interattivo.
-# IMPORTANT: trattiamo vendor come "incompleto" se mancano pezzi fondamentali (autoload o sorgenti SAML2).
-VENDOR_OK=1
+# IMPORTANT: trattiamo vendor come "incompleto" se manca vendor/autoload.php (è necessario per qualunque endpoint PHP).
 if [ ! -f "${TARGET_DIR}/vendor/autoload.php" ]; then
-  VENDOR_OK=0
-fi
-if [ ! -f "${TARGET_DIR}/vendor/simplesamlphp/saml2/src/SAML2/Constants.php" ]; then
-  VENDOR_OK=0
-fi
-
-if [ "${VENDOR_OK}" -ne 1 ]; then
-  echo "[spid-proxy] vendor/ incompleto: rigenero dipendenze con composer (autoload/SAML2 mancanti)"
-
   # Composer 2.9+ può bloccare dipendenze con security advisories (es. Twig 2 richiesto da SimpleSAMLphp 1.19.x).
   # Per questo progetto, lasciamo proseguire l'install evitando il blocco "insecure".
   (COMPOSER_ALLOW_SUPERUSER=1 composer config --global audit.block-insecure false >/dev/null 2>&1) || true
 
-  # Preferisci install (rispetta composer.lock); fallback a update se necessario.
-  (cd "${TARGET_DIR}" && COMPOSER_ALLOW_SUPERUSER=1 composer install --no-interaction --no-progress) || \
-  (cd "${TARGET_DIR}" && COMPOSER_ALLOW_SUPERUSER=1 composer update --no-interaction --no-progress) || true
-
-  if [ ! -f "${TARGET_DIR}/vendor/autoload.php" ] || [ ! -f "${TARGET_DIR}/vendor/simplesamlphp/saml2/src/SAML2/Constants.php" ]; then
-    echo "[spid-proxy] ERROR: vendor ancora incompleto dopo composer (autoload/SAML2 mancanti)." >&2
-    exit 1
-  fi
-fi
-
-# Se richiesto, forza l'esecuzione dello script di setup anche se i file web esistono già.
-if [ "$FORCE_SETUP_RUN" = "1" ] && [ -d "${TARGET_DIR}/vendor" ]; then
-  echo "[spid-proxy] Forzo Setup::setup (composer post-update-cmd) e update-metadata"
-  (COMPOSER_ALLOW_SUPERUSER=1 composer config --global audit.block-insecure false >/dev/null 2>&1) || true
-  if [ -f "${TARGET_DIR}/spid-php-setup.json" ]; then
-    echo "[spid-proxy] Setup.json (estratto): $(php -r '$p="/var/www/spid-cie-php/spid-php-setup.json"; $j=@json_decode(@file_get_contents($p),true); if(!is_array($j)) { echo "<invalid>"; exit(0);} echo "spOrganizationCodeType=".($j["spOrganizationCodeType"]??"<missing>")." spOrganizationCode=".($j["spOrganizationCode"]??"<missing>");')"
+  if [ -d "${TARGET_DIR}/vendor" ]; then
+    echo "[spid-proxy] vendor/ presente ma autoload.php mancante: rigenero autoloader con composer dump-autoload"
+    (cd "${TARGET_DIR}" && COMPOSER_ALLOW_SUPERUSER=1 composer dump-autoload --no-interaction --no-ansi) || true
   else
-    echo "[spid-proxy] ERRORE: spid-php-setup.json non presente prima del setup"
-    exit 1
+    echo "[spid-proxy] vendor/ mancante: eseguo composer install (no-interaction) per installare dipendenze e generare autoloader"
+    (cd "${TARGET_DIR}" && COMPOSER_ALLOW_SUPERUSER=1 composer install --no-interaction --no-progress) || true
   fi
 
-  (cd "${TARGET_DIR}" && COMPOSER_ALLOW_SUPERUSER=1 composer run-script post-update-cmd --no-interaction --no-ansi)
-  (cd "${TARGET_DIR}" && COMPOSER_ALLOW_SUPERUSER=1 composer run-script update-metadata --no-interaction --no-ansi)
-
-  if [ -f "${TARGET_DIR}/vendor/simplesamlphp/simplesamlphp/config/authsources.php" ]; then
-    echo "[spid-proxy] Authsources.php (estratto): $(php -r '$p="/var/www/spid-cie-php/vendor/simplesamlphp/simplesamlphp/config/authsources.php"; $c=@file_get_contents($p); if($c===false){echo"<unreadable>"; exit(0);} $t=""; if(preg_match("/\\x27spid\\.codeType\\x27\\s*=>\\s*\\x27([^\\x27]*)\\x27/",$c,$m)) $t.="spid.codeType=".$m[1]." "; if(preg_match("/\\x27spid\\.codeValue\\x27\\s*=>\\s*\\x27([^\\x27]*)\\x27/",$c,$m)) $t.="spid.codeValue=".$m[1]; echo trim($t)?:"<not-found>";')"
-  else
-    echo "[spid-proxy] ERRORE: authsources.php non generato dopo post-update-cmd"
+  if [ ! -f "${TARGET_DIR}/vendor/autoload.php" ]; then
+    echo "[spid-proxy] ERROR: vendor/autoload.php ancora mancante dopo composer. Impossibile proseguire." >&2
+    # In modalità generator è meglio fallire (altrimenti produrremmo metadata vuoti).
     exit 1
   fi
 fi
@@ -768,136 +642,15 @@ if [ -d "${TARGET_DIR}/vendor" ] && [ ! -f "${TARGET_DIR}/www/proxy.php" ]; then
   (cd "${TARGET_DIR}" && COMPOSER_ALLOW_SUPERUSER=1 composer run-script post-update-cmd --no-interaction --no-ansi) || true
 fi
 
-# Dopo Setup::setup/update-metadata, authsources.php può essere riscritto.
-# Riallineiamo qui gli entityID per SPID e CIE così che CIE punti a /cie-metadata.xml.
-if [ "${SPID_PROXY_METADATA_MODE}" != "locked" ]; then
-  TARGET_DIR="${TARGET_DIR}" \
-  SPID_PROXY_ENTITY_ID="${SPID_PROXY_ENTITY_ID}" \
-  SPID_PROXY_CIE_ENTITY_ID="${SPID_PROXY_CIE_ENTITY_ID}" \
-  php -r '
-    $target = getenv("TARGET_DIR") ?: "/var/www/spid-cie-php";
-    $spidEntityId = trim(getenv("SPID_PROXY_ENTITY_ID") ?: "");
-    $cieEntityId = trim(getenv("SPID_PROXY_CIE_ENTITY_ID") ?: "");
-    if ($spidEntityId === "" && $cieEntityId === "") return;
-    $path = $target . "/vendor/simplesamlphp/simplesamlphp/config/authsources.php";
-    if (!file_exists($path)) return;
-    $content = file_get_contents($path);
-    if ($spidEntityId !== "") {
-      $content = preg_replace(
-        "/(\x27spid\x27\s*=>\s*array\(.*?\x27entityID\x27\s*=>\s*)\x27[^\x27]*\x27/s",
-        "\\1\x27" . addslashes($spidEntityId) . "\x27",
-        $content,
-        1
-      );
-    }
-    if ($cieEntityId !== "") {
-      $content = preg_replace(
-        "/(\x27cie\x27\s*=>\s*array\(.*?\x27entityID\x27\s*=>\s*)\x27[^\x27]*\x27/s",
-        "\\1\x27" . addslashes($cieEntityId) . "\x27",
-        $content,
-        1
-      );
-    }
-    file_put_contents($path, $content);
-  ' || true
-fi
-
-# Esegue eventuale snapshot metadata DOPO che vendor/config sono presenti.
-if [ "${SPID_PROXY_METADATA_SNAPSHOT_ON_START}" = "1" ]; then
-  if [ -d "${TARGET_DIR}/vendor/simplesamlphp/simplesamlphp/www" ]; then
-    META_DIR="${TARGET_DIR}/www/metadata"
-    mkdir -p "${META_DIR}" || true
-    TS="$(date -u +"%Y%m%dT%H%M%SZ" 2>/dev/null || date +"%Y%m%d%H%M%S")"
-    SERVICE_NAME="${SPID_PROXY_SERVICE_NAME:-myservice}"
-    # Usa 127.0.0.1 (IPv4) perché in questo container Apache ascolta su 0.0.0.0:443
-    # e curl può risolvere localhost su ::1 (IPv6) causando connection refused.
-    META_BASE_URL="https://127.0.0.1/${SERVICE_NAME}/module.php/saml/sp/metadata.php"
-
-    snapshot_one() {
-      local kind
-      local url
-      local out_file
-      local http_code
-      kind="$1"
-      url="$2"
-      out_file="$3"
-
-      echo "[spid-proxy] Snapshot metadata ${kind}: ${out_file} (${url})"
-      if command -v curl >/dev/null 2>&1; then
-        http_code="$(curl -ksS --max-time 30 -o "${out_file}" -w "%{http_code}" "${url}" || echo "000")"
-      else
-        echo "[spid-proxy] WARNING: curl non disponibile, impossibile fare snapshot metadata ${kind}" >&2
-        return 1
-      fi
-
-      if [ "${http_code}" != "200" ]; then
-        echo "[spid-proxy] WARNING: snapshot metadata ${kind} HTTP ${http_code} (${url})" >&2
-
-        echo "[spid-proxy] curl -v diagnostics (tail):" >&2
-        curl -kvsS --max-time 10 "${url}" -o /dev/null 2>&1 | tail -n 80 >&2 || true
-
-        if [ -s "${out_file}" ]; then
-          echo "[spid-proxy] Response body (first 2000 bytes):" >&2
-          head -c 2000 "${out_file}" 2>/dev/null | tr -d '\r' >&2 || true
-          echo >&2
-        fi
-
-        echo "[spid-proxy] Apache error.log (tail):" >&2
-        tail -n 120 /var/log/apache2/error.log >&2 || true
-        echo "[spid-proxy] NOTICE: lascio il file di output per debug: ${out_file}" >&2
-        return 1
-      fi
-
-      if [ ! -s "${out_file}" ]; then
-        echo "[spid-proxy] WARNING: snapshot metadata ${kind} vuoto o fallito (${out_file})" >&2
-        rm -f "${out_file}" || true
-        return 1
-      fi
-
-      if [ "${SPID_PROXY_METADATA_PUBLISH_ON_START}" = "1" ]; then
-        if [ "${SPID_PROXY_METADATA_PUBLISH_TARGET}" = "next" ]; then
-          cp -f "${out_file}" "${META_DIR}/${kind}-metadata-next.xml" || true
-          echo "[spid-proxy] Pubblicato metadata ${kind} NEXT: ${META_DIR}/${kind}-metadata-next.xml"
-        else
-          cp -f "${out_file}" "${META_DIR}/${kind}-metadata-current.xml" || true
-          echo "[spid-proxy] Pubblicato metadata ${kind} CURRENT: ${META_DIR}/${kind}-metadata-current.xml"
-        fi
-      fi
-
-      return 0
-    }
-
-    if apache2ctl -t >/dev/null 2>&1; then
-      apache2ctl start >/dev/null 2>&1 || true
-    else
-      echo "[spid-proxy] WARNING: apache2ctl -t fallito; provo comunque ad avviare Apache" >&2
-      apache2ctl -t || true
-      apache2ctl start || true
-    fi
-
-    # Attendi che Apache sia raggiungibile sul loopback (evita snapshot vuoti su container lenti).
-    for _i in $(seq 1 30 2>/dev/null || echo "1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30"); do
-      _code="$(curl -ksS --max-time 2 -o /dev/null -w "%{http_code}" "https://127.0.0.1/" 2>/dev/null || echo "000")"
-      if [ "${_code}" != "000" ]; then
-        break
-      fi
-      sleep 1
-    done
-
-    snapshot_one "spid" "${META_BASE_URL}/spid" "${META_DIR}/spid-metadata-${TS}.xml" || true
-    # CIE espone metadata su un path diverso (/metadata.php/cie). Lo gestiamo con lo stesso meccanismo.
-    if [ "${SPID_PROXY_ADD_CIE:-0}" = "1" ]; then
-      snapshot_one "cie" "${META_BASE_URL}/cie" "${META_DIR}/cie-metadata-${TS}.xml" || true
-    fi
-    apache2ctl stop >/dev/null 2>&1 || true
-  else
-    echo "[spid-proxy] WARNING: vendor SimpleSAML assente, salto snapshot metadata" >&2
+# Allinea entityID SPID/CIE in authsources.php (hardcoded sul base URL pubblico).
+# È un dettaglio di “serving” (endpoint /spid-metadata.xml e /cie-metadata.xml), quindi NON è configurabile via env.
+if [ -n "${SPID_PROXY_PUBLIC_BASE_URL}" ]; then
+  AUTH_SOURCES_PATH="${TARGET_DIR}/vendor/simplesamlphp/simplesamlphp/config/authsources.php"
+  if [ -f "${AUTH_SOURCES_PATH}" ]; then
+    # Recovery extra-robusto: rimuove eventuali token letterali "\x27" rimasti da patch precedenti.
+    # Se presenti, rendono il file PHP non parsabile e i metadata non vengono serviti.
+    sed -i "s/\\\\x27/'/g" "${AUTH_SOURCES_PATH}" || true
   fi
-fi
-
-if [ "${SPID_PROXY_GENERATE_ONLY}" = "1" ]; then
-  echo "[spid-proxy] SPID_PROXY_GENERATE_ONLY=1: esco dopo generazione/snapshot (non avvio Apache in foreground)"
-  exit 0
 fi
 
 exec "$@"
