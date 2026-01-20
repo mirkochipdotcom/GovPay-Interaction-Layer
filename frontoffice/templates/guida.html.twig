@@ -1,0 +1,76 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Guida - {{ app_entity.name }}{% endblock %}
+
+{% block content %}
+  <div class="container-xxl py-4">
+    <div class="row justify-content-center">
+      <div class="col-lg-10">
+        <div class="d-flex align-items-start justify-content-between flex-wrap gap-3 mb-4">
+          <div>
+            <h1 class="h2 mb-2">Guida all'utilizzo</h1>
+            <p class="text-muted mb-0">
+              Indicazioni rapide per pagare un avviso, generare un pagamento spontaneo e consultare le ricevute.
+            </p>
+          </div>
+          <div class="text-end">
+            <a class="btn btn-outline-primary" href="/pendenze"><i class="fas fa-receipt me-2"></i>Vai alle mie pendenze</a>
+          </div>
+        </div>
+
+        <div class="p-4 border rounded-4 bg-white mb-4">
+          <h2 class="h4 mb-3">1) Pagare un avviso ricevuto</h2>
+          <ol class="mb-0">
+            <li class="mb-2">Apri la pagina <a href="/pagamento-avviso">Paga un avviso</a>.</li>
+            <li class="mb-2">Inserisci <strong>codice avviso / IUV</strong> e <strong>codice fiscale / partita IVA</strong> dell'intestatario.</li>
+            <li class="mb-2">Verifica importo e scadenza, poi scegli il canale di pagamento PagoPA disponibile.</li>
+            <li>Al termine, salva la ricevuta e/o torna alla lista pendenze per verificare lo stato aggiornato.</li>
+          </ol>
+        </div>
+
+        <div class="p-4 border rounded-4 bg-white mb-4">
+          <h2 class="h4 mb-3">2) Generare un pagamento spontaneo (senza avviso)</h2>
+          <ol class="mb-0">
+            <li class="mb-2">Apri la pagina <a href="/pagamento-spontaneo">Pagamento spontaneo</a>.</li>
+            <li class="mb-2">Seleziona il servizio/causale e compila i dati richiesti.</li>
+            <li class="mb-2">Inserisci l'importo e conferma: verrà generato un avviso PagoPA.</li>
+            <li>Puoi scaricare l'avviso oppure procedere subito al pagamento online.</li>
+          </ol>
+        </div>
+
+        <div class="p-4 border rounded-4 bg-white mb-4">
+          <h2 class="h4 mb-3">3) Consultare pendenze e ricevute</h2>
+          <p class="mb-3">
+            La sezione <a href="/pendenze">Le mie pendenze</a> mostra le posizioni debitorie associate al tuo profilo.
+          </p>
+          <ul class="mb-0">
+            <li class="mb-2">Apri il dettaglio di una pendenza per vedere informazioni complete e, se disponibile, scaricare la ricevuta.</li>
+            <li class="mb-2">Se la pendenza è pagabile, troverai l'azione per procedere al pagamento.</li>
+            <li>Se non visualizzi pendenze attese, verifica che il codice fiscale del profilo sia corretto e riprova il login.</li>
+          </ul>
+        </div>
+
+        <div class="p-4 border rounded-4 bg-light mb-4">
+          <h2 class="h5 mb-2">Accesso e sicurezza</h2>
+          {% if spid_enabled %}
+            <p class="mb-0">
+              L'accesso alle pendenze e alle ricevute richiede autenticazione tramite <strong>SPID/CIE</strong>.
+              Se il login non va a buon fine, prova a ripetere l'accesso oppure contatta l'assistenza.
+            </p>
+          {% else %}
+            <p class="mb-0">In questo ambiente il login SPID/CIE non è abilitato.</p>
+          {% endif %}
+        </div>
+
+        <div class="p-4 border rounded-4 bg-white">
+          <h2 class="h4 mb-3">Assistenza</h2>
+          <p class="mb-2">
+            Scrivi a <a href="mailto:{{ support_email }}">{{ support_email }}</a>
+            oppure chiama {{ support_phone }} ({{ support_hours }}).
+          </p>
+          <p class="mb-0">{{ support_location|raw }}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

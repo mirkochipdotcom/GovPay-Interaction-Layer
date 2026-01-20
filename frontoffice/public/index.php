@@ -1556,6 +1556,30 @@ $routes = [
         'template' => 'home.html.twig',
         'context' => [],
     ],
+    '/guida' => static function (): array {
+        if (!frontoffice_spid_enabled()) {
+            http_response_code(404);
+            return [
+                'template' => 'errors/404.html.twig',
+                'context' => [
+                    'requested_path' => '/guida',
+                ],
+            ];
+        }
+
+        $user = frontoffice_get_logged_user();
+        if ($user === null) {
+            header('Location: /login?return_to=%2Fguida', true, 302);
+            exit;
+        }
+
+        return [
+            'template' => 'guida.html.twig',
+            'context' => [
+                'profile' => $user,
+            ],
+        ];
+    },
     '/checkout/ok' => static function (): array {
         $idPendenza = trim((string)($_GET['idPendenza'] ?? $_GET['id_pendenza'] ?? ''));
         $detailPath = $idPendenza !== '' ? ('/pendenze/' . rawurlencode($idPendenza)) : '/pendenze';
