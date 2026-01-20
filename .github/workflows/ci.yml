@@ -26,9 +26,9 @@ jobs:
           DB_PASSWORD=apppass
           EOF
 
-          # In docker-compose.yml il frontoffice carica anche `.env.spid` come env_file.
-          # Nel CI non usiamo davvero SPID, ma il file deve esistere per non fallire l'up.
-          cat > .env.spid <<'EOF'
+          # In docker-compose.yml frontoffice/proxy caricano `.env.proxyspid`.
+          # Nel CI non usiamo davvero SPID, ma i file devono esistere per non fallire l'up.
+          cat > .env.proxyspid <<'EOF'
           FRONTOFFICE_PUBLIC_BASE_URL=https://localhost:8444
           FRONTOFFICE_SPID_CALLBACK_PATH=/spid/callback
           FRONTOFFICE_SPID_REDIRECT_URI=https://localhost:8444/spid/callback
@@ -36,9 +36,17 @@ jobs:
           SPID_PROXY_PUBLIC_BASE_URL=https://localhost:8445
           SPID_PROXY_CLIENT_ID=govpay_client
           SPID_PROXY_REDIRECT_URIS=https://localhost:8444/spid/callback,/proxy-sample.php
+          EOF
 
-          SPID_PROXY_FORCE_SETUP=0
-          SPID_PROXY_FORCE_CERT=0
+          cat > .env.metadata <<'EOF'
+          SPID_PROXY_ORG_IS_PUBLIC_ADMIN=1
+          SPID_PROXY_ORG_CODE_TYPE=IPACode
+          SPID_PROXY_ORG_CODE=c_h501
+          SPID_PROXY_ATTRS=spidCode,name,familyName,fiscalNumber,email
+          SPID_PROXY_SIGN_RESPONSE=1
+          SPID_PROXY_ENCRYPT_RESPONSE=0
+          SPID_PROXY_LEVEL=2
+          SPID_PROXY_TOKEN_EXP_TIME=1200
           EOF
 
       - name: Set up PHP

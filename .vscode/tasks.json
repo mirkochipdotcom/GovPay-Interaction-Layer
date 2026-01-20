@@ -38,9 +38,18 @@
 			"problemMatcher": []
 		},
 		{
-			"label": "generate-spid-metadata-next-nocache",
+			"label": "promote-spid-metadata-current",
 			"type": "shell",
-			"command": "docker compose build --no-cache spid-proxy; docker compose --profile spid-proxy-metadata run --rm spid-proxy-metadata",
+			"command": "powershell -ExecutionPolicy Bypass -File .\\scripts\\promote-spid-metadata.ps1 -SourceDir .\\spid-proxy\\metadata -TargetDir .\\spid-proxy\\metadata-current -ArchiveDir .\\spid-proxy\\metadata-archive",
+			"args": [],
+			"isBackground": false,
+			"group": "build",
+			"problemMatcher": []
+		},
+		{
+			"label": "cleanup-spid-metadata-local",
+			"type": "shell",
+			"command": "powershell -ExecutionPolicy Bypass -File .\\scripts\\cleanup-spid-metadata.ps1 -MetadataDir .\\spid-proxy\\metadata -CurrentDir .\\spid-proxy\\metadata-current -ArchiveDir .\\spid-proxy\\metadata-archive",
 			"args": [],
 			"isBackground": false,
 			"group": "build",
@@ -61,30 +70,6 @@
 			"isBackground": false,
 			"group": "build",
 			"problemMatcher": []
-		},
-		{
-			"label": "generate-spid-metadata-next-nocache",
-			"type": "shell",
-			"command": "docker",
-			"args": [
-				"compose",
-				"--profile",
-				"spid-proxy-metadata",
-				"build",
-				"--no-cache",
-				"spid-proxy-metadata",
-				";",
-				"docker",
-				"compose",
-				"--profile",
-				"spid-proxy-metadata",
-				"run",
-				"--rm",
-				"spid-proxy-metadata"
-			],
-			"isBackground": false,
-			"problemMatcher": [],
-			"group": "build"
 		}
 	]
 }
