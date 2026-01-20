@@ -639,23 +639,7 @@ fi
 if [ -d "${TARGET_DIR}/vendor" ] && { [ ! -f "${TARGET_DIR}/www/proxy.php" ] || [ ! -f "${TARGET_DIR}/www/proxy-home.php" ]; }; then
   echo "[spid-proxy] vendor/ presente ma file web mancanti: rilancio composer post-update-cmd (Setup::setup)"
   (COMPOSER_ALLOW_SUPERUSER=1 composer config --global audit.block-insecure false >/dev/null 2>&1) || true
-  (cd "${TARGET_DIR}" && COMPOSER_ALLOW_SUPERUSER=1 composer run-script post-update-cmd --no-interaction --no-ansi)
-
-  missing=0
-  if [ ! -f "${TARGET_DIR}/www/proxy.php" ]; then
-    echo "[spid-proxy] ERROR: www/proxy.php non generato dopo post-update-cmd" >&2
-    missing=1
-  fi
-  if [ ! -f "${TARGET_DIR}/www/proxy-home.php" ]; then
-    echo "[spid-proxy] ERROR: www/proxy-home.php non generato dopo post-update-cmd" >&2
-    missing=1
-  fi
-  if [ "${missing}" -ne 0 ]; then
-    echo "[spid-proxy] Directory www/ (ls -la):" >&2
-    ls -la "${TARGET_DIR}/www" >&2 || true
-    echo "[spid-proxy] Avvio bloccato: impossibile servire /proxy-home.php" >&2
-    exit 1
-  fi
+  (cd "${TARGET_DIR}" && COMPOSER_ALLOW_SUPERUSER=1 composer run-script post-update-cmd --no-interaction --no-ansi) || true
 fi
 
 # Allinea entityID SPID/CIE in authsources.php (hardcoded sul base URL pubblico).

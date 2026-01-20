@@ -86,11 +86,7 @@ if [ ! -d "${DATA_DIR}" ]; then
 fi
 
 rm -f "${DATA_DIR}/spid-php-proxy.json" || true
-
-if [ "${RESET_SETUP}" = "1" ]; then
-  rm -f "${DATA_DIR}/www/proxy-home.php" || true
-  rm -f "${DATA_DIR}/www/proxy.php" || true
-fi
+rm -f "${DATA_DIR}/www/proxy-home.php" || true
 
 if [ "${RESET_SETUP}" = "1" ]; then
   rm -f "${DATA_DIR}/spid-php-setup.json" || true

@@ -1,1 +1,11 @@
+# Shell scripts devono restare in LF (altrimenti su Linux/Docker falliscono con /bin/bash^M)
+*.sh text eol=lf
+
+# Entrypoint bash specifici
+spid-proxy/entrypoint.sh text eol=lf
+
+# PowerShell su Windows: CRLF ok (e spesso preferito)
+*.ps1 text eol=crlf
+
+# Legacy
 docker-setup.sh text eol=lf
