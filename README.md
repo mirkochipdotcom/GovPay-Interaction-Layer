@@ -1,468 +1,395 @@
-# 🇮🇹 GovPay Interaction Layer (GIL)
+# GovPay Interaction Layer (GIL)
 
-Piattaforma containerizzata (PHP/Apache + frontend) per migliorare il flusso di lavoro degli enti che usano GovPay come soluzione PagoPA.
-Lo scopo è avere un portale da cui gli uffici possano creare e gestire le pendenze, rendicontare e controllare i flussi di pagamento, in maniera più semplice rispetto alla GUI di GovPay.
-Include anche un **frontoffice** (portale cittadini/sportello) e, opzionalmente, un **proxy SPID/CIE** integrato (profilo Docker Compose) per gestire login/logout e metadata.
+Piattaforma containerizzata (PHP/Apache + UI) per migliorare il flusso di lavoro degli enti che usano GovPay come soluzione PagoPA.
+Include:
+- **Backoffice** per operatori (gestione pendenze, incassi, rendicontazioni)
+- **Frontoffice** cittadini/sportello
+- (Opzionale) **proxy SPID/CIE** integrabile via profilo Docker Compose
 
-[![GitHub Repository](https://img.shields.io/badge/GitHub-mirkochipdotcom%2FGovPay--Interaction--Layer-blue?style=flat&logo=github)](https://github.com/mirkochipdotcom/GovPay-Interaction-Layer.git)
+Repository: https://github.com/mirkochipdotcom/GovPay-Interaction-Layer.git
 
 License: European Union Public Licence v1.2 (EUPL-1.2)
 SPDX-License-Identifier: EUPL-1.2
 
 ---
 
-## 🧭 Cos'è e a cosa serve
+## Indice
 
-GovPay Interaction Layer (GIL) funge da livello intermedio tra GovPay e gli operatori dell'ente. In pratica fornisce:
-- **Backoffice unificato** per creare/modificare pendenze, consultare lo stato degli incassi e scaricare i flussi di rendicontazione.
-- **Strumenti di controllo** (ricerche, filtri, viste dedicate) per individuare rapidamente flussi in errore, stand-in o pagamenti non riconciliati.
-- **Front-end semplificato** per cittadini o sportelli, con la possibilità di reindirizzare alcune tipologie di pagamento verso portali esterni.
-- **Gestione certificati e API**: la piattaforma si occupa di autenticazione, certificati client e configurazione GovPay così i team applicativi possono concentrarsi sui processi dell'ente.
+- [Cos’è e a cosa serve](#cosè-e-a-cosa-serve)
+- [Avvio rapido (primo utilizzo)](#avvio-rapido-primo-utilizzo)
+- [Configurazione: file .env](#configurazione-file-env)
+- [SPID/CIE](#spidcie)
+- [Metadata SPID/CIE (freeze + next)](#metadata-spidcie-freeze--next)
+- [Setup produzione](#setup-produzione)
+- [Workflow di sviluppo](#workflow-di-sviluppo)
+- [Troubleshooting](#troubleshooting)
+- [Struttura del progetto](#struttura-del-progetto)
 
-In sintesi, GIL riduce il carico operativo degli uffici e fornisce un punto di accesso coerente per tutte le attività ricorrenti legate a GovPay/PagoPA.
+---
 
-## 🚀 Avvio rapido (primo utilizzo)
+## Cos’è e a cosa serve
 
-### 0. Prerequisiti
+GovPay Interaction Layer (GIL) funge da livello intermedio tra GovPay e gli operatori dell’ente, fornendo un portale più “operativo” rispetto alla GUI standard.
+In pratica offre:
+
+- **Backoffice unificato** per creare/modificare pendenze, consultare lo stato degli incassi e gestire rendicontazioni.
+- **Strumenti di controllo** (ricerche/filtri/vista dedicate) per individuare rapidamente flussi in errore, stand‑in o pagamenti non riconciliati.
+- **Frontoffice semplificato** per cittadini o sportelli, con possibilità di reindirizzare alcune tipologie verso portali esterni.
+- **Gestione integrazione** (certificati e configurazione) per isolare la complessità di GovPay.
+
+Opzionalmente include un **proxy SPID/CIE** (interno o esterno) per gestire login/logout e la pubblicazione/rotazione dei metadata.
+
+## Avvio rapido (primo utilizzo)
+
+### 0) Prerequisiti
+
 - Docker Desktop (o Docker Engine + plugin `docker compose`)
 - Git
-- Porta `BACKOFFICE_HTTPS_PORT` libera sul tuo host (default 8443, configurabile via `.env`)
+- Porte libere sul tuo host (default):
+  - Backoffice: `8443`
+  - Frontoffice: `8444`
+  - Proxy SPID (se abilitato): `8445`
 
-### 1. Clona il repository
+### 1) Clona il repository
 
 ```bash
 git clone https://github.com/mirkochipdotcom/GovPay-Interaction-Layer.git
 cd GovPay-Interaction-Layer
 ```
 
-### 2. Prepara la configurazione
-1. Copia il file di esempio e personalizzalo:
-   ```bash
-   cp .env.example .env
-   ```
-2. Imposta le variabili minime:
-   - `ADMIN_EMAIL`, `ADMIN_PASSWORD` per il seed del superadmin
-   - Parametri DB (`DB_HOST`, `DB_DATABASE`, ...)
-   - Configurazione GovPay (`GOVPAY_PENDENZE_URL`, `AUTHENTICATION_GOVPAY`, certificati)
-3. (Opzionale) Inserisci i certificati GovPay in `certificate/` e quelli HTTPS in `ssl/` prima della prima esecuzione così non dovrai rebuildare in seguito.
+### 2) Crea i file di configurazione
 
-### 3. Avvia i container
-
-```bash
-# Prima esecuzione (build automatica)
-docker compose up -d
-
-# Quando modifichi Dockerfile/composer/npm
-docker compose up -d --build
-```
-
-La prima build può impiegare qualche minuto perché scarica dipendenze e compila asset.
-
-### 4. Primo accesso
-
-- **URL principale (default)**: https://localhost:8443 *(configurabile tramite `BACKOFFICE_HTTPS_PORT`)*
-- **Frontoffice (default)**: https://localhost:8444 *(configurabile tramite `FRONTOFFICE_HTTPS_PORT`)*
-- **Debug tool**: https://localhost:8443/debug/ *(solo nel container backoffice, stessa porta)*
-
-Se abiliti SPID/CIE:
-- **Proxy interno** (`COMPOSE_PROFILES=spid-proxy`): https://localhost:8445 *(configurabile tramite `SPID_PROXY_HTTPS_PORT`)*
-- **Proxy esterno** (`COMPOSE_PROFILES=external`): usa l'URL configurato in `SPID_PROXY_PUBLIC_BASE_URL`
-
-Il seed creerà automaticamente un utente `superadmin` con le credenziali impostate nel `.env`. Accedi a `/login` e, subito dopo, crea nuovi utenti o aggiorna la password del seed.
-
-⚠️ **Nota SSL**: se non fornisci certificati personalizzati in `ssl/`, il container genera certificati self‑signed. I browser segnaleranno l'avviso di sicurezza: conferma l'eccezione per ambienti di sviluppo.
-
-## 🛠️ Workflow di sviluppo
-
-### Modifiche al codice
-- **Backend PHP**: Modifica i file in `src/` - richiede rebuild: `docker compose up -d --build`
-- **Debug/test**: Modifica i file in `debug/` - le modifiche sono immediate (montato **solo** nel servizio backoffice)
-- **Template Twig**: Modifica i file in `templates/` - richiede rebuild: `docker compose up -d --build`
-
-### Monitoraggio e debug
-```bash
-# Visualizza i log in tempo reale
-docker compose logs -f govpay-interaction-backoffice
-
-# Accedi al container per debug
-docker compose exec govpay-interaction-backoffice bash
-
-# Riavvia solo il servizio PHP senza rebuild
-docker compose restart govpay-interaction-backoffice
-```
-> Sostituisci con `govpay-interaction-frontoffice` per operare sul portale cittadini. Nota: il container frontoffice non monta la cartella `debug/` e non espone lo strumento `/debug`.
-
-## 🔧 Configurazione di avvio
-
-### Variabili d'ambiente
-Crea il file `.env` (puoi partire da `.env.example` se presente) e configura le variabili per il tuo ambiente:
+Questo repository usa 3 file separati per mantenere la configurazione più leggibile:
 
 ```bash
 cp .env.example .env
-```
-
-Variabili porte di rete:
-- `BACKOFFICE_HTTPS_PORT`: porta HTTPS esposta dal container backoffice (default 8443)
-- `FRONTOFFICE_HTTPS_PORT`: porta HTTPS esposta dal container frontoffice (default 8444)
-
-### SPID/CIE (3 scenari)
-Il supporto SPID/CIE del frontoffice dipende dal valore di `COMPOSE_PROFILES` nel `.env`:
-
-- **Proxy interno**: `COMPOSE_PROFILES=spid-proxy` (avvia anche il servizio `spid-proxy`)
-- **Proxy esterno**: `COMPOSE_PROFILES=external` (non avvia `spid-proxy`, ma il frontoffice usa un proxy esterno)
-- **No SPID**: `COMPOSE_PROFILES=none` (disabilita login SPID nel frontoffice: UI + rotte)
-
-Se lasci `COMPOSE_PROFILES` vuoto/commentato, per default è equivalente a `none`.
-
-In tutti i casi in cui SPID è abilitato (interno/esterno), imposta in `.env`:
-- `SPID_PROXY_PUBLIC_BASE_URL`: base URL pubblico del proxy (usato dal browser per raggiungere `/proxy-home.php`)
-
-Le restanti variabili SPID/CIE sono tenute in un file dedicato per non appesantire il `.env` principale:
-```bash
 cp .env.proxyspid.example .env.proxyspid
 cp .env.metadata.example .env.metadata
 ```
 
-Variabili principali (in `.env.proxyspid`):
-- `SPID_PROXY_CLIENT_ID`
-- `SPID_PROXY_REDIRECT_URIS`
-- `FRONTOFFICE_PUBLIC_BASE_URL`
-- `FRONTOFFICE_SPID_CALLBACK_PATH`
-- (opzionale) `FRONTOFFICE_SPID_REDIRECT_URI`
+Note:
+- `.env` è sempre necessario.
+- `.env.proxyspid` è richiesto perché viene caricato dal servizio frontoffice (anche se non abiliti SPID).
+- Se non usi SPID/CIE, puoi lasciare `.env.proxyspid` con i valori dell'example (non verranno usati dalle rotte UI quando `COMPOSE_PROFILES=none`).
+- `.env.metadata` è necessario solo se avvii il proxy interno (`COMPOSE_PROFILES=spid-proxy`) o il generator metadata (`--profile spid-proxy-metadata`).
 
+### 3) Avvia i container
 
-Modalità response (firmata/cifrata):
-- `SPID_PROXY_SIGN_RESPONSE` (default `1`): se `1` il proxy invia la response come token JWS (firmato).
-- `SPID_PROXY_ENCRYPT_RESPONSE` (default `0`): se `1` il proxy cifra anche i dati utente (JWE dentro al JWS).
-- `SPID_PROXY_CLIENT_SECRET`: chiave condivisa usata per decifrare la response cifrata.
-
-Nota importante sulla chiave (`SPID_PROXY_CLIENT_SECRET`):
-- Deve essere configurata **con lo stesso valore** lato **frontoffice** (per decifrare) e lato **proxy** (per cifrare).
-- Con proxy **interno** (servizio `spid-proxy`) i container caricano già sia `.env` sia `.env.proxyspid`.
-- Con proxy **esterno** devi impostarla nel frontoffice (.env) e anche nella configurazione dell'istanza proxy esterna.
-
-Operatività:
-- **Branding pagina proxy**: vedi `SPID_PROXY_CLIENT_NAME`, `SPID_PROXY_CLIENT_DESCRIPTION`, `SPID_PROXY_CLIENT_LOGO` in `.env.proxyspid`. Per applicare modifiche basta ricreare il solo servizio: `docker compose up -d --force-recreate spid-proxy`.
-- **Logout “vero” SPID**: il frontoffice, se configurato, inoltra il logout al proxy (IdP logout) invece di fare solo logout locale.
-
-#### Rigenerare la configurazione del proxy (client_id / redirect_uri)
-Il proxy salva su volume alcuni file di configurazione runtime (in particolare `spid-php-proxy.json`) e **non li riscrive automaticamente** se cambi le env dopo il primo avvio.
-
-Se cambi uno di questi parametri e poi, cliccando “Accedi”, vieni rimandato a `/metadata.xml`, è quasi sempre perché il proxy sta usando una whitelist `redirect_uri` vecchia:
-- `SPID_PROXY_CLIENT_ID`
-- `SPID_PROXY_REDIRECT_URIS`
-- `SPID_PROXY_CLIENT_SECRET` (se usi cifratura)
-- `SPID_PROXY_SIGN_RESPONSE` / `SPID_PROXY_ENCRYPT_RESPONSE`
-
-Soluzione (proxy interno con docker compose): rigenera i file persistiti e ricrea il container.
-
-- Windows:
-   - task VS Code: `regenerate-spid-proxy-config`
-   - oppure: `powershell -ExecutionPolicy Bypass -File .\scripts\regenerate-spid-proxy-config.ps1 -Restart`
-- Linux/macOS:
-   - `./scripts/regenerate-spid-proxy-config.sh --restart`
-   - (opzionale) `./scripts/regenerate-spid-proxy-config.sh --reset-setup --restart`
-
-Nota: lo script `.sh` richiede `bash`. Se lo lanci con `sh ...` si ri-esegue automaticamente con bash.
-
-Nota: lo script rimuove `spid-proxy/data/spid-php-proxy.json` (e `www/proxy-home.php`) in modo che l'entrypoint ricrei una configurazione coerente con le env.
-
-#### Metadata in produzione (immutabile + rotazione)
-Scenario tipico AgID:
-- Dopo attestazione, il metadata **non deve cambiare** fino a scadenza.
-- Poco prima della scadenza si prepara un nuovo metadata (“next”) **senza toccare** quello in produzione (“current”).
-
-Questo repository supporta il pattern “freeze + next generator”:
-
-Checklist pre-produzione / pre-attestazione AgID (consigliata):
-- Verifica che `SPID_PROXY_PUBLIC_BASE_URL` sia l’URL pubblico reale (niente `localhost`/`127.0.0.1` in produzione).
-- Verifica che `${SPID_PROXY_PUBLIC_BASE_URL}/spid-metadata.xml` risponda `200` e scarichi un XML valido (anche se in dev con certificato self-signed).
-- Compila correttamente i dati organizzazione in `.env.metadata` (campi `SPID_PROXY_ORG_*`) e tienili stabili: una variazione cambia il metadata.
-- Se usi il branding (`SPID_PROXY_CLIENT_*`), usa un `SPID_PROXY_CLIENT_LOGO` raggiungibile pubblicamente.
-- Controlla che i redirect URI usati dal frontoffice siano presenti in `SPID_PROXY_REDIRECT_URIS` (match esatto).
-- Prima di inviare ad AgID, genera un file “da consegna” e archivialo (non usare il metadata “dinamico” come unica fonte):
-   - puoi ottenere il file direttamente dall’URL `/spid-metadata.xml`, oppure
-   - usare il generator `spid-proxy-metadata` e prelevare `spid-metadata-next.xml`.
-- Dopo attestazione, fai subito freeze del “current” (file statico) e archivia una copia del file attestato.
-
-1) **Congelare il metadata attestato (CURRENT)**
-- Il runtime serve SOLO i file presenti in `spid-proxy/metadata-current/`.
-- Copia il file attestato in `spid-proxy/metadata-current/spid-metadata-current.xml` (e, se usi CIE, anche `cie-metadata-current.xml`).
-- Ricrea solo il proxy per rileggere le env: `docker compose up -d --force-recreate spid-proxy`.
-
-Da quel momento, l’URL pubblico `${SPID_PROXY_PUBLIC_BASE_URL}/spid-metadata.xml` serve il file “current” statico.
-
-2) **Generare il metadata NEXT in parallelo (senza impattare PROD)**
-- Esegui il generator (usa una working directory separata `spid-proxy/metadata-work/`):
-   - `docker compose --profile spid-proxy-metadata run --rm spid-proxy-metadata`
-- Prendi i file generati in `spid-proxy/metadata/`:
-   - `spid-metadata-next.xml`
-   - `cie-metadata-next.xml` (se CIE è abilitato)
-- Invia i file “next” ad AgID per attestazione.
-
-3) **Cutover (quando AgID attesta NEXT)**
-- (Consigliato) Archivia il current prima del cutover.
-- Promuovi `*-metadata-next.xml` a `*-metadata-current.xml`:
-   - Windows: usa lo script `scripts/promote-spid-metadata.ps1` oppure la task VS Code `promote-spid-metadata-current`.
-   - Linux/macOS: `scripts/promote-spid-metadata.sh`
-- Ricrea `spid-proxy`.
-
-#### Cartelle usate dal proxy (spid-proxy/)
-- `data/`: working copy del proxy runtime (vendor/config/cache). È lo stato persistente del container `spid-proxy`.
-- `metadata-work/`: working copy separata usata solo dal generator `spid-proxy-metadata` (serve per non toccare `data/`).
-- `metadata/`: output del generator (snapshot + file `*-metadata-next.xml`).
-- `metadata-current/`: UNICA cartella montata dal runtime per servire i metadata correnti (file statici `*-metadata-current.xml`).
-- `metadata-archive/`: archivio locale (backup/snapshot) non montato dal runtime.
-
-#### Primo avvio (dev) + metadata (procedura completa)
-1) Prepara i file env:
-   - `cp .env.example .env`
-   - `cp .env.proxyspid.example .env.proxyspid`
-   - `cp .env.metadata.example .env.metadata`
-2) Avvia con proxy interno:
-   - in `.env`: `COMPOSE_PROFILES=spid-proxy`
-   - `docker compose up -d --build`
-3) Genera “next” (SPID e, se abilitato, CIE):
-   - `docker compose --profile spid-proxy-metadata run --rm spid-proxy-metadata`
-   - output in `spid-proxy/metadata/*-metadata-next.xml`
-4) Promuovi a “current” (dev o dopo attestazione):
-   - Windows: `powershell -ExecutionPolicy Bypass -File .\\scripts\\promote-spid-metadata.ps1`
-   - poi: `docker compose up -d --force-recreate spid-proxy`
-5) Pulizia cartelle metadata (locale):
-   - Windows: `powershell -ExecutionPolicy Bypass -File .\\scripts\\cleanup-spid-metadata.ps1`
-   - Sposta snapshot/bak in `spid-proxy/metadata-archive/` e lascia in `spid-proxy/metadata/` solo i file `*-next.xml`.
-
-I dettagli e tutte le variabili sono documentati in `.env.proxyspid.example` e `.env.metadata.example`.
-
-Avvio (comando unico, stesso di sempre):
 ```bash
+docker compose up -d
+
+# quando modifichi Dockerfile / composer / asset
 docker compose up -d --build
 ```
 
-### 🔐 Autenticazione e superadmin
+### 4) Primo accesso
 
-L'applicazione richiede autenticazione. Al primo avvio, uno script di migrazione crea lo schema utenti e inserisce un utente amministratore di default (seed) usando le variabili d'ambiente `ADMIN_EMAIL` e `ADMIN_PASSWORD`.
+- Backoffice: https://localhost:8443
+- Frontoffice: https://localhost:8444
 
-Passi rapidi:
+Se non fornisci certificati personalizzati in `ssl/`, verranno generati certificati self-signed: il browser mostrerà un warning.
 
-1) Imposta nel file `.env`:
+### 5) Superadmin (seed)
+
+Al primo avvio uno script crea lo schema utenti e inserisce un utente `superadmin` usando:
 
 ```env
 ADMIN_EMAIL=admin@example.com
 ADMIN_PASSWORD=una_password_sicura
 ```
 
-2) Avvia l'applicazione:
+Il seed è idempotente: viene creato solo se non esiste già un superadmin nel DB.
+
+---
+
+## Configurazione: file .env
+
+### `.env` (compose + app)
+
+Contiene:
+- porte esposte (`BACKOFFICE_HTTPS_PORT`, `FRONTOFFICE_HTTPS_PORT`, …)
+- profili Docker Compose (`COMPOSE_PROFILES`)
+- configurazione DB (`DB_*`)
+- configurazione GovPay (URL, auth, certificati)
+- base URL pubblico del proxy (quando SPID/CIE è abilitato):
+  - `SPID_PROXY_PUBLIC_BASE_URL`
+
+### `.env.proxyspid` (integrazione frontoffice ↔ proxy)
+
+Contiene parametri “di integrazione” (client_id, redirect URI, branding, cifratura). I principali:
+
+- `SPID_PROXY_CLIENT_ID`
+- `SPID_PROXY_REDIRECT_URIS`
+- `FRONTOFFICE_PUBLIC_BASE_URL`
+- `FRONTOFFICE_SPID_CALLBACK_PATH`
+- (opzionale) `FRONTOFFICE_SPID_REDIRECT_URI`
+
+Response firmata/cifrata:
+- `SPID_PROXY_SIGN_RESPONSE` (default `1`)
+- `SPID_PROXY_ENCRYPT_RESPONSE` (default `0`)
+- `SPID_PROXY_CLIENT_SECRET` (necessaria se `SPID_PROXY_ENCRYPT_RESPONSE=1`)
+
+Nota su `SPID_PROXY_CLIENT_SECRET`:
+- deve essere **uguale** lato frontoffice (per decifrare) e lato proxy (per cifrare)
+
+### `.env.metadata` (dati che determinano i metadata)
+
+Contiene i campi organizzazione/policy/attributi che determinano i metadata SPID/CIE.
+Modificare questi valori cambia il metadata.
+
+---
+
+## SPID/CIE
+
+Il supporto SPID/CIE del frontoffice dipende da `COMPOSE_PROFILES` nel `.env`:
+
+- **No SPID**: `COMPOSE_PROFILES=none` (disabilita login SPID nel frontoffice)
+- **Proxy interno**: `COMPOSE_PROFILES=spid-proxy` (avvia anche il servizio `spid-proxy`)
+- **Proxy esterno**: `COMPOSE_PROFILES=external` (non avvia `spid-proxy`, ma il frontoffice punta a un proxy esterno)
+
+In tutti i casi in cui SPID/CIE è abilitato (interno/esterno), devi impostare in `.env`:
+- `SPID_PROXY_PUBLIC_BASE_URL`: base URL pubblico del proxy (usato dal browser)
+
+### Regola d’oro: redirect URI “match esatto”
+
+Se cliccando “Accedi” vieni rimandato a `/metadata.xml`, quasi sempre è un mismatch nella whitelist `redirect_uri` del proxy.
+Verifica (match esatto, stesso schema/host/porta/path):
+- `SPID_PROXY_CLIENT_ID`
+- `SPID_PROXY_REDIRECT_URIS`
+- `SPID_PROXY_CLIENT_SECRET` (se cifratura)
+- `SPID_PROXY_SIGN_RESPONSE` / `SPID_PROXY_ENCRYPT_RESPONSE`
+
+### Rigenerare la configurazione persistita del proxy (interno)
+
+Il proxy salva su volume alcuni file runtime (es. `spid-php-proxy.json`) e **non li riscrive automaticamente** se cambi le env dopo il primo avvio.
+
+Soluzione: rigenera i file persistiti e ricrea il container.
+
+- Windows:
+  - task VS Code: `regenerate-spid-proxy-config`
+  - oppure: `powershell -ExecutionPolicy Bypass -File .\scripts\regenerate-spid-proxy-config.ps1 -Restart`
+- Linux/macOS:
+  - `./scripts/regenerate-spid-proxy-config.sh --restart`
+  - (opzionale) `./scripts/regenerate-spid-proxy-config.sh --reset-setup --restart`
+
+Nota: lo script `.sh` richiede `bash`. Se lo lanci con `sh ...` si ri-esegue automaticamente con bash.
+
+---
+
+## Metadata SPID/CIE (freeze + next)
+
+Scenario tipico AgID:
+- dopo attestazione, il metadata **non deve cambiare** fino a scadenza
+- poco prima della scadenza si prepara un nuovo metadata (“next”) senza toccare quello in produzione (“current”)
+
+Questo repository supporta il pattern “freeze + next generator”:
+
+### Cartelle usate dal proxy (spid-proxy/)
+
+- `data/`: stato persistente runtime del container `spid-proxy`
+- `metadata-work/`: working copy usata solo dal generator (non tocca `data/`)
+- `metadata/`: output del generator (snapshot + file `*-metadata-next.xml`)
+- `metadata-current/`: unica cartella montata dal runtime per servire i metadata correnti (`*-metadata-current.xml`)
+- `metadata-archive/`: archivio locale
+
+### 1) Congelare il metadata attestato (CURRENT)
+
+- Il runtime serve **solo** i file presenti in `spid-proxy/metadata-current/`.
+- Copia il file attestato in:
+- Issues: https://github.com/mirkochipdotcom/GovPay-Interaction-Layer/issues
+- `cie-metadata-next.xml` (se CIE è abilitato)
+
+### 3) Cutover (quando AgID attesta NEXT)
+
+- Promuovi `*-metadata-next.xml` a `*-metadata-current.xml`:
+  - Windows: `scripts/promote-spid-metadata.ps1` (o task VS Code `promote-spid-metadata-current`)
+  - Linux/macOS: `scripts/promote-spid-metadata.sh`
+- Ricrea `spid-proxy`.
+
+---
+
+## Setup produzione
+
+Questa sezione è una checklist operativa per portare GIL in un ambiente reale (dominio pubblico, reverse proxy, certificati validi) e per ridurre i problemi tipici di SPID/CIE.
+
+### Domini e URL pubblici
+
+Definisci chiaramente gli URL pubblici (quelli che useranno gli utenti e/o AgID):
+
+- Backoffice (es. `https://backoffice.ente.it`)
+- Frontoffice (es. `https://pagamenti.ente.it`)
+- Proxy SPID/CIE (es. `https://login.ente.it`)
+
+Poi imposta:
+- in `.env`:
+   - `SPID_PROXY_PUBLIC_BASE_URL=https://login.ente.it`
+- in `.env.proxyspid`:
+   - `FRONTOFFICE_PUBLIC_BASE_URL=https://pagamenti.ente.it`
+
+Evita `localhost`/`127.0.0.1` in produzione: finiscono nei redirect e/o nei metadata.
+
+### TLS / certificati
+
+- Per HTTPS lato browser → applicazione, usa certificati validi (non self-signed) in `ssl/`:
+   - `ssl/server.key`
+   - `ssl/server.crt`
+- I certificati per le API GovPay (client certificate) restano in `certificate/`.
+
+Se usi un reverse proxy esterno (Nginx/Traefik/Apache), puoi terminare TLS lì e pubblicare i container su rete interna: l’importante è che gli URL “pubblici” in env siano coerenti con ciò che vede l’utente.
+
+### Reverse proxy (raccomandato)
+
+Pattern tipico:
+- reverse proxy pubblico (porta 443) → inoltra a `localhost:8443/8444/8445` (o alle porte interne dei container)
+- header standard preservati:
+   - `Host`
+   - `X-Forwarded-Proto=https`
+   - `X-Forwarded-For`
+
+Obiettivo: far sì che i redirect generati puntino sempre agli URL pubblici corretti.
+
+### SPID/CIE: checklist “non rompere il login”
+
+- `SPID_PROXY_REDIRECT_URIS` deve contenere **esattamente** la callback del frontoffice (schema/host/porta/path).
+- Se cambi `client_id`, `redirect_uri`, cifratura o modalità firma, rigenera la config persistita del proxy:
+   - Windows: `powershell -ExecutionPolicy Bypass -File .\scripts\regenerate-spid-proxy-config.ps1 -Restart`
+   - Linux: `./scripts/regenerate-spid-proxy-config.sh --restart`
+- Se abiliti cifratura (`SPID_PROXY_ENCRYPT_RESPONSE=1`), assicurati che `SPID_PROXY_CLIENT_SECRET` sia identica su frontoffice e proxy.
+
+### Proxy esterno (COMPOSE_PROFILES=external)
+
+Con `COMPOSE_PROFILES=external` il servizio `spid-proxy` **non** viene avviato in questo Compose: il frontoffice reindirizza a un proxy pubblicato altrove.
+
+Checklist (frontoffice):
+- in `.env`: `COMPOSE_PROFILES=external`
+- in `.env`: `SPID_PROXY_PUBLIC_BASE_URL=https://login.ente.it` (URL pubblico del proxy)
+- in `.env.proxyspid`:
+   - `FRONTOFFICE_PUBLIC_BASE_URL=https://pagamenti.ente.it`
+   - callback coerente (`FRONTOFFICE_SPID_CALLBACK_PATH` / eventuale `FRONTOFFICE_SPID_REDIRECT_URI`)
+   - `SPID_PROXY_CLIENT_SECRET` valorizzata se usi cifratura
+
+Checklist (istanza proxy esterna):
+- deve essere configurata con gli stessi valori usati dal frontoffice:
+   - `SPID_PROXY_CLIENT_ID`
+   - `SPID_PROXY_REDIRECT_URIS` (includendo la callback del frontoffice, match esatto)
+   - `SPID_PROXY_SIGN_RESPONSE` / `SPID_PROXY_ENCRYPT_RESPONSE`
+   - `SPID_PROXY_CLIENT_SECRET` (se cifratura)
+- se cambi env dopo il primo avvio, anche sul proxy esterno può servire rigenerare la config persistita (stesso problema del volume).
+
+Nota: il workflow metadata (generate/freeze/cutover) va eseguito **sul deploy del proxy** (quello che espone `https://login.ente.it/*`), non sul frontoffice.
+
+### Metadata SPID/CIE: checklist pre-attestazione AgID
+
+- Verifica che `SPID_PROXY_PUBLIC_BASE_URL` sia l’URL pubblico reale.
+- Verifica che questi endpoint rispondano `200` e scarichino un XML valido:
+   - `https://login.ente.it/spid-metadata.xml`
+   - `https://login.ente.it/cie-metadata.xml` (se CIE)
+- Compila correttamente i dati in `.env.metadata` (campi `SPID_PROXY_ORG_*`) e tienili stabili: una variazione cambia il metadata.
+- Se usi branding (`SPID_PROXY_CLIENT_*`), assicurati che `SPID_PROXY_CLIENT_LOGO` sia raggiungibile pubblicamente.
+- Genera e archivia il file “da consegna” (non affidarti solo al metadata dinamico):
+   - puoi scaricare direttamente l’URL pubblico, oppure
+   - eseguire il generator `spid-proxy-metadata` e prelevare `spid-metadata-next.xml`.
+
+### Flusso consigliato (produzione)
+
+1) Prepara “next” senza impattare prod:
 
 ```bash
+docker compose --profile spid-proxy-metadata run --rm spid-proxy-metadata
+```
+
+2) Invia `spid-proxy/metadata/spid-metadata-next.xml` (e `cie-metadata-next.xml` se serve) per attestazione.
+
+3) Dopo attestazione, fai freeze del current:
+- copia i file attestati in `spid-proxy/metadata-current/*-metadata-current.xml`
+- ricrea `spid-proxy`
+
+4) Al rinnovo:
+- genera un nuovo next
+- quando attestato, promuovi next → current e ricrea `spid-proxy`
+
+## Workflow di sviluppo
+
+### Modifiche al codice
+
+- Backoffice: cartella `backoffice/`
+- Frontoffice: cartella `frontoffice/`
+- Libreria/app PHP condivisa: cartella `app/`
+- Template Twig: cartelle `templates/` (root) e `frontoffice/templates/`
+
+In generale:
+
+```bash
+# rebuild quando cambi PHP/composer o asset
 docker compose up -d --build
 ```
 
-3) Accedi a https://localhost:8443/login e usa le credenziali impostate.
-
-4) (Consigliato) Dopo l'accesso, vai su “Utenti” per creare altri utenti o aggiornare la password dell'admin.
-
-Ruoli disponibili:
-- `user`: utente base
-- `admin`: può gestire utenti
-- `superadmin`: privilegi equivalenti ad admin, con aggiunta della configurazione di GovPay e delle opzioni di pagamento
-
-Note importanti:
-- Il seed è idempotente: viene creato un utente `superadmin` solo se non è già presente nel database. Al primo avvio lo script di first‑run crea l'account usando `ADMIN_EMAIL` e `ADMIN_PASSWORD` presenti in `.env`.
-- Regola di sicurezza (importante): l'app impedisce la rimozione dell'ultimo account con ruolo `superadmin`. Questo significa che non puoi cancellare l'admin seed se non esiste già un altro `superadmin` attivo. Per sostituirlo:
-   1. Accedi con l'admin seed e crea un nuovo account con ruolo `superadmin` dalla sezione “Utenti”.
-   2. Verifica l'accesso col nuovo superadmin.
-   3. Solo a questo punto elimina o modifica l'utente seed.
-- Per forzare la rigenerazione dell'account seed con nuove credenziali, elimina manualmente il superadmin esistente (dopo averne creato un altro) o, in ambienti di sviluppo, cancella la relativa riga nel database e riavvia il servizio (operazione distruttiva).
-- Nota su autofill: alcuni browser potrebbero proporre l'autocompletamento dei campi credenziali. Se necessario, disabilita l'autofill o usa una finestra in incognito.
-- Flash messages: i messaggi di esito compaiono nella barra notifiche superiore dopo i redirect; controllala dopo ogni azione.
-
-### Configurazione GovPay
-Per l'integrazione con GovPay, configura le seguenti variabili nel file `.env`:
+### Log e debug
 
 ```bash
-# URL dell'istanza GovPay
-GOVPAY_PENDENZE_URL=https://your-govpay-instance.example.com
-
-# Metodo di autenticazione (tipicamente 'sslheader' per certificati client)
-AUTHENTICATION_GOVPAY=sslheader
-
-# Percorsi certificati GovPay (all'interno del container)
-GOVPAY_TLS_CERT=/var/www/certificate/certificate.cer
-GOVPAY_TLS_KEY=/var/www/certificate/private_key.key
-# Password della chiave privata (se richiesta)
-GOVPAY_TLS_KEY_PASSWORD=your_key_password
+docker compose logs -f
+docker compose exec govpay-interaction-backoffice bash
+docker compose restart govpay-interaction-backoffice
 ```
 
-> Nota: in questa versione l'integrazione è stata testata solo con la modalità `sslheader` (autenticazione tramite certificato client). Le altre modalità documentate da GovPay potrebbero richiedere adattamenti o test ulteriori.
+---
 
-### Certificati GovPay
-I certificati per l'autenticazione con le API GovPay devono essere posizionati nella directory `certificate/`:
+## Troubleshooting
 
-1. **Ottieni i certificati** dall'amministratore dell'istanza GovPay o generali tramite l'interfaccia GovPay
-2. **Posiziona i file** in `certificate/`:
-   - `certificate.cer` - Certificato client GovPay
-   - `private_key.key` - Chiave privata
-3. **Configura le variabili** nel file `.env` (vedi sezione sopra)
-4. **Riavvia il container**: `docker compose restart`
+### "Accedi" → redirect a `/metadata.xml`
 
-📝 **Nota**: Consulta `certificate/README.md` per istruzioni dettagliate.
+Quasi sempre:
+- `redirect_uri` non è in whitelist (`SPID_PROXY_REDIRECT_URIS`), oppure
+- il proxy sta usando una configurazione persistita vecchia (volume `spid-proxy/data/`).
 
-### Altre configurazioni
-- `DB_*`: Configurazione database MariaDB
-- `APACHE_SERVER_NAME`: Nome server Apache
+Azioni consigliate:
+- verifica il match esatto della callback del frontoffice
+- rigenera la configurazione proxy con gli script in `scripts/regenerate-spid-proxy-config.*`
 
-### Logo ente personalizzato
-- Default a runtime: simbolo PA dello sprite Bootstrap Italia (`/assets/bootstrap-italia/svg/sprites.svg#it-pa`).
-- Personalizzazione: aggiungi `img/stemma_ente.png` (ignorato da Git) per usare il tuo stemma.
-- Se lo stemma non è presente, verrà mostrato il simbolo PA di default.
+### Variabili “annidate” nei file env
 
-### Icona del sito (favicon)
-- Personalizzazione: puoi aggiungere `img/favicon.ico` oppure `img/favicon.png` (sono ignorati da Git).
-- Logica di risoluzione: prima `img/favicon.ico`, altrimenti `img/favicon.png`, altrimenti fallback automatico su `img/favicon_default.png` incluso nel repository.
+Docker Compose **non espande** variabili del tipo `FOO="${BAR}"` dentro gli `env_file`.
+Se vuoi un fallback, lascia la variabile vuota oppure valorizzala esplicitamente.
 
-### Certificati SSL per HTTPS (opzionale)
-Per certificati SSL personalizzati del server web, posiziona i file nella cartella `ssl/`:
-- `ssl/server.key` - Chiave privata del server
-- `ssl/server.crt` - Certificato del server
+### Script `.sh` e line ending
 
-⚠️ **Distingui tra**:
-- **Certificati `ssl/`**: Per HTTPS del server web (connessioni browser → applicazione)
-- **Certificati `certificate/`**: Per autenticazione client con API GovPay (applicazione → GovPay)
+Gli script `.sh` devono essere in LF (non CRLF) per evitare errori su Linux/Docker.
+Questo repository forza i line ending via `.gitattributes`.
 
-## 🎯 Testing e Debug
+---
 
-### Debug Tool integrato
-Accedi (solo dal container backoffice) a https://localhost:8443/debug/ per:
-- Testare chiamate API GovPay
-- Verificare configurazione ambiente
-- Debug delle pendenze
-
-### Database
-Il database MariaDB è accessibile su `localhost:3306` con le credenziali configurate in `.env`.
-
-Al primo avvio il container DB esegue automaticamente gli script in `docker/db-init/` e garantisce che l'utente `DB_USER_CITTADINI` abbia password e permessi `SELECT` aggiornati sul database `MYSQL_DATABASE`. Se hai già un volume dati creato in precedenza, esegui `docker compose down -v` prima di ricostruire per rilanciare gli script di init.
-
-## 🛑 Fermare l'applicazione
-
-```bash
-# Ferma i container mantenendo i dati
-docker compose down
-
-# Ferma e rimuove tutto (inclusi volumi dati)
-docker compose down -v
-```
-
-## 🛠️ Comandi utili
-
-### Build e manutenzione
-```bash
-# Ricostruire con cache pulita (per problemi o aggiornamenti Dockerfile)
-docker compose build --no-cache
-docker compose up -d
-
-# Vedere lo stato dei container
-docker compose ps
-
-# Visualizzare risorse Docker
-docker system df
-```
-
-### Reset completo
-```bash
-# Reset completo dell'ambiente (attenzione: rimuove tutto!)
-docker compose down -v --remove-orphans
-docker system prune -f
-```
-
-## 🐛 Troubleshooting
-
-### Problemi comuni
-
-**Porte già in uso**:
-- Cambia la porta in `docker-compose.yml` se 8443 è occupata
-- Oppure ferma altri servizi che usano la porta
-
-**Problemi di permessi**:
-- Su Linux/Mac: `sudo chown -R $USER:$USER .`
-- Su Windows: verifica che Docker Desktop abbia accesso al drive
-
-### Debug avanzato
-```bash
-# Ispeziona configurazione container
-docker inspect govpay-interaction-backoffice
-
-# Controlla logs di tutti i servizi
-docker compose logs
-
-# Accesso diretto al filesystem del container
-docker exec -it govpay-interaction-backoffice find /var/www/html -name "*.php" | head -10
-```
-> Anche qui puoi usare `govpay-interaction-frontoffice` per verificare il container cittadini.
-
---- 
-
-## 📚 Struttura del progetto
+## Struttura del progetto
 
 ```
 GovPay-Interaction-Layer/
-├── docker-compose.yml      # Configurazione servizi Docker
-├── Dockerfile              # Build dell'immagine PHP/Apache
-├── backoffice/             # Backoffice (operatori ente)
-├── frontoffice/            # Frontoffice (cittadini/sportello)
-├── spid-proxy/              # Proxy SPID/CIE (opzionale)
-├── templates/              # Template condivisi / backoffice
-├── debug/                  # Tool di debug (montato come volume solo nel backoffice)
-├── govpay-clients/         # Client API generati da OpenAPI
-├── ssl/                    # Certificati SSL personalizzati
-├── .env                    # Configurazione ambiente (da creare)
-└── .env.proxyspid          # Configurazione integrazione Frontoffice <-> Proxy (opzionale)
-└── .env.metadata           # Dati metadata SPID/CIE (opzionale)
+├── docker-compose.yml
+├── Dockerfile
+├── backoffice/
+├── frontoffice/
+├── spid-proxy/               # proxy SPID/CIE (opzionale)
+├── app/                      # codice PHP condiviso
+├── templates/                # template backoffice/shared
+├── debug/                    # tool debug (montati solo nel backoffice)
+├── govpay-clients/           # client API generati
+├── pagopa-clients/           # client API generati
+├── migrations/
+├── ssl/                      # cert HTTPS del server (browser → app)
+├── certificate/              # cert client GovPay (app → GovPay)
+├── .env                      # da creare (base)
+├── .env.proxyspid            # da creare (SPID/CIE, integrazione)
+└── .env.metadata             # da creare (SPID/CIE, metadata)
 ```
 
-## 🤝 Contribuire
+---
 
-1. Fork del repository
-2. Crea un branch: `git checkout -b feature/nuova-funzionalita`
-3. Commit delle modifiche: `git commit -m 'Aggiunge nuova funzionalità'`
-4. Push del branch: `git push origin feature/nuova-funzionalita`
-5. Apri una Pull Request
+## Contribuire
 
-## 📞 Supporto
+1) Fork del repository
+2) Crea un branch: `git checkout -b feature/nuova-funzionalita`
+3) Commit: `git commit -m "Aggiunge nuova funzionalità"`
+4) Push: `git push origin feature/nuova-funzionalita`
+5) Apri una Pull Request
 
-Per domande, problemi o suggerimenti:
-- 🐛 **Issues**: [GitHub Issues](https://github.com/mirkochipdotcom/GovPay-Interaction-Layer/issues)
-- 📧 **Email**: Contatta il maintainer del progetto
+## Supporto
 
---- 
-
-# Stato del progetto
-
-Breve riepilogo dello stato corrente (aggiornamento):
-
-- Backoffice: operativo (seed superadmin + gestione utenti + strumenti operativi).
-- Frontoffice: operativo (portale cittadini/sportello).
-- Proxy SPID/CIE: incluso e attivabile via profilo (`COMPOSE_PROFILES=spid-proxy` oppure `COMPOSE_PROFILES=external`), con branding configurabile.
-- Logout SPID: il frontoffice può inoltrare il logout al proxy (non solo logout locale).
-- Metadata SPID: supporto a freeze “current” + generazione “next” in working directory separata per rotazione/attestazione AgID.
-
-## TODO - Elenco degli sviluppi successivi
-[![TODO](https://img.shields.io/badge/TODO-Lista%20attivit%C3%A0-blue)](.github/TODO.md)
-
-
-
-**Nota**: Questo progetto è sviluppato per facilitare l'integrazione con GovPay/PagoPA negli Enti.
-
-Comandi rapidi (promemoria):
-```bash
-docker compose down -v
-docker compose build --no-cache
-docker compose up -d
-docker compose ps
-docker system df
-docker compose down -v --remove-orphans
-docker system prune -f
-docker inspect govpay-interaction-backoffice
-docker compose logs
-docker exec -it govpay-interaction-backoffice find /var/www/html -name "*.php" | head -10
-```
+- Issues: https://github.com/mirkochipdotcom/GovPay-Interaction-Layer/issues
