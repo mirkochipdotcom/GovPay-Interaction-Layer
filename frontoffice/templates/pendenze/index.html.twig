@@ -139,9 +139,6 @@
                     </td>
                     <td>
                       <div class="fw-semibold">{{ p.causale|default('—') }}</div>
-                      {% if p.id_pendenza %}
-                        <div class="text-muted small">ID: {{ p.id_pendenza }}</div>
-                      {% endif %}
                     </td>
                     <td class="text-end">
                       {% if p.importo is not null %}
