@@ -54,6 +54,13 @@ snapshot_one() {
     return 1
   fi
 
+  # Fix entityID per CIE: alcune versioni di spid-cie-php possono produrre il metadata CIE
+  # con lo stesso entityID dello SPID (es. .../spid-metadata.xml). Per noi l'entityID deve
+  # essere coerente con l'endpoint statico pubblico /cie-metadata.xml.
+  if [ "${kind}" = "cie" ]; then
+    sed -i -E 's/(entityID="[^"]*)(\/spid-metadata\.xml|\/metadata\.xml)"/\1\/cie-metadata.xml"/g' "${out_file}" || true
+  fi
+
   # Pubblica SEMPRE un file stabile "next" (default), oltre allo snapshot timestampato.
   cp -f "${out_file}" "${META_DIR}/${kind}-metadata-${PUBLISH_SUFFIX}.xml" || true
   echo "[spid-proxy] Pubblicato metadata ${kind} ${PUBLISH_SUFFIX^^}: ${META_DIR}/${kind}-metadata-${PUBLISH_SUFFIX}.xml"
