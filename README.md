@@ -230,6 +230,17 @@ Esegui il generator (non modifica `metadata-current/`):
 docker compose --profile spid-proxy-metadata run --rm spid-proxy-metadata
 ```
 
+Nota (ambienti già inizializzati / reverse proxy): se la working dir `spid-proxy/metadata-work/` contiene già una config persistita
+con host vecchio (es. `127.0.0.1`), il generator potrebbe continuare a produrre `entityID`/URL con quel valore.
+In quel caso forza la rigenerazione dei file persistiti nella working dir:
+
+```bash
+docker compose --profile spid-proxy-metadata run --rm \
+   -e SPID_PROXY_PUBLIC_BASE_URL=https://login.ente.it \
+   -e SPID_PROXY_FORCE_REGEN_SETUP=1 \
+   spid-proxy-metadata
+```
+
 Output:
 - `spid-proxy/metadata/spid-metadata-next.xml`
 - `spid-proxy/metadata/cie-metadata-next.xml` (se CIE)
