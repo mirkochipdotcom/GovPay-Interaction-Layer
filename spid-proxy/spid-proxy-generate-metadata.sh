@@ -21,9 +21,27 @@ snapshot_one() {
   local url="$2"
   local out_file="$3"
   local http_code
+  local public_hostport
+  local public_origin
 
   echo "[spid-proxy] Snapshot metadata ${kind}: ${out_file} (${url})"
-  http_code="$(curl -ksS --max-time 30 -o "${out_file}" -w "%{http_code}" "${url}" || echo "000")"
+
+  # Importante: il generator interroga Apache via https://127.0.0.1/... dentro al container.
+  # SimpleSAML costruisce ACS/SLO basandosi su Host della request; se non forziamo Host
+  # finiremmo con Location=...127.0.0.1... nei metadata anche se esiste un URL pubblico.
+  public_hostport=""
+  public_origin=""
+  if [ -n "${SPID_PROXY_PUBLIC_BASE_URL:-}" ]; then
+    public_hostport="${SPID_PROXY_PUBLIC_BASE_URL#*://}"
+    public_hostport="${public_hostport%%/*}"
+    public_origin="$(echo "${SPID_PROXY_PUBLIC_BASE_URL%/}" | sed -E 's#^(https?://[^/]+).*$#\1#')"
+  fi
+
+  if [ -n "${public_hostport}" ]; then
+    http_code="$(curl -ksS --max-time 30 -H "Host: ${public_hostport}" -o "${out_file}" -w "%{http_code}" "${url}" || echo "000")"
+  else
+    http_code="$(curl -ksS --max-time 30 -o "${out_file}" -w "%{http_code}" "${url}" || echo "000")"
+  fi
 
   if [ "${http_code}" != "200" ]; then
     echo "[spid-proxy] WARNING: snapshot metadata ${kind} HTTP ${http_code} (${url})" >&2
@@ -54,15 +72,10 @@ snapshot_one() {
     return 1
   fi
 
-  # Normalizza gli URL Location (ACS/SLO) sul base URL pubblico.
-  # Nota: il generator interroga Apache via https://127.0.0.1/... dentro al container;
-  # l'output di SimpleSAML può quindi contenere host locali (127.0.0.1/localhost).
-  # Se poi promuoviamo questi file a CURRENT, vogliamo URL pubblici coerenti.
-  if [ -n "${SPID_PROXY_PUBLIC_BASE_URL:-}" ]; then
-    _pub_base="${SPID_PROXY_PUBLIC_BASE_URL%/}"
-    # Sostituisce solo la parte scheme+host[:port] nelle Location=...
-    # Esempio: Location="https://127.0.0.1/myservice/..." -> Location="https://login.ente.it/myservice/..."
-    sed -i -E "s#Location=\"https?://[^/]+#Location=\"${_pub_base}#g" "${out_file}" || true
+  # Fallback: se per qualunque motivo il metadata contiene ancora host locali, riscrivi
+  # la parte scheme+host[:port] nelle Location=... con l'origin pubblico.
+  if [ -n "${public_origin}" ]; then
+    sed -i -E "s#Location=\"https?://[^/]+#Location=\"${public_origin}#g" "${out_file}" || true
   fi
 
   # Fix entityID per CIE: alcune versioni di spid-cie-php possono produrre il metadata CIE
