@@ -23,6 +23,7 @@ snapshot_one() {
   local http_code
   local public_hostport
   local public_origin
+  local desired_entity_id
 
   echo "[spid-proxy] Snapshot metadata ${kind}: ${out_file} (${url})"
 
@@ -75,13 +76,19 @@ snapshot_one() {
   # Fallback: se per qualunque motivo il metadata contiene ancora host locali, riscrivi
   # la parte scheme+host[:port] nelle Location=... con l'origin pubblico.
   if [ -n "${public_origin}" ]; then
+    desired_entity_id="${public_origin}/${kind}-metadata.xml"
+
     sed -i -E "s#Location=\"https?://[^/]+#Location=\"${public_origin}#g" "${out_file}" || true
+
+    # Forza entityID su endpoint statico pubblico (/spid-metadata.xml o /cie-metadata.xml).
+    # In alcuni setup upstream l'entityID viene generato con host locali (localhost/127.0.0.1)
+    # e non segue correttamente la configurazione di dominio pubblico.
+    sed -i -E "s#entityID=\"[^\"]+\"#entityID=\"${desired_entity_id}\"#" "${out_file}" || true
   fi
 
-  # Fix entityID per CIE: alcune versioni di spid-cie-php possono produrre il metadata CIE
-  # con lo stesso entityID dello SPID (es. .../spid-metadata.xml). Per noi l'entityID deve
-  # essere coerente con l'endpoint statico pubblico /cie-metadata.xml.
-  if [ "${kind}" = "cie" ]; then
+  # Fix compatibilità: se public_origin non è disponibile ma l'upstream ha generato entityID CIE errato,
+  # almeno correggi il suffisso verso /cie-metadata.xml.
+  if [ "${kind}" = "cie" ] && [ -z "${public_origin}" ]; then
     sed -i -E 's/(entityID="[^"]*)(\/spid-metadata\.xml|\/metadata\.xml)"/\1\/cie-metadata.xml"/g' "${out_file}" || true
   fi
 
