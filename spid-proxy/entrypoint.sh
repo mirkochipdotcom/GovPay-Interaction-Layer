@@ -34,6 +34,17 @@ fi
 # Directory web persistente dove Setup.php scrive proxy.php e pagine di esempio
 mkdir -p "${TARGET_DIR}/www" || true
 
+# ---- Modalità generator metadata: consenti reset controllato ----
+# In alcuni ambienti (es. dietro reverse proxy) può servire rigenerare i file persistenti
+# nella working dir del generator per applicare nuove env (es. SPID_PROXY_PUBLIC_BASE_URL).
+# Per evitare side-effect in produzione, abilitiamo il reset solo se:
+# - SPID_PROXY_IS_METADATA_GENERATOR=1 (settata solo nel servizio spid-proxy-metadata)
+# - SPID_PROXY_FORCE_REGEN_SETUP=1 (da passare esplicitamente quando serve)
+if [ "${SPID_PROXY_IS_METADATA_GENERATOR:-0}" = "1" ] && [ "${SPID_PROXY_FORCE_REGEN_SETUP:-0}" = "1" ]; then
+  echo "[spid-proxy] Metadata generator: reset config persistita (SPID_PROXY_FORCE_REGEN_SETUP=1)"
+  rm -f "${TARGET_DIR}/spid-php-setup.json" "${TARGET_DIR}/spid-php-proxy.json" || true
+fi
+
 # ---- Bootstrap non-interattivo (spid-php-setup.json) ----
 # spid-cie-php esegue un setup interattivo durante gli script composer.
 # Se spid-php-setup.json esiste ed include tutte le chiavi richieste, il setup diventa non-interattivo.
