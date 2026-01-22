@@ -609,6 +609,14 @@ if (!function_exists('frontoffice_pendenza_belongs_to_cf')) {
             }
         }
 
+        if (isset($pendenza['soggettoVersante']) && is_array($pendenza['soggettoVersante'])) {
+            foreach (['identificativo', 'identificativoUnivoco', 'codiceFiscale', 'fiscalNumber'] as $key) {
+                if (isset($pendenza['soggettoVersante'][$key]) && is_string($pendenza['soggettoVersante'][$key])) {
+                    $candidates[] = $pendenza['soggettoVersante'][$key];
+                }
+            }
+        }
+
         foreach ($candidates as $value) {
             $normalized = strtoupper(preg_replace('/\s+/', '', trim((string)$value)));
             if ($normalized !== '' && $normalized === $expected) {
@@ -617,6 +625,48 @@ if (!function_exists('frontoffice_pendenza_belongs_to_cf')) {
         }
 
         return false;
+    }
+}
+
+if (!function_exists('frontoffice_fetch_pendenza_by_avviso')) {
+    function frontoffice_fetch_pendenza_by_avviso(string $idDominio, string $numeroAvviso): ?array
+    {
+        $pendenzeHost = frontoffice_govpay_pendenze_base_url();
+        if ($pendenzeHost === '' || $idDominio === '' || $numeroAvviso === '') {
+            return null;
+        }
+        if (!class_exists('\GovPay\Pendenze\Api\PendenzeApi') || !class_exists('\GovPay\Pendenze\Configuration')) {
+            return null;
+        }
+
+        try {
+            $config = new \GovPay\Pendenze\Configuration();
+            $config->setHost(rtrim($pendenzeHost, '/'));
+            $guzzleOptions = frontoffice_govpay_client_options();
+            if ($auth = frontoffice_basic_auth()) {
+                $guzzleOptions['auth'] = [$auth[0], $auth[1]];
+            }
+            $httpClient = new Client($guzzleOptions);
+            $api = new \GovPay\Pendenze\Api\PendenzeApi($httpClient, $config);
+
+            $result = $api->getPendenzaByAvviso($idDominio, $numeroAvviso);
+            return json_decode(json_encode($result, JSON_THROW_ON_ERROR), true, 512, JSON_THROW_ON_ERROR);
+        } catch (ClientException $e) {
+            $code = $e->getResponse() ? $e->getResponse()->getStatusCode() : 0;
+            Logger::getInstance()->info('Pendenza non trovata via Pendenze v2 (byAvviso)', [
+                'idDominio' => $idDominio,
+                'numeroAvviso' => $numeroAvviso,
+                'status' => $code,
+            ]);
+            return null;
+        } catch (\Throwable $e) {
+            Logger::getInstance()->warning('Errore durante la ricerca avviso via Pendenze v2 (byAvviso)', [
+                'idDominio' => $idDominio,
+                'numeroAvviso' => $numeroAvviso,
+                'error' => Logger::sanitizeErrorForDisplay($e->getMessage()),
+            ]);
+            return null;
+        }
     }
 }
 
@@ -1038,7 +1088,8 @@ if (!function_exists('frontoffice_build_avviso_preview')) {
         $checkoutUrl = null;
         if (frontoffice_is_pendenza_payable($state) && $idPendenza !== '') {
             // Checkout dinamico (server-side) per evitare di esporre la subscription key al browser.
-            $checkoutUrl = '/pendenze/' . rawurlencode($idPendenza) . '/checkout';
+            // Usa un endpoint pubblico dedicato al pagamento avviso (senza login), autorizzato via sessione.
+            $checkoutUrl = '/pagamento-avviso/checkout?idPendenza=' . rawurlencode($idPendenza);
         } else {
             // Fallback legacy: link statico al portale checkout (solo inserimento dati avviso).
             $checkoutUrl = frontoffice_env_value(
@@ -1123,90 +1174,101 @@ if (!function_exists('frontoffice_lookup_pagopa_avviso')) {
             ];
         }
 
-        $api = frontoffice_pagamenti_api_client();
-        if ($api === null) {
-            return [
-                'success' => false,
-                'errors' => ['Al momento non riusciamo a interrogare il sistema dei pagamenti. Riprova più tardi.'],
-            ];
-        }
+        $inputId = strtoupper(preg_replace('/\s+/', '', trim($codiceFiscale)));
+        $inputIdDigits = preg_replace('/\D+/', '', $inputId);
+        $normalizedInputId = ($inputIdDigits !== '' && strlen($inputIdDigits) === 11) ? $inputIdDigits : $inputId;
 
         Logger::getInstance()->info('Ricerca avviso PagoPA avviata', [
             'idDominio' => $idDominio,
             'numeroAvviso' => $numeroAvviso,
-            'identificativoPagatore' => $codiceFiscale,
+            'identificativoInput' => $normalizedInputId,
         ]);
 
         $normalizedAvviso = frontoffice_normalize_avviso_code($numeroAvviso);
 
-        try {
-            $result = $api->findPendenze(
-                1,
-            10,
-                null,
-                $idDominio,
-                null,
-                null,
-            $normalizedAvviso,
-                null,
-                null,
-                $codiceFiscale,
-                null,
-                null,
-                null,
-                null,
-                false,
-                true,
-                true
-            );
-            $data = json_decode(json_encode($result, JSON_THROW_ON_ERROR), true, 512, JSON_THROW_ON_ERROR);
-        } catch (\Throwable $e) {
-            Logger::getInstance()->warning('Errore durante la ricerca dell\'avviso PagoPA', [
-                'codiceAvviso' => $numeroAvviso,
-                'error' => Logger::sanitizeErrorForDisplay($e->getMessage()),
-            ]);
-            return [
-                'success' => false,
-                'errors' => ['Al momento non riusciamo a interrogare il sistema dei pagamenti. Riprova più tardi.'],
+        // Canale principale: GovPay Pendenze v2 (byAvviso) è il modo corretto per interrogare un numero avviso.
+        $pendenza = frontoffice_fetch_pendenza_by_avviso($idDominio, $normalizedAvviso);
+
+        // Fallback: manteniamo la vecchia ricerca via GovPay Pagamenti (per compatibilità in ambienti che non espongono byAvviso).
+        if (!is_array($pendenza) || $pendenza === []) {
+            $api = frontoffice_pagamenti_api_client();
+            if ($api === null) {
+                return [
+                    'success' => false,
+                    'errors' => ['Al momento non riusciamo a interrogare il sistema dei pagamenti. Riprova più tardi.'],
+                ];
+            }
+
+            try {
+                $result = $api->findPendenze(
+                    1,
+                    10,
+                    null,
+                    $idDominio,
+                    null,
+                    null,
+                    $normalizedAvviso,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    false,
+                    true,
+                    true
+                );
+                $data = json_decode(json_encode($result, JSON_THROW_ON_ERROR), true, 512, JSON_THROW_ON_ERROR);
+            } catch (\Throwable $e) {
+                Logger::getInstance()->warning('Errore durante la ricerca dell\'avviso PagoPA', [
+                    'codiceAvviso' => $numeroAvviso,
+                    'error' => Logger::sanitizeErrorForDisplay($e->getMessage()),
+                ]);
+                return [
+                    'success' => false,
+                    'errors' => ['Al momento non riusciamo a interrogare il sistema dei pagamenti. Riprova più tardi.'],
+                ];
+            }
+
+            $risultati = $data['risultati'] ?? [];
+            $loggerPayload = [
+                'numRisultati' => $data['numRisultati'] ?? null,
+                'risultatiPerPagina' => $data['risultatiPerPagina'] ?? null,
+                'pagina' => $data['pagina'] ?? null,
+                'risultatiCount' => is_array($risultati) ? count($risultati) : 0,
+                'requestedAvviso' => $normalizedAvviso,
             ];
-        }
+            Logger::getInstance()->info('Risposta GovPay Pagamenti per ricerca avviso', $loggerPayload);
 
-        $risultati = $data['risultati'] ?? [];
-        $loggerPayload = [
-            'numRisultati' => $data['numRisultati'] ?? null,
-            'risultatiPerPagina' => $data['risultatiPerPagina'] ?? null,
-            'pagina' => $data['pagina'] ?? null,
-            'risultatiCount' => is_array($risultati) ? count($risultati) : 0,
-            'requestedAvviso' => $normalizedAvviso,
-        ];
-        Logger::getInstance()->info('Risposta GovPay Pagamenti per ricerca avviso', $loggerPayload);
-
-        $pendenza = null;
-        foreach ($risultati as $candidate) {
-            $candidateAvviso = frontoffice_normalize_avviso_code((string)($candidate['numeroAvviso'] ?? ''));
-            if ($candidateAvviso !== '' && $candidateAvviso === $normalizedAvviso) {
-                $pendenza = $candidate;
-                break;
+            $pendenza = null;
+            foreach ($risultati as $candidate) {
+                $candidateAvviso = frontoffice_normalize_avviso_code((string)($candidate['numeroAvviso'] ?? ''));
+                if ($candidateAvviso !== '' && $candidateAvviso === $normalizedAvviso) {
+                    $pendenza = $candidate;
+                    break;
+                }
             }
         }
-        if (!$pendenza) {
-            Logger::getInstance()->info('Nessun avviso corrispondente trovato dal frontoffice', $loggerPayload);
+
+        if (!is_array($pendenza) || $pendenza === []) {
+            Logger::getInstance()->info('Nessun avviso corrispondente trovato dal frontoffice', [
+                'requestedAvviso' => $normalizedAvviso,
+            ]);
             return [
                 'success' => false,
                 'errors' => ['Nessun avviso trovato con i dati inseriti.'],
             ];
         }
 
-        $payerId = strtoupper((string)($pendenza['soggettoPagatore']['identificativo'] ?? ''));
-        if ($payerId !== '' && $payerId !== strtoupper($codiceFiscale)) {
-            Logger::getInstance()->warning('Identificativo pagatore non coincide con l\'input', [
-                'pagatore' => $payerId,
-                'identificativoInput' => $codiceFiscale,
+        if (!frontoffice_pendenza_belongs_to_cf($pendenza, $normalizedInputId)) {
+            Logger::getInstance()->warning('Identificativo pagatore/versante non coincide con l\'input', [
+                'identificativoInput' => $normalizedInputId,
                 'numeroAvviso' => $numeroAvviso,
             ]);
             return [
                 'success' => false,
-                'errors' => ['Il codice fiscale o la partita IVA indicata non coincide con il soggetto pagatore dell\'avviso.'],
+                'errors' => ['Il codice fiscale o la partita IVA indicata non coincide con il soggetto associato all\'avviso.'],
             ];
         }
 
@@ -1284,6 +1346,23 @@ if (!function_exists('frontoffice_process_avviso_form')) {
 
         $lookup = frontoffice_lookup_pagopa_avviso($codiceAvviso, $lookupIdentificativo);
         $lookup['form_data'] = $formData;
+
+        // Whitelist in sessione: consente il checkout pubblico solo per pendenze ricercate
+        // da questo browser tramite il flusso "Paga un avviso".
+        if (!empty($lookup['success']) && session_status() === PHP_SESSION_ACTIVE) {
+            $idPendenza = (string)($lookup['pendenza']['idPendenza'] ?? '');
+            if ($idPendenza !== '') {
+                $key = 'frontoffice_avviso_pendenze';
+                $list = isset($_SESSION[$key]) && is_array($_SESSION[$key]) ? $_SESSION[$key] : [];
+                $list[] = $idPendenza;
+                $list = array_values(array_unique(array_filter(array_map('strval', $list), static fn ($v) => trim($v) !== '')));
+                if (count($list) > 25) {
+                    $list = array_slice($list, -25);
+                }
+                $_SESSION[$key] = $list;
+            }
+        }
+
         return $lookup;
     }
 }
@@ -1425,9 +1504,28 @@ if (!function_exists('frontoffice_process_spontaneous_request')) {
             'importo' => $importo,
             'causale' => $causale,
             'download_url' => $downloadUrl,
+            // Checkout dinamico (server-side) per evitare di esporre la subscription key al browser.
+            // Usiamo un endpoint dedicato allo spontaneo che funziona anche senza login,
+            // consentendo il pagamento solo per pendenze generate in questa sessione.
+            'checkout_url' => ($idPendenza !== '')
+                ? ('/pagamento-spontaneo/checkout?idPendenza=' . rawurlencode($idPendenza))
+                : null,
             'data_scadenza' => $detail['dataScadenza'] ?? $dataScadenza,
             'soggetto_pagatore' => $payload['soggettoPagatore'],
         ];
+
+        // Whitelist in sessione: consente il checkout (endpoint pubblico) solo per pendenze
+        // generate da questo browser. Evita che chiunque possa avviare checkout con un idPendenza arbitrario.
+        if ($idPendenza !== '' && session_status() === PHP_SESSION_ACTIVE) {
+            $key = 'frontoffice_spontaneo_pendenze';
+            $list = isset($_SESSION[$key]) && is_array($_SESSION[$key]) ? $_SESSION[$key] : [];
+            $list[] = $idPendenza;
+            $list = array_values(array_unique(array_filter(array_map('strval', $list), static fn ($v) => trim($v) !== '')));
+            if (count($list) > 25) {
+                $list = array_slice($list, -25);
+            }
+            $_SESSION[$key] = $list;
+        }
 
         $context['form_feedback'] = [
             'type' => 'success',
@@ -1566,10 +1664,22 @@ $routes = [
         $idPendenza = trim((string)($_GET['idPendenza'] ?? $_GET['id_pendenza'] ?? ''));
         $detailPath = $idPendenza !== '' ? ('/pendenze/' . rawurlencode($idPendenza)) : '/pendenze';
 
+        $numeroAvviso = null;
+        if ($idPendenza !== '') {
+            $detail = frontoffice_fetch_pagamenti_detail($idPendenza);
+            if (is_array($detail)) {
+                $tmp = trim((string)($detail['numeroAvviso'] ?? ''));
+                $tmp = preg_replace('/\D+/', '', $tmp);
+                if (is_string($tmp) && $tmp !== '') {
+                    $numeroAvviso = $tmp;
+                }
+            }
+        }
+
         return [
             'template' => 'checkout/ok.html.twig',
             'context' => [
-                'id_pendenza' => $idPendenza !== '' ? $idPendenza : null,
+                'numero_avviso' => $numeroAvviso,
                 'detail_path' => $detailPath,
                 'login_path' => '/login?return_to=' . rawurlencode($detailPath),
                 'is_logged_in' => frontoffice_get_logged_user() !== null,
@@ -1580,10 +1690,22 @@ $routes = [
         $idPendenza = trim((string)($_GET['idPendenza'] ?? $_GET['id_pendenza'] ?? ''));
         $detailPath = $idPendenza !== '' ? ('/pendenze/' . rawurlencode($idPendenza)) : '/pendenze';
 
+        $numeroAvviso = null;
+        if ($idPendenza !== '') {
+            $detail = frontoffice_fetch_pagamenti_detail($idPendenza);
+            if (is_array($detail)) {
+                $tmp = trim((string)($detail['numeroAvviso'] ?? ''));
+                $tmp = preg_replace('/\D+/', '', $tmp);
+                if (is_string($tmp) && $tmp !== '') {
+                    $numeroAvviso = $tmp;
+                }
+            }
+        }
+
         return [
             'template' => 'checkout/cancel.html.twig',
             'context' => [
-                'id_pendenza' => $idPendenza !== '' ? $idPendenza : null,
+                'numero_avviso' => $numeroAvviso,
                 'detail_path' => $detailPath,
                 'login_path' => '/login?return_to=' . rawurlencode($detailPath),
                 'is_logged_in' => frontoffice_get_logged_user() !== null,
@@ -1594,10 +1716,22 @@ $routes = [
         $idPendenza = trim((string)($_GET['idPendenza'] ?? $_GET['id_pendenza'] ?? ''));
         $detailPath = $idPendenza !== '' ? ('/pendenze/' . rawurlencode($idPendenza)) : '/pendenze';
 
+        $numeroAvviso = null;
+        if ($idPendenza !== '') {
+            $detail = frontoffice_fetch_pagamenti_detail($idPendenza);
+            if (is_array($detail)) {
+                $tmp = trim((string)($detail['numeroAvviso'] ?? ''));
+                $tmp = preg_replace('/\D+/', '', $tmp);
+                if (is_string($tmp) && $tmp !== '') {
+                    $numeroAvviso = $tmp;
+                }
+            }
+        }
+
         return [
             'template' => 'checkout/error.html.twig',
             'context' => [
-                'id_pendenza' => $idPendenza !== '' ? $idPendenza : null,
+                'numero_avviso' => $numeroAvviso,
                 'detail_path' => $detailPath,
                 'login_path' => '/login?return_to=' . rawurlencode($detailPath),
                 'is_logged_in' => frontoffice_get_logged_user() !== null,
@@ -1991,10 +2125,32 @@ $routes = [
         if ($method === 'POST') {
             $result = frontoffice_process_avviso_form($_POST);
             if (!empty($result['success'])) {
+                $preview = is_array($result['preview'] ?? null) ? $result['preview'] : [];
+                $isPaid = !empty($preview['is_paid']);
+                $loggedUser = frontoffice_get_logged_user();
+
+                // Avviso già pagato: se l'utente non è autenticato non mostriamo dettagli.
+                // Manteniamo la pagina del form (come "avviso non trovato") e cambiamo solo il messaggio con un warning.
+                if ($isPaid && $loggedUser === null) {
+                    return [
+                        'template' => 'pagamenti/avviso.html.twig',
+                        'context' => [
+                            'form_submitted' => true,
+                            'form_data' => $result['form_data'] ?? $_POST,
+                            'form_errors' => [],
+                            'form_feedback' => [
+                                'type' => 'warning',
+                                'title' => 'Avviso già pagato',
+                                'message' => 'L\'avviso inserito risulta già pagato. Per scaricare la ricevuta è necessario effettuare l\'accesso.',
+                            ],
+                        ],
+                    ];
+                }
+
                 return [
                     'template' => 'pagamenti/avviso-preview.html.twig',
                     'context' => [
-                        'avviso_preview' => $result['preview'] ?? [],
+                        'avviso_preview' => $preview,
                         'pendenza' => $result['pendenza'] ?? [],
                         'back_url' => '/pagamento-avviso',
                         'search_params' => $result['form_data'] ?? [],
@@ -2202,6 +2358,370 @@ $routeDefinition = null;
 if ($method === 'GET' && preg_match('#^/avvisi/([^/]+)/([^/]+)$#', $normalizedPath, $match)) {
     frontoffice_stream_avviso_pdf(rawurldecode($match[1]), rawurldecode($match[2]));
     return;
+}
+
+if ($method === 'GET' && $normalizedPath === '/pagamento-spontaneo/checkout') {
+    $idDominio = frontoffice_env_value('ID_DOMINIO', '');
+    if ($idDominio === '') {
+        http_response_code(503);
+        echo 'Configurazione mancante: ID_DOMINIO non impostato.';
+        return;
+    }
+
+    $idPendenza = trim((string)($_GET['idPendenza'] ?? ''));
+    if ($idPendenza === '') {
+        http_response_code(404);
+        echo 'Not found';
+        return;
+    }
+
+    if ($frontofficeBaseUrl === '') {
+        http_response_code(503);
+        echo 'Configurazione mancante: FRONTOFFICE_PUBLIC_BASE_URL non impostato.';
+        return;
+    }
+
+    $detail = frontoffice_fetch_pagamenti_detail($idPendenza);
+    if (!$detail) {
+        http_response_code(404);
+        echo 'Not found';
+        return;
+    }
+
+    // Autorizzazione:
+    // - Se utente loggato: consenti solo se la pendenza appartiene al suo CF.
+    // - Se non loggato: consenti solo se la pendenza è stata generata in questa sessione (whitelist).
+    $loggedUser = frontoffice_get_logged_user();
+    if (is_array($loggedUser) && $loggedUser !== []) {
+        if (!frontoffice_pendenza_belongs_to_cf($detail, frontoffice_get_logged_user_fiscal_number())) {
+            http_response_code(404);
+            echo 'Not found';
+            return;
+        }
+    } else {
+        $key = 'frontoffice_spontaneo_pendenze';
+        $list = isset($_SESSION[$key]) && is_array($_SESSION[$key]) ? $_SESSION[$key] : [];
+        $allowed = in_array($idPendenza, array_map('strval', $list), true);
+        if (!$allowed) {
+            http_response_code(404);
+            echo 'Not found';
+            return;
+        }
+    }
+
+    $state = strtoupper((string)($detail['stato'] ?? ''));
+    if (!frontoffice_is_pendenza_payable($state)) {
+        http_response_code(404);
+        echo 'Pagamento non disponibile per questa pendenza.';
+        return;
+    }
+
+    $numeroAvviso = trim((string)($detail['numeroAvviso'] ?? ''));
+    $numeroAvviso = preg_replace('/\D+/', '', $numeroAvviso);
+    if (!is_string($numeroAvviso) || $numeroAvviso === '') {
+        http_response_code(503);
+        echo 'Numero avviso non disponibile.';
+        return;
+    }
+
+    $importo = $detail['importo'] ?? null;
+    $amountEur = is_numeric($importo) ? (float)$importo : 0.0;
+    $amountCents = frontoffice_amount_to_cents($amountEur);
+    if ($amountCents <= 0) {
+        http_response_code(503);
+        echo 'Importo non valido.';
+        return;
+    }
+
+    $hasCheckoutClient = class_exists(\PagoPA\CheckoutEc\Api\DefaultApi::class);
+    $subscriptionKeyConfigured = trim(frontoffice_env_value('PAGOPA_CHECKOUT_SUBSCRIPTION_KEY', '')) !== '';
+    if (!$hasCheckoutClient || !$subscriptionKeyConfigured) {
+        http_response_code(503);
+        echo 'Checkout pagoPA non configurato.';
+        Logger::getInstance()->warning('Checkout pagoPA non configurato (spontaneo)', [
+            'has_client' => $hasCheckoutClient,
+            'has_key' => $subscriptionKeyConfigured,
+        ]);
+        return;
+    }
+
+    $api = frontoffice_pagopa_checkout_api_client();
+    if ($api === null) {
+        http_response_code(503);
+        echo 'Checkout pagoPA non configurato.';
+        Logger::getInstance()->warning('Checkout pagoPA non configurato: helper client null (spontaneo)');
+        return;
+    }
+
+    $companyName = trim(frontoffice_env_value('PAGOPA_CHECKOUT_COMPANY_NAME', frontoffice_env_value('APP_ENTITY_NAME', 'Ente')));
+    if ($companyName === '') {
+        $companyName = 'Ente';
+    }
+    $description = trim((string)($detail['causale'] ?? ''));
+
+    $okUrl = trim(frontoffice_env_value('PAGOPA_CHECKOUT_RETURN_OK_URL', ''));
+    $cancelUrl = trim(frontoffice_env_value('PAGOPA_CHECKOUT_RETURN_CANCEL_URL', ''));
+    $errorUrl = trim(frontoffice_env_value('PAGOPA_CHECKOUT_RETURN_ERROR_URL', ''));
+    if ($okUrl === '') {
+        $okUrl = $frontofficeBaseUrl . '/checkout/ok?idPendenza=' . rawurlencode($idPendenza);
+    }
+    if ($cancelUrl === '') {
+        $cancelUrl = $frontofficeBaseUrl . '/checkout/cancel?idPendenza=' . rawurlencode($idPendenza);
+    }
+    if ($errorUrl === '') {
+        $errorUrl = $frontofficeBaseUrl . '/checkout/error?idPendenza=' . rawurlencode($idPendenza);
+    }
+
+    // Email notice: preferisci quella del soggetto pagatore; fallback a profilo loggato.
+    $emailNotice = '';
+    if (isset($detail['soggettoPagatore']) && is_array($detail['soggettoPagatore'])) {
+        $emailNotice = trim((string)($detail['soggettoPagatore']['email'] ?? ''));
+    }
+    if ($emailNotice === '' && is_array($loggedUser)) {
+        $emailNotice = trim((string)($loggedUser['email'] ?? ''));
+    }
+
+    try {
+        $notice = new \PagoPA\CheckoutEc\Model\PaymentNotice();
+        $notice->setNoticeNumber($numeroAvviso);
+        $notice->setFiscalCode($idDominio);
+        $notice->setAmount($amountCents);
+        $notice->setCompanyName($companyName);
+        if ($description !== '') {
+            $notice->setDescription($description);
+        }
+
+        $returnUrls = new \PagoPA\CheckoutEc\Model\CartRequestReturnUrls();
+        $returnUrls->setReturnOkUrl($okUrl);
+        $returnUrls->setReturnCancelUrl($cancelUrl);
+        $returnUrls->setReturnErrorUrl($errorUrl);
+
+        $cart = new \PagoPA\CheckoutEc\Model\CartRequest();
+        if ($emailNotice !== '' && filter_var($emailNotice, FILTER_VALIDATE_EMAIL) !== false) {
+            $cart->setEmailNotice($emailNotice);
+        }
+        $cart->setPaymentNotices([$notice]);
+        $cart->setReturnUrls($returnUrls);
+
+        [, $statusCode, $headers] = $api->postCartsWithHttpInfo($cart);
+
+        $location = '';
+        if (is_array($headers)) {
+            foreach ($headers as $name => $values) {
+                if (strtolower((string)$name) !== 'location') {
+                    continue;
+                }
+                if (is_array($values) && isset($values[0]) && is_string($values[0])) {
+                    $location = trim($values[0]);
+                }
+                break;
+            }
+        }
+
+        if ($location === '' || $statusCode < 300 || $statusCode >= 400) {
+            Logger::getInstance()->warning('Checkout pagoPA: risposta inattesa da POST /carts (spontaneo)', [
+                'idPendenza' => $idPendenza,
+                'status' => $statusCode,
+                'has_location' => $location !== '',
+            ]);
+            http_response_code(503);
+            echo 'Al momento non riusciamo ad avviare il pagamento. Riprova più tardi.';
+            return;
+        }
+
+        header('Location: ' . $location, true, 302);
+        exit;
+    } catch (\Throwable $e) {
+        Logger::getInstance()->warning('Errore durante la creazione del carrello pagoPA Checkout (spontaneo)', [
+            'idPendenza' => $idPendenza,
+            'error' => Logger::sanitizeErrorForDisplay($e->getMessage()),
+        ]);
+        http_response_code(503);
+        echo 'Al momento non riusciamo ad avviare il pagamento. Riprova più tardi.';
+        return;
+    }
+}
+
+if ($method === 'GET' && $normalizedPath === '/pagamento-avviso/checkout') {
+    $idDominio = frontoffice_env_value('ID_DOMINIO', '');
+    if ($idDominio === '') {
+        http_response_code(503);
+        echo 'Configurazione mancante: ID_DOMINIO non impostato.';
+        return;
+    }
+
+    $idPendenza = trim((string)($_GET['idPendenza'] ?? $_GET['id_pendenza'] ?? ''));
+    if ($idPendenza === '') {
+        http_response_code(404);
+        echo 'Not found';
+        return;
+    }
+
+    if ($frontofficeBaseUrl === '') {
+        http_response_code(503);
+        echo 'Configurazione mancante: FRONTOFFICE_PUBLIC_BASE_URL non impostato.';
+        return;
+    }
+
+    $detail = frontoffice_fetch_pagamenti_detail($idPendenza);
+    if (!$detail) {
+        http_response_code(404);
+        echo 'Not found';
+        return;
+    }
+
+    // Autorizzazione:
+    // - Se utente loggato: consenti solo se la pendenza appartiene al suo CF.
+    // - Se non loggato: consenti solo se la pendenza è stata ricercata in questa sessione (whitelist).
+    $loggedUser = frontoffice_get_logged_user();
+    if (is_array($loggedUser) && $loggedUser !== []) {
+        if (!frontoffice_pendenza_belongs_to_cf($detail, frontoffice_get_logged_user_fiscal_number())) {
+            http_response_code(404);
+            echo 'Not found';
+            return;
+        }
+    } else {
+        $key = 'frontoffice_avviso_pendenze';
+        $list = isset($_SESSION[$key]) && is_array($_SESSION[$key]) ? $_SESSION[$key] : [];
+        $allowed = in_array($idPendenza, array_map('strval', $list), true);
+        if (!$allowed) {
+            http_response_code(404);
+            echo 'Not found';
+            return;
+        }
+    }
+
+    $state = strtoupper((string)($detail['stato'] ?? ''));
+    if (!frontoffice_is_pendenza_payable($state)) {
+        http_response_code(404);
+        echo 'Pagamento non disponibile per questa pendenza.';
+        return;
+    }
+
+    $numeroAvviso = trim((string)($detail['numeroAvviso'] ?? ''));
+    $numeroAvviso = preg_replace('/\D+/', '', $numeroAvviso);
+    if (!is_string($numeroAvviso) || $numeroAvviso === '') {
+        http_response_code(503);
+        echo 'Numero avviso non disponibile.';
+        return;
+    }
+
+    $importo = $detail['importo'] ?? null;
+    $amountEur = is_numeric($importo) ? (float)$importo : 0.0;
+    $amountCents = frontoffice_amount_to_cents($amountEur);
+    if ($amountCents <= 0) {
+        http_response_code(503);
+        echo 'Importo non valido.';
+        return;
+    }
+
+    $hasCheckoutClient = class_exists(\PagoPA\CheckoutEc\Api\DefaultApi::class);
+    $subscriptionKeyConfigured = trim(frontoffice_env_value('PAGOPA_CHECKOUT_SUBSCRIPTION_KEY', '')) !== '';
+    if (!$hasCheckoutClient || !$subscriptionKeyConfigured) {
+        http_response_code(503);
+        echo 'Checkout pagoPA non configurato.';
+        Logger::getInstance()->warning('Checkout pagoPA non configurato (avviso)', [
+            'has_client' => $hasCheckoutClient,
+            'has_key' => $subscriptionKeyConfigured,
+        ]);
+        return;
+    }
+
+    $api = frontoffice_pagopa_checkout_api_client();
+    if ($api === null) {
+        http_response_code(503);
+        echo 'Checkout pagoPA non configurato.';
+        Logger::getInstance()->warning('Checkout pagoPA non configurato: helper client null (avviso)');
+        return;
+    }
+
+    $companyName = trim(frontoffice_env_value('PAGOPA_CHECKOUT_COMPANY_NAME', frontoffice_env_value('APP_ENTITY_NAME', 'Ente')));
+    if ($companyName === '') {
+        $companyName = 'Ente';
+    }
+    $description = trim((string)($detail['causale'] ?? ''));
+
+    $okUrl = trim(frontoffice_env_value('PAGOPA_CHECKOUT_RETURN_OK_URL', ''));
+    $cancelUrl = trim(frontoffice_env_value('PAGOPA_CHECKOUT_RETURN_CANCEL_URL', ''));
+    $errorUrl = trim(frontoffice_env_value('PAGOPA_CHECKOUT_RETURN_ERROR_URL', ''));
+    if ($okUrl === '') {
+        $okUrl = $frontofficeBaseUrl . '/checkout/ok?idPendenza=' . rawurlencode($idPendenza);
+    }
+    if ($cancelUrl === '') {
+        $cancelUrl = $frontofficeBaseUrl . '/checkout/cancel?idPendenza=' . rawurlencode($idPendenza);
+    }
+    if ($errorUrl === '') {
+        $errorUrl = $frontofficeBaseUrl . '/checkout/error?idPendenza=' . rawurlencode($idPendenza);
+    }
+
+    // Email notice: preferisci quella del soggetto pagatore; fallback a profilo loggato.
+    $emailNotice = '';
+    if (isset($detail['soggettoPagatore']) && is_array($detail['soggettoPagatore'])) {
+        $emailNotice = trim((string)($detail['soggettoPagatore']['email'] ?? ''));
+    }
+    if ($emailNotice === '' && is_array($loggedUser)) {
+        $emailNotice = trim((string)($loggedUser['email'] ?? ''));
+    }
+
+    try {
+        $notice = new \PagoPA\CheckoutEc\Model\PaymentNotice();
+        $notice->setNoticeNumber($numeroAvviso);
+        $notice->setFiscalCode($idDominio);
+        $notice->setAmount($amountCents);
+        $notice->setCompanyName($companyName);
+        if ($description !== '') {
+            $notice->setDescription($description);
+        }
+
+        $returnUrls = new \PagoPA\CheckoutEc\Model\CartRequestReturnUrls();
+        $returnUrls->setReturnOkUrl($okUrl);
+        $returnUrls->setReturnCancelUrl($cancelUrl);
+        $returnUrls->setReturnErrorUrl($errorUrl);
+
+        $cart = new \PagoPA\CheckoutEc\Model\CartRequest();
+        if ($emailNotice !== '' && filter_var($emailNotice, FILTER_VALIDATE_EMAIL) !== false) {
+            $cart->setEmailNotice($emailNotice);
+        }
+        $cart->setPaymentNotices([$notice]);
+        $cart->setReturnUrls($returnUrls);
+
+        [, $statusCode, $headers] = $api->postCartsWithHttpInfo($cart);
+
+        $location = '';
+        if (is_array($headers)) {
+            foreach ($headers as $name => $values) {
+                if (strtolower((string)$name) !== 'location') {
+                    continue;
+                }
+                if (is_array($values) && isset($values[0]) && is_string($values[0])) {
+                    $location = trim($values[0]);
+                }
+                break;
+            }
+        }
+
+        if ($location === '' || $statusCode < 300 || $statusCode >= 400) {
+            Logger::getInstance()->warning('Checkout pagoPA: risposta inattesa da POST /carts (avviso)', [
+                'idPendenza' => $idPendenza,
+                'status' => $statusCode,
+                'has_location' => $location !== '',
+            ]);
+            http_response_code(503);
+            echo 'Al momento non riusciamo ad avviare il pagamento. Riprova più tardi.';
+            return;
+        }
+
+        header('Location: ' . $location, true, 302);
+        exit;
+    } catch (\Throwable $e) {
+        Logger::getInstance()->warning('Errore durante la creazione del carrello pagoPA Checkout (avviso)', [
+            'idPendenza' => $idPendenza,
+            'error' => Logger::sanitizeErrorForDisplay($e->getMessage()),
+        ]);
+        http_response_code(503);
+        echo 'Al momento non riusciamo ad avviare il pagamento. Riprova più tardi.';
+        return;
+    }
 }
 
 if ($method === 'GET' && preg_match('#^/pendenze/([^/]+)/checkout$#', $normalizedPath, $match)) {
