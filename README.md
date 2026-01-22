@@ -157,7 +157,7 @@ Nota su `SPID_PROXY_CLIENT_SECRET`:
 
 ### `.env.metadata` (dati che determinano i metadata)
 
-Contiene i campi organizzazione/policy/attributi che determinano i metadata SPID/CIE.
+Contiene i campi organizzazione/attributi (e in generale ciò che vuoi “freezare” per attestazione) che determinano i metadata SPID/CIE.
 Modificare questi valori cambia il metadata.
 
 ---
@@ -337,6 +337,14 @@ docker compose --profile spid-proxy-metadata run --rm spid-proxy-metadata
 
 3) Dopo attestazione, fai freeze del current:
 - copia i file attestati in `spid-proxy/metadata-current/*-metadata-current.xml`
+
+Comando rapido (da `GovPay-Interaction-Layer/`):
+
+- Windows (PowerShell):
+   - `Copy-Item -Force .\spid-proxy\metadata\spid-metadata-next.xml .\spid-proxy\metadata-current\spid-metadata-current.xml; if (Test-Path .\spid-proxy\metadata\cie-metadata-next.xml) { Copy-Item -Force .\spid-proxy\metadata\cie-metadata-next.xml .\spid-proxy\metadata-current\cie-metadata-current.xml }`
+- Linux/macOS (bash):
+   - `cp -f spid-proxy/metadata/spid-metadata-next.xml spid-proxy/metadata-current/spid-metadata-current.xml; [ -f spid-proxy/metadata/cie-metadata-next.xml ] && cp -f spid-proxy/metadata/cie-metadata-next.xml spid-proxy/metadata-current/cie-metadata-current.xml`
+
 - ricrea `spid-proxy`
 
 4) Al rinnovo:
