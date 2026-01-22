@@ -54,6 +54,17 @@ snapshot_one() {
     return 1
   fi
 
+  # Normalizza gli URL Location (ACS/SLO) sul base URL pubblico.
+  # Nota: il generator interroga Apache via https://127.0.0.1/... dentro al container;
+  # l'output di SimpleSAML può quindi contenere host locali (127.0.0.1/localhost).
+  # Se poi promuoviamo questi file a CURRENT, vogliamo URL pubblici coerenti.
+  if [ -n "${SPID_PROXY_PUBLIC_BASE_URL:-}" ]; then
+    _pub_base="${SPID_PROXY_PUBLIC_BASE_URL%/}"
+    # Sostituisce solo la parte scheme+host[:port] nelle Location=...
+    # Esempio: Location="https://127.0.0.1/myservice/..." -> Location="https://login.ente.it/myservice/..."
+    sed -i -E "s#Location=\"https?://[^/]+#Location=\"${_pub_base}#g" "${out_file}" || true
+  fi
+
   # Fix entityID per CIE: alcune versioni di spid-cie-php possono produrre il metadata CIE
   # con lo stesso entityID dello SPID (es. .../spid-metadata.xml). Per noi l'entityID deve
   # essere coerente con l'endpoint statico pubblico /cie-metadata.xml.
