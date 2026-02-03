@@ -13,7 +13,8 @@ services:
       - |
         apk add --no-cache php php-simplexml curl && \
         /scripts/ensure-sp-metadata.sh || exit 0
-    profiles: [""]
+    profiles:
+      - iam-proxy
   
   govpay-interaction-backoffice:
     build:
@@ -65,7 +66,6 @@ services:
       - .env
     depends_on:
       - db
-      - init-sp-metadata
     entrypoint: ["/usr/local/bin/docker-setup.sh"]
     restart: unless-stopped
     networks:
@@ -79,8 +79,12 @@ services:
     container_name: iam-proxy-italia
     volumes:
       - ./iam-proxy/iam-proxy-italia-project/metadata/sp:/satosa_proxy/metadata/sp:ro
+      # Override della configurazione target_based_routing con il mapping del frontoffice SP
+      - ./iam-proxy/target_based_routing_override.yaml:/satosa_proxy/conf/microservices/target_based_routing.yaml:ro
     profiles:
       - iam-proxy
+    depends_on:
+      - init-sp-metadata
     environment:
       # Config minima per esecuzione container (valori dettagliati/secret in .env)
       - SATOSA_BY_DOCKER=1
@@ -137,9 +141,6 @@ services:
       - MONGODB_DB=${MONGODB_DB:-satosa}
     env_file:
       - .env
-    volumes:
-      # Override della configurazione target_based_routing con il mapping del frontoffice SP
-      - ./iam-proxy/target_based_routing_override.yaml:/satosa_proxy/conf/microservices/target_based_routing.yaml:ro
     restart: on-failure:3
     healthcheck:
       test: ["CMD", "test", "-f", "/satosa_proxy/entrypoint.sh"]
