@@ -47,7 +47,8 @@ fi
 # Execute the original entrypoint
 exec /satosa_proxy/entrypoint.sh
 EOF
-chmod +x /satosa_proxy/docker-entrypoint.sh
+
+RUN chmod +x /satosa_proxy/docker-entrypoint.sh
 
 # Set the entrypoint to start SATOSA
 ENTRYPOINT ["/satosa_proxy/docker-entrypoint.sh"]
