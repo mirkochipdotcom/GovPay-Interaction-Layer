@@ -243,7 +243,16 @@ Nota importante: **questa parte è pensata per avvio/validazione dello stack**. 
 
 ### Avvio rapido (locale)
 
-1) Inizializza i file di istanza in `.local/iam-proxy-italia-project/` (scarica upstream e copia i file):
+1) **Primo avvio**: La directory di istanza viene generata automaticamente al primo `docker compose up -d`:
+
+- Windows PowerShell:
+   ```powershell
+   docker compose --profile iam-proxy up -d --build
+   ```
+   
+   Al primo avvio, lo script di init (`scripts/iam-proxy-init.sh`) scarica l'archivio da GitHub, estrae in `.local/iam-proxy-italia-project/` e avvia SATOSA.
+
+2) Oppure, se preferisci inizializzare manualmente (per debug):
 
 - Windows (PowerShell):
    - task VS Code: `init-iam-proxy-italia-force`
