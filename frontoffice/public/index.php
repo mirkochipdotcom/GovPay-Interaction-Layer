@@ -9,6 +9,9 @@ use GovPay\Pagamenti\Api\PendenzeApi as PagamentiPendenzeApi;
 use GovPay\Pagamenti\Configuration as PagamentiConfiguration;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\ClientException;
+use OneLogin\Saml2\Auth as SamlAuth;
+use OneLogin\Saml2\Error as SamlError;
+use OneLogin\Saml2\Metadata;
 use Twig\Environment;
 use Twig\Loader\FilesystemLoader;
 
@@ -28,7 +31,9 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
         : [];
     $profiles = array_values(array_unique($profiles));
 
-    $spidEnabledByProfile = in_array('spid-proxy', $profiles, true) || in_array('external', $profiles, true);
+    $spidEnabledByProfile = in_array('spid-proxy', $profiles, true)
+        || in_array('external', $profiles, true)
+        || in_array('iam-proxy', $profiles, true);
     if (in_array('none', $profiles, true) || $profiles === []) {
         $spidEnabledByProfile = false;
     }
@@ -274,13 +279,16 @@ if (!function_exists('frontoffice_compose_profiles')) {
 
 if (!function_exists('frontoffice_spid_mode')) {
     /**
-     * @return 'none'|'external'|'internal'
+     * @return 'none'|'external'|'internal'|'iam-proxy'
      */
     function frontoffice_spid_mode(): string
     {
         $profiles = frontoffice_compose_profiles();
         if (in_array('none', $profiles, true)) {
             return 'none';
+        }
+        if (in_array('iam-proxy', $profiles, true)) {
+            return 'iam-proxy';
         }
         if (in_array('spid-proxy', $profiles, true)) {
             return 'internal';
@@ -299,11 +307,240 @@ if (!function_exists('frontoffice_spid_enabled')) {
     }
 }
 
+if (!function_exists('frontoffice_auth_proxy_type')) {
+    /**
+     * @return 'php-proxy'|'iam-proxy-saml2'
+     */
+    function frontoffice_auth_proxy_type(): string
+    {
+        $raw = frontoffice_env_value('FRONTOFFICE_AUTH_PROXY_TYPE', 'php-proxy');
+        $raw = strtolower(trim($raw));
+        if (in_array($raw, ['iam-proxy-saml2', 'satosa', 'satosa-saml2', 'iam-proxy'], true)) {
+            return 'iam-proxy-saml2';
+        }
+        return 'php-proxy';
+    }
+}
+
+if (!function_exists('frontoffice_http_get_raw')) {
+    function frontoffice_http_get_raw(string $url, bool $insecureSsl = false): ?string
+    {
+        if (function_exists('curl_init')) {
+            $ch = curl_init($url);
+            if ($ch === false) {
+                Logger::getInstance()->warning('CURL init failed', ['url' => $url]);
+                return null;
+            }
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+            if ($insecureSsl) {
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+            }
+
+            $body = curl_exec($ch);
+            $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $err = curl_error($ch);
+            curl_close($ch);
+            
+            Logger::getInstance()->info('HTTP GET request', ['url' => $url, 'status' => $status, 'error' => $err, 'insecureSSL' => $insecureSsl]);
+            
+            if (!is_string($body) || $body === '' || $status < 200 || $status >= 300) {
+                if ($err !== '') {
+                    Logger::getInstance()->warning('HTTP GET (raw) fallita', ['url' => $url, 'error' => $err, 'status' => $status]);
+                }
+                return null;
+            }
+            return $body;
+        }
+
+        $opts = [
+            'http' => [
+                'method' => 'GET',
+                'timeout' => 20,
+                'ignore_errors' => true,
+            ],
+        ];
+        if (stripos($url, 'https://') === 0) {
+            $opts['ssl' ] = [
+                'verify_peer' => !$insecureSsl,
+                'verify_peer_name' => !$insecureSsl,
+            ];
+        }
+        $ctx = stream_context_create($opts);
+        $body = @file_get_contents($url, false, $ctx);
+        return is_string($body) && $body !== '' ? $body : null;
+    }
+}
+
+if (!function_exists('frontoffice_satosa_idp_metadata')) {
+    /**
+     * Estrae dai metadata SATOSA IdP: entityID, SSO Redirect URL, certificato X509.
+     */
+    function frontoffice_satosa_idp_metadata(string $metadataUrl, bool $insecureSsl = false): ?array
+    {
+        $metadataUrl = trim($metadataUrl);
+        if ($metadataUrl === '') {
+            return null;
+        }
+
+        $cache = $_SESSION['satosa_idp_metadata_cache'] ?? null;
+        if (is_array($cache)
+            && isset($cache['ts'], $cache['url'], $cache['data'])
+            && is_int($cache['ts'])
+            && $cache['url'] === $metadataUrl
+            && (time() - $cache['ts']) < 600
+            && is_array($cache['data'])
+        ) {
+            return $cache['data'];
+        }
+
+        $xml = frontoffice_http_get_raw($metadataUrl, $insecureSsl);
+        if (!is_string($xml) || $xml === '') {
+            return null;
+        }
+
+        $doc = new \DOMDocument();
+        $prev = libxml_use_internal_errors(true);
+        $loaded = $doc->loadXML($xml);
+        libxml_clear_errors();
+        libxml_use_internal_errors($prev);
+        if (!$loaded) {
+            return null;
+        }
+
+        $xp = new \DOMXPath($doc);
+        $xp->registerNamespace('md', 'urn:oasis:names:tc:SAML:2.0:metadata');
+        $xp->registerNamespace('ds', 'http://www.w3.org/2000/09/xmldsig#');
+
+        $entityId = '';
+        $entityNode = $xp->query('/md:EntityDescriptor')->item(0);
+        if ($entityNode instanceof \DOMElement) {
+            $entityId = (string)$entityNode->getAttribute('entityID');
+        }
+
+        $ssoUrl = '';
+        $ssoNodes = $xp->query('//md:IDPSSODescriptor/md:SingleSignOnService[@Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"]');
+        if ($ssoNodes && $ssoNodes->length > 0) {
+            $fallback = '';
+            foreach ($ssoNodes as $node) {
+                if (!$node instanceof \DOMElement) {
+                    continue;
+                }
+                $location = (string)$node->getAttribute('Location');
+                if ($fallback === '') {
+                    $fallback = $location;
+                }
+                if ($location !== '' && stripos($location, '/spidSaml2/') !== false) {
+                    $ssoUrl = $location;
+                    break;
+                }
+            }
+            if ($ssoUrl === '') {
+                $ssoUrl = $fallback;
+            }
+        }
+
+        $cert = '';
+        $certNodes = $xp->query('//md:IDPSSODescriptor/md:KeyDescriptor[@use="signing"]//ds:X509Certificate');
+        if ($certNodes && $certNodes->length > 0) {
+            $cert = trim((string)$certNodes->item(0)->textContent);
+        } else {
+            $certNodes = $xp->query('//md:IDPSSODescriptor//ds:X509Certificate');
+            if ($certNodes && $certNodes->length > 0) {
+                $cert = trim((string)$certNodes->item(0)->textContent);
+            }
+        }
+        $cert = preg_replace('/\s+/', '', $cert);
+
+        if ($entityId === '' || $ssoUrl === '') {
+            return null;
+        }
+
+        $data = [
+            'entityId' => $entityId,
+            'ssoUrl' => $ssoUrl,
+            'x509cert' => $cert,
+        ];
+        $_SESSION['satosa_idp_metadata_cache'] = ['ts' => time(), 'url' => $metadataUrl, 'data' => $data];
+        return $data;
+    }
+}
+
+if (!function_exists('frontoffice_satosa_saml_auth')) {
+    function frontoffice_satosa_saml_auth(string $frontofficeBaseUrl, string $callbackPath, string $idpMetadataUrl, bool $debug = false): ?SamlAuth
+    {
+        if ($frontofficeBaseUrl === '') {
+            return null;
+        }
+        $callbackPath = $callbackPath !== '' ? $callbackPath : '/spid/callback';
+        if ($callbackPath[0] !== '/') {
+            $callbackPath = '/' . ltrim($callbackPath, '/');
+        }
+
+        $insecureSsl = frontoffice_spid_proxy_insecure_ssl($idpMetadataUrl);
+        $idp = frontoffice_satosa_idp_metadata($idpMetadataUrl, $insecureSsl);
+        if (!is_array($idp)) {
+            return null;
+        }
+
+        $spEntityId = frontoffice_env_value('FRONTOFFICE_SAML_SP_ENTITY_ID', '');
+        if ($spEntityId === '') {
+            $spEntityId = rtrim($frontofficeBaseUrl, '/') . '/saml/sp';
+        }
+        $acsUrl = rtrim($frontofficeBaseUrl, '/') . $callbackPath;
+
+        $wantAssertionsSigned = trim(frontoffice_env_value('FRONTOFFICE_SAML_WANT_ASSERTIONS_SIGNED', '1')) === '1';
+        $wantMessagesSigned = trim(frontoffice_env_value('FRONTOFFICE_SAML_WANT_MESSAGES_SIGNED', '1')) === '1';
+
+        $settings = [
+            'strict' => true,
+            'debug' => $debug,
+            'sp' => [
+                'entityId' => $spEntityId,
+                'assertionConsumerService' => [
+                    'url' => $acsUrl,
+                    'binding' => 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST',
+                ],
+                // Per iniziare, non firmiamo le AuthnRequest (SATOSA può essere configurato per accettarle).
+                // Se vuoi firmare, imposta FRONTOFFICE_SAML_SP_X509CERT / FRONTOFFICE_SAML_SP_PRIVATEKEY (vedi README).
+                'x509cert' => (string)frontoffice_env_value('FRONTOFFICE_SAML_SP_X509CERT', ''),
+                'privateKey' => (string)frontoffice_env_value('FRONTOFFICE_SAML_SP_PRIVATEKEY', ''),
+            ],
+            'idp' => [
+                'entityId' => (string)($idp['entityId'] ?? ''),
+                'singleSignOnService' => [
+                    'url' => (string)($idp['ssoUrl'] ?? ''),
+                    'binding' => 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect',
+                ],
+                'x509cert' => (string)($idp['x509cert'] ?? ''),
+            ],
+            'security' => [
+                'authnRequestsSigned' => false,
+                'wantAssertionsSigned' => $wantAssertionsSigned,
+                'wantMessagesSigned' => $wantMessagesSigned,
+                'wantNameId' => false,
+                'wantNameIdEncrypted' => false,
+                'signatureAlgorithm' => 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha256',
+            ],
+        ];
+
+        try {
+            return new SamlAuth($settings);
+        } catch (\Throwable $e) {
+            Logger::getInstance()->warning('Impossibile inizializzare SAML Auth', ['error' => $e->getMessage()]);
+            return null;
+        }
+    }
+}
+
 if (!function_exists('frontoffice_spid_proxy_insecure_ssl')) {
     function frontoffice_spid_proxy_insecure_ssl(string $proxyBaseUrl): bool
     {
         $host = (string)(parse_url($proxyBaseUrl, PHP_URL_HOST) ?: '');
-        return in_array($host, ['localhost', '127.0.0.1', '::1'], true);
+        return in_array($host, ['localhost', '127.0.0.1', '::1', 'satosa-nginx'], true);
     }
 }
 
@@ -1749,6 +1986,80 @@ $routes = [
             ];
         }
 
+        if (frontoffice_auth_proxy_type() === 'iam-proxy-saml2') {
+            $frontofficeBaseUrl = rtrim($env('FRONTOFFICE_PUBLIC_BASE_URL', ''), '/');
+            $envValue = $env('FRONTOFFICE_PUBLIC_BASE_URL', '');
+            $httpHost = (string)($_SERVER['HTTP_HOST'] ?? '');
+            
+            if ($frontofficeBaseUrl === '') {
+                $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+                $host = (string)($_SERVER['HTTP_HOST'] ?? '');
+                if ($host !== '') {
+                    $frontofficeBaseUrl = $scheme . '://' . $host;
+                }
+            }
+            
+            // Debug: Add to session for inspection
+            $_SESSION['debug_spid_url_config'] = [
+                'FRONTOFFICE_PUBLIC_BASE_URL_env' => $envValue,
+                'HTTP_HOST' => $httpHost,
+                'frontofficeBaseUrl_final' => $frontofficeBaseUrl,
+                'timestamp' => date('Y-m-d H:i:s'),
+            ];
+            error_log("DEBUG SPID LOGIN: FRONTOFFICE_PUBLIC_BASE_URL_env=$envValue, HTTP_HOST=$httpHost, final=$frontofficeBaseUrl");
+
+            $spidCallbackPath = $env('FRONTOFFICE_SPID_CALLBACK_PATH', '/spid/callback');
+            if ($spidCallbackPath === '' || $spidCallbackPath[0] !== '/') {
+                $spidCallbackPath = '/' . ltrim($spidCallbackPath, '/');
+            }
+
+            $proxyBase = rtrim($env('IAM_PROXY_PUBLIC_BASE_URL', ''), '/');
+            if ($proxyBase === '') {
+                $proxyBase = rtrim($env('SPID_PROXY_PUBLIC_BASE_URL', ''), '/');
+            }
+            // Preferisci l'URL interno (per il container frontoffice -> satosa-nginx:443)
+            // Fallback all'URL esterno (per il browser -> satosa-nginx:9445)
+            $metadataUrl = $env('IAM_PROXY_SAML2_IDP_METADATA_URL_INTERNAL', '');
+            if ($metadataUrl === '') {
+                $metadataUrl = $env('IAM_PROXY_SAML2_IDP_METADATA_URL', '');
+            }
+            if ($metadataUrl === '' && $proxyBase !== '') {
+                $metadataUrl = $proxyBase . '/Saml2IDP/metadata';
+            }
+
+            if ($frontofficeBaseUrl === '' || $metadataUrl === '') {
+                http_response_code(503);
+                return [
+                    'template' => 'errors/503.html.twig',
+                    'context' => [
+                        'message' => 'Login IAM Proxy non configurato: imposta IAM_PROXY_PUBLIC_BASE_URL (o SPID_PROXY_PUBLIC_BASE_URL) e verifica IAM_PROXY_SAML2_IDP_METADATA_URL.',
+                    ],
+                ];
+            }
+
+            $returnTo = (string)($_GET['return_to'] ?? '/');
+            if ($returnTo === '' || $returnTo[0] !== '/') {
+                $returnTo = '/';
+            }
+            $_SESSION['spid_return_to'] = $returnTo;
+
+            $debug = trim((string)$env('IAM_PROXY_DEBUG', '0')) === '1' || strtolower(trim((string)$env('IAM_PROXY_DEBUG', 'false'))) === 'true';
+            $auth = frontoffice_satosa_saml_auth($frontofficeBaseUrl, $spidCallbackPath, $metadataUrl, $debug);
+            if (!$auth) {
+                http_response_code(503);
+                return [
+                    'template' => 'errors/503.html.twig',
+                    'context' => [
+                        'message' => 'Login IAM Proxy non disponibile: impossibile inizializzare SAML. Verifica metadata e dipendenze PHP-SAML.',
+                    ],
+                ];
+            }
+
+            // RelayState: usiamo un path interno validato.
+            $auth->login($returnTo);
+            exit;
+        }
+
         $proxyBase = rtrim($env('SPID_PROXY_PUBLIC_BASE_URL', ''), '/');
         $clientId = $env('SPID_PROXY_CLIENT_ID', '');
 
@@ -1838,6 +2149,9 @@ $routes = [
         exit;
     },
     '/spid/callback' => static function () use ($method, $env): array {
+        // DEBUG: Write entry point
+        file_put_contents('/tmp/spid_callback.log', date('Y-m-d H:i:s') . " - ENTRY - frontoffice_spid_enabled=" . (frontoffice_spid_enabled() ? 'true' : 'false') . ", auth_proxy_type=" . frontoffice_auth_proxy_type() . "\n", FILE_APPEND);
+        
         if (!frontoffice_spid_enabled()) {
             http_response_code(404);
             return [
@@ -1856,6 +2170,133 @@ $routes = [
                     'requested_path' => '/spid/callback',
                 ],
             ];
+        }
+
+        if (frontoffice_auth_proxy_type() === 'iam-proxy-saml2') {
+            file_put_contents('/tmp/spid_callback.log', date('Y-m-d H:i:s') . " - ENTERING iam-proxy-saml2 block\n", FILE_APPEND);
+            // Get debug info from session (set in /login handler)
+            $debugFromSession = $_SESSION['debug_spid_url_config'] ?? [];
+            $debugFromSessionStr = $debugFromSession ? json_encode($debugFromSession) : 'no debug data';
+            
+            // Write to a temporary debug file
+            $debugFile = '/tmp/spid_callback_debug_' . date('Ymdhis') . '.txt';
+            file_put_contents($debugFile, "=== SPID CALLBACK DEBUG ===\nTimestamp: " . date('Y-m-d H:i:s') . "\nSession debug: " . $debugFromSessionStr . "\n");
+            
+            $frontofficeBaseUrl = rtrim($env('FRONTOFFICE_PUBLIC_BASE_URL', ''), '/');
+            if ($frontofficeBaseUrl === '') {
+                $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+                $host = (string)($_SERVER['HTTP_HOST'] ?? '');
+                if ($host !== '') {
+                    $frontofficeBaseUrl = $scheme . '://' . $host;
+                }
+            }
+
+            $spidCallbackPath = $env('FRONTOFFICE_SPID_CALLBACK_PATH', '/spid/callback');
+            if ($spidCallbackPath === '' || $spidCallbackPath[0] !== '/') {
+                $spidCallbackPath = '/' . ltrim($spidCallbackPath, '/');
+            }
+
+            $proxyBase = rtrim($env('IAM_PROXY_PUBLIC_BASE_URL', ''), '/');
+            if ($proxyBase === '') {
+                $proxyBase = rtrim($env('SPID_PROXY_PUBLIC_BASE_URL', ''), '/');
+            }
+            // Preferisci l'URL interno (per il container frontoffice -> satosa-nginx:443)
+            // Fallback all'URL esterno (per il browser -> satosa-nginx:9445)
+            $metadataUrl = $env('IAM_PROXY_SAML2_IDP_METADATA_URL_INTERNAL', '');
+            if ($metadataUrl === '') {
+                $metadataUrl = $env('IAM_PROXY_SAML2_IDP_METADATA_URL', '');
+            }
+            if ($metadataUrl === '' && $proxyBase !== '') {
+                $metadataUrl = $proxyBase . '/Saml2IDP/metadata';
+            }
+
+            $debug = trim((string)$env('IAM_PROXY_DEBUG', '0')) === '1' || strtolower(trim((string)$env('IAM_PROXY_DEBUG', 'false'))) === 'true';
+            $auth = frontoffice_satosa_saml_auth($frontofficeBaseUrl, $spidCallbackPath, $metadataUrl, $debug);
+            if (!$auth) {
+                error_log("DEBUG SPID CALLBACK: auth object is null, session_debug=$debugFromSessionStr, frontofficeBaseUrl=$frontofficeBaseUrl, metadataUrl=$metadataUrl");
+                http_response_code(503);
+                return [
+                    'template' => 'errors/503.html.twig',
+                    'context' => [
+                        'message' => 'Callback IAM Proxy non valida: SAML non inizializzabile (metadata o configurazione mancante).',
+                        'debug_session_info' => $debugFromSessionStr,
+                    ],
+                ];
+            }
+
+            error_log("DEBUG SPID CALLBACK: auth object created, frontofficeBaseUrl=$frontofficeBaseUrl, spidCallbackPath=$spidCallbackPath, metadataUrl=$metadataUrl, session_debug=$debugFromSessionStr");
+
+            try {
+                $auth->processResponse();
+            } catch (SamlError $e) {
+                error_log("DEBUG SPID CALLBACK: SamlError in processResponse: " . $e->getMessage());
+                Logger::getInstance()->warning('SAML error', ['error' => $e->getMessage()]);
+            } catch (\Throwable $e) {
+                error_log("DEBUG SPID CALLBACK: Exception in processResponse: " . $e->getMessage());
+                Logger::getInstance()->warning('Errore processResponse SAML', ['error' => $e->getMessage()]);
+            }
+
+            $errors = $auth->getErrors();
+            error_log("DEBUG SPID CALLBACK: errors=" . implode(', ', $errors) . ", isAuthenticated=" . ($auth->isAuthenticated() ? 'true' : 'false'));
+            if (!empty($errors) || !$auth->isAuthenticated()) {
+                $reason = $auth->getLastErrorReason();
+                error_log("DEBUG SPID CALLBACK: getLastErrorReason=$reason");
+                http_response_code(503);
+                return [
+                    'template' => 'errors/503.html.twig',
+                    'context' => [
+                        'message' => 'Login IAM Proxy fallito: ' . ($reason ?: 'risposta SAML non valida.') ,
+                        'debug_spid_errors' => implode(', ', $errors),
+                        'debug_spid_reason' => $reason,
+                        'debug_session_info' => $debugFromSessionStr,
+                    ],
+                ];
+            }
+
+            $attrs = $auth->getAttributes();
+            $pick = static function (array $attrs, array $keys): string {
+                foreach ($keys as $k) {
+                    if (!array_key_exists($k, $attrs)) {
+                        continue;
+                    }
+                    $v = $attrs[$k];
+                    if (is_array($v) && isset($v[0]) && is_string($v[0])) {
+                        $t = trim($v[0]);
+                        if ($t !== '') {
+                            return $t;
+                        }
+                    }
+                    if (is_string($v)) {
+                        $t = trim($v);
+                        if ($t !== '') {
+                            return $t;
+                        }
+                    }
+                }
+                return '';
+            };
+
+            $user = [
+                'first_name' => $pick($attrs, ['name', 'givenName', 'given_name', 'nome', 'urn:oid:2.5.4.42']),
+                'last_name' => $pick($attrs, ['familyName', 'sn', 'surname', 'cognome', 'urn:oid:2.5.4.4']),
+                'email' => $pick($attrs, ['email', 'mail', 'emailAddress', 'urn:oid:0.9.2342.19200300.100.1.3']),
+                'fiscal_number' => $pick($attrs, ['fiscalNumber', 'fiscal_number', 'codiceFiscale', 'urn:oid:2.5.4.97', 'urn:oid:1.3.6.1.4.1.4710.2.1.1']),
+                'spid_code' => $pick($attrs, ['spidCode', 'spid_code']),
+                'provider_id' => 'IAM_PROXY_ITALIA',
+                'provider_name' => 'IAM Proxy Italia',
+                'response_id' => '',
+            ];
+
+            $_SESSION['frontoffice_user'] = $user;
+
+            $returnTo = (string)($_POST['RelayState'] ?? ($_SESSION['spid_return_to'] ?? '/'));
+            unset($_SESSION['spid_return_to']);
+            if ($returnTo === '' || $returnTo[0] !== '/') {
+                $returnTo = '/';
+            }
+
+            header('Location: ' . $returnTo, true, 302);
+            exit;
         }
 
         $state = (string)($_POST['state'] ?? '');
@@ -1930,6 +2371,90 @@ $routes = [
         header('Location: ' . $returnTo, true, 302);
         exit;
     },
+    '/saml/sp' => static function () use ($env): array {
+        if (!frontoffice_spid_enabled()) {
+            http_response_code(404);
+            return [
+                'template' => 'errors/404.html.twig',
+                'context' => [
+                    'requested_path' => '/saml/sp',
+                ],
+            ];
+        }
+
+        $frontofficeBaseUrl = rtrim($env('FRONTOFFICE_PUBLIC_BASE_URL', ''), '/');
+        if ($frontofficeBaseUrl === '') {
+            $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+            $host = (string)($_SERVER['HTTP_HOST'] ?? '');
+            if ($host !== '') {
+                $frontofficeBaseUrl = $scheme . '://' . $host;
+            }
+        }
+
+        $spidCallbackPath = $env('FRONTOFFICE_SPID_CALLBACK_PATH', '/spid/callback');
+        if ($spidCallbackPath === '' || $spidCallbackPath[0] !== '/') {
+            $spidCallbackPath = '/' . ltrim($spidCallbackPath, '/');
+        }
+
+        $proxyBase = rtrim($env('IAM_PROXY_PUBLIC_BASE_URL', ''), '/');
+        if ($proxyBase === '') {
+            $proxyBase = rtrim($env('SPID_PROXY_PUBLIC_BASE_URL', ''), '/');
+        }
+        $metadataUrl = $env('IAM_PROXY_SAML2_IDP_METADATA_URL_INTERNAL', '');
+        if ($metadataUrl === '') {
+            $metadataUrl = $env('IAM_PROXY_SAML2_IDP_METADATA_URL', '');
+        }
+        if ($metadataUrl === '' && $proxyBase !== '') {
+            $metadataUrl = $proxyBase . '/Saml2IDP/metadata';
+        }
+
+        $debug = trim((string)$env('IAM_PROXY_DEBUG', '0')) === '1' || strtolower(trim((string)$env('IAM_PROXY_DEBUG', 'false'))) === 'true';
+        $auth = frontoffice_satosa_saml_auth($frontofficeBaseUrl, $spidCallbackPath, $metadataUrl, $debug);
+        if (!$auth) {
+            http_response_code(500);
+            return [
+                'template' => 'errors/503.html.twig',
+                'context' => [
+                    'message' => 'SAML SP metadata non disponibile',
+                ],
+            ];
+        }
+
+        // Genera i metadati SP usando la libreria OneLogin/php-saml
+        // Usa la classe Metadata per costruire il metadata XML dal file di configurazione SAML
+        try {
+            $settings = $auth->get_settings();
+            $spMetadata = Metadata::builder(
+                $settings->getSPData(),
+                $settings->getSecurityData()
+            );
+            
+            if ($spMetadata === '' || $spMetadata === null) {
+                http_response_code(500);
+                return [
+                    'template' => 'errors/503.html.twig',
+                    'context' => [
+                        'message' => 'Impossibile generare SAML SP metadata',
+                    ],
+                ];
+            }
+        } catch (\Throwable $e) {
+            Logger::getInstance()->warning('Error generating SP metadata', ['error' => $e->getMessage()]);
+            http_response_code(500);
+            return [
+                'template' => 'errors/503.html.twig',
+                'context' => [
+                    'message' => 'Errore nella generazione del metadata SP: ' . $e->getMessage(),
+                ],
+            ];
+        }
+
+        // Ritorna il metadata come XML
+        header('Content-Type: application/xml; charset=utf-8', true, 200);
+        return [
+            'raw_output' => $spMetadata,
+        ];
+    },
     '/profile' => static function (): array {
         if (!frontoffice_spid_enabled()) {
             http_response_code(404);
@@ -1966,7 +2491,7 @@ $routes = [
 
         unset($_SESSION['frontoffice_user']);
 
-        // Prova logout remoto via SPID proxy (IdP logout). Se non configurato, fallback a logout locale.
+        // Prova logout remoto solo per il proxy PHP; per SATOSA facciamo logout locale (SLO opzionale e dipende dalla config).
         $proxyBase = rtrim($env('SPID_PROXY_PUBLIC_BASE_URL', ''), '/');
         $clientId = trim($env('SPID_PROXY_CLIENT_ID', ''));
 
@@ -1988,7 +2513,7 @@ $routes = [
             session_destroy();
         }
 
-        if ($proxyBase !== '' && $clientId !== '' && $redirectUri !== '') {
+        if (frontoffice_auth_proxy_type() === 'php-proxy' && $proxyBase !== '' && $clientId !== '' && $redirectUri !== '') {
             try {
                 $state = bin2hex(random_bytes(16));
             } catch (\Throwable $e) {
@@ -3136,4 +3661,9 @@ $context = array_merge(
     $route['context'] ?? []
 );
 
-echo $twig->render($route['template'], $context);
+// Se il route ha raw_output, stampalo direttamente senza template
+if (!empty($route['raw_output'])) {
+    echo $route['raw_output'];
+} else {
+    echo $twig->render($route['template'], $context);
+}

@@ -44,3 +44,10 @@ img/stemma_ente.png
 img/favicon.ico
 img/favicon.png
 
+# iam-proxy-italia (SATOSA): directory montate e popolate via script (non versionare)
+/iam-proxy/iam-proxy-italia-project/*
+!/iam-proxy/iam-proxy-italia-project/.gitkeep
+
+/iam-proxy/nginx/html/static/*
+!/iam-proxy/nginx/html/static/.gitkeep
+
