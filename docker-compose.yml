@@ -55,7 +55,6 @@ services:
     container_name: iam-proxy-italia
     profiles:
       - iam-proxy
-    command: /satosa_proxy/entrypoint.sh
     environment:
       # Config minima per esecuzione container (valori dettagliati/secret in .env)
       - SATOSA_BY_DOCKER=1
