@@ -275,6 +275,87 @@ Nota importante: **questa parte è pensata per avvio/validazione dello stack**. 
 - Istanza SATOSA: directory `iam-proxy/iam-proxy-italia-project/` (popolata dallo script; ignorata da git)
 - Static NGINX: directory `iam-proxy/nginx/html/static/` (popolata dallo script; ignorata da git)
 
+### Metadata Service Provider (frontoffice)
+
+SATOSA deve conoscere i metadata del Service Provider (frontoffice) per accettare le richieste di autenticazione.
+I metadata SP sono generati dinamicamente in base all'ambiente e **non sono versionati** nel repository:
+
+- **Directory**: `iam-proxy/metadata-sp/` (ignorata da git)
+- **File**: `frontoffice_sp.xml` e `frontoffice_sp` (senza estensione)
+- **Entity ID**: Dipende da `FRONTOFFICE_PUBLIC_BASE_URL` (es. `https://127.0.0.1:8444/saml/sp` per dev locale)
+- **Assertion Consumer Service**: `{FRONTOFFICE_PUBLIC_BASE_URL}/spid/callback`
+
+#### Generazione dei metadata SP
+
+I metadata SP vengono generati automaticamente al primo avvio se non esistono. Per rigenerarli manualmente:
+
+**Opzione 1: Usando il container frontoffice (raccomandato)**
+
+```bash
+# 1. Genera i metadata usando le variabili d'ambiente del container
+docker compose exec govpay-interaction-frontoffice php -r '
+require_once "/var/www/html/vendor/autoload.php";
+use OneLogin\Saml2\Settings;
+
+$frontofficeBaseUrl = getenv("FRONTOFFICE_PUBLIC_BASE_URL") ?: "https://127.0.0.1:8444";
+$spEntityId = rtrim($frontofficeBaseUrl, "/") . "/saml/sp";
+$acsUrl = rtrim($frontofficeBaseUrl, "/") . "/spid/callback";
+
+$settings = [
+    "strict" => false,
+    "sp" => [
+        "entityId" => $spEntityId,
+        "assertionConsumerService" => ["url" => $acsUrl, "binding" => "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"],
+        "singleLogoutService" => ["url" => rtrim($frontofficeBaseUrl, "/") . "/spid/logout", "binding" => "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"],
+        "NameIDFormat" => "urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
+    ],
+    "idp" => ["entityId" => "http://placeholder", "singleSignOnService" => ["url" => "http://placeholder"], "x509cert" => "placeholder"],
+    "security" => ["authnRequestsSigned" => false, "wantAssertionsSigned" => true, "wantMessagesSigned" => true]
+];
+
+$settingsObj = new Settings($settings);
+echo $settingsObj->getSPMetadata();
+' > iam-proxy/metadata-sp/frontoffice_sp.xml
+
+# 2. Crea anche la versione senza estensione .xml (pysaml2 legge entrambe)
+cp iam-proxy/metadata-sp/frontoffice_sp.xml iam-proxy/metadata-sp/frontoffice_sp
+
+# 3. Riavvia SATOSA per caricare i nuovi metadata
+docker compose --profile iam-proxy restart iam-proxy-italia
+```
+
+**Opzione 2: Modifica manuale del file XML**
+
+Edita direttamente `iam-proxy/metadata-sp/frontoffice_sp.xml`:
+
+```xml
+<?xml version="1.0"?>
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
+                     validUntil="2027-02-03T15:14:13Z"
+                     cacheDuration="PT604800S"
+                     entityID="https://TUO_DOMINIO/saml/sp">
+    <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="true" 
+                        protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+        <md:SingleLogoutService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+                                Location="https://TUO_DOMINIO/spid/logout" />
+        <md:NameIDFormat>urn:oasis:names:tc:SAML:2.0:nameid-format:transient</md:NameIDFormat>
+        <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+                                     Location="https://TUO_DOMINIO/spid/callback"
+                                     index="1" />
+    </md:SPSSODescriptor>
+</md:EntityDescriptor>
+```
+
+Poi:
+1. Copia il file anche come `frontoffice_sp` (senza estensione): `cp iam-proxy/metadata-sp/frontoffice_sp.xml iam-proxy/metadata-sp/frontoffice_sp`
+2. Riavvia `iam-proxy-italia`: `docker compose --profile iam-proxy restart iam-proxy-italia`
+
+#### Note importanti per AgID
+
+- I metadata SP del frontoffice **NON** vanno inviati ad AgID (sono interni a SATOSA)
+- Ad AgID vanno inviati i **metadata IdP** di SATOSA (servizio Saml2IDP)
+- Per i metadata IdP di SATOSA, vedi la sezione "Metadata SPID/CIE (freeze + next)" sotto
+
 ---
 
 ## Metadata SPID/CIE (freeze + next)

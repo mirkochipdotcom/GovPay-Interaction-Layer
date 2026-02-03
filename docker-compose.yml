@@ -78,7 +78,7 @@ services:
     image: govpay-iam-proxy-italia:latest
     container_name: iam-proxy-italia
     volumes:
-      - ./iam-proxy/iam-proxy-italia-project/metadata/sp:/satosa_proxy/metadata/sp:ro
+      - ./iam-proxy/metadata-sp:/satosa_proxy/metadata/sp:ro
       # Override della configurazione target_based_routing con il mapping del frontoffice SP
       - ./iam-proxy/target_based_routing_override.yaml:/satosa_proxy/conf/microservices/target_based_routing.yaml:ro
     profiles:
