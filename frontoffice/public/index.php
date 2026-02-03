@@ -2071,8 +2071,10 @@ $routes = [
                 ];
             }
 
-            // RelayState: usiamo un path interno validato.
-            $auth->login($returnTo);
+            // RelayState: usa disco page per la selezione del provider SPID/CIE
+            $proxyBase = rtrim($env('IAM_PROXY_PUBLIC_BASE_URL', ''), '/');
+            $discoUrl = $proxyBase ? ($proxyBase . '/static/disco.html') : '/static/disco.html';
+            $auth->login($discoUrl);
             exit;
         }
 

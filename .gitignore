@@ -47,6 +47,11 @@ img/favicon.png
 # iam-proxy-italia (SATOSA): directory montate e popolate via script (non versionare)
 /iam-proxy/iam-proxy-italia-project/*
 !/iam-proxy/iam-proxy-italia-project/.gitkeep
+# EXCEPTION: Versioniamo i metadata SP del frontoffice (sono critici per SATOSA)
+!/iam-proxy/iam-proxy-italia-project/metadata/
+!/iam-proxy/iam-proxy-italia-project/metadata/sp/
+!/iam-proxy/iam-proxy-italia-project/metadata/sp/frontoffice_sp.xml
+!/iam-proxy/iam-proxy-italia-project/metadata/sp/frontoffice_sp
 
 # Local directory for runtime data (outside repository)
 .local/
