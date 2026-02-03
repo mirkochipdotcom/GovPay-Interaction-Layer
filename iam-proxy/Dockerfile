@@ -16,5 +16,8 @@ RUN set -euo pipefail && \
 # Verify entrypoint exists
 RUN test -f /satosa_proxy/entrypoint.sh || (echo "ERROR: /satosa_proxy/entrypoint.sh not found after setup" && exit 1)
 
+# Ensure logs directory is writable
+RUN mkdir -p /satosa_proxy/logs && chmod 777 /satosa_proxy/logs
+
 # Set the entrypoint to start SATOSA
 ENTRYPOINT ["/satosa_proxy/entrypoint.sh"]
