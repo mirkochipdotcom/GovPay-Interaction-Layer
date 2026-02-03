@@ -134,10 +134,6 @@ services:
       - ./iam-proxy/nginx/html:/usr/share/nginx/html:ro
       # Cert per TLS (riuso di ssl/ locale)
       - ./ssl:/etc/nginx/certs:ro
-      # Override del file spid-idps.js con valori configurati esternamente
-      - ./iam-proxy/spid-idps_override.js:/usr/share/nginx/html/static/spid/spid-idps.js:ro
-      # Override del file ita.min.js con valori configurati esternamente (SPID Test entityID)
-      - ./iam-proxy/ita_override.min.js:/usr/share/nginx/html/static/js/ita.min.js:ro
     restart: unless-stopped
   db:
     image: mariadb:11
