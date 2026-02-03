@@ -110,6 +110,12 @@ services:
       - SATOSA_UI_LOGO_URL=${SATOSA_UI_LOGO_URL:-https://govpay.example.org/logo.png}
       - SATOSA_UI_LOGO_WIDTH=${SATOSA_UI_LOGO_WIDTH:-200}
       - SATOSA_UI_LOGO_HEIGHT=${SATOSA_UI_LOGO_HEIGHT:-60}
+      # MongoDB credentials (required by backends/frontends)
+      - MONGODB_USERNAME=${MONGODB_USERNAME:-satosa_user}
+      - MONGODB_PASSWORD=${MONGODB_PASSWORD:-satosa_password}
+      - MONGODB_HOST=${MONGODB_HOST:-localhost}
+      - MONGODB_PORT=${MONGODB_PORT:-27017}
+      - MONGODB_DB=${MONGODB_DB:-satosa}
     env_file:
       - .env
     volumes:
