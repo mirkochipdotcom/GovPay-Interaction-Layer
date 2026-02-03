@@ -21,6 +21,8 @@ services:
       - db
     entrypoint: ["/usr/local/bin/docker-setup.sh"] # Esegue script di setup (composer/autoload + cert) poi CMD apache
     restart: unless-stopped
+    networks:
+      - govpay-network
   govpay-interaction-frontoffice:
     build:
       context: .
@@ -49,6 +51,8 @@ services:
       - db
     entrypoint: ["/usr/local/bin/docker-setup.sh"]
     restart: unless-stopped
+    networks:
+      - govpay-network
 
   iam-proxy-italia:
     image: ghcr.io/italia/iam-proxy-italia:latest
@@ -115,6 +119,8 @@ services:
       # Override della configurazione target_based_routing con il mapping del frontoffice SP
       - ./iam-proxy/target_based_routing_override.yaml:/satosa_proxy/conf/microservices/target_based_routing.yaml:ro
     restart: unless-stopped
+    networks:
+      - govpay-network
 
   iam-proxy-init:
     image: alpine:3.19
@@ -149,6 +155,8 @@ services:
       rm -rf "$$TMP_ROOT"
       echo '[iam-proxy-init] Done'
     restart: "no"
+    networks:
+      - govpay-network
 
   satosa-nginx:
     image: nginx:alpine
@@ -170,6 +178,8 @@ services:
       # Cert per TLS (riuso di ssl/ locale)
       - ./ssl:/etc/nginx/certs
     restart: unless-stopped
+    networks:
+      - govpay-network
   db:
     image: mariadb:11
     container_name: mariadb
@@ -184,6 +194,12 @@ services:
     volumes:
       - db_data:/var/lib/mysql
       - ./docker/db-init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - govpay-network
+
+networks:
+  govpay-network:
+    driver: bridge
 
 volumes:
   db_data:
