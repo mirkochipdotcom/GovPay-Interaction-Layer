@@ -1,4 +1,20 @@
 services:
+  # Servizio di utility che genera i metadata SP al primo avvio
+  init-sp-metadata:
+    image: alpine:latest
+    container_name: govpay-init-sp-metadata
+    volumes:
+      - ./scripts/ensure-sp-metadata.sh:/scripts/ensure-sp-metadata.sh:ro
+      - ./iam-proxy/iam-proxy-italia-project/metadata/sp:/metadata/sp
+    environment:
+      - FRONTOFFICE_PUBLIC_BASE_URL=${FRONTOFFICE_PUBLIC_BASE_URL:-https://127.0.0.1:8444}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        apk add --no-cache php php-simplexml curl && \
+        /scripts/ensure-sp-metadata.sh || exit 0
+    profiles: [""]
+  
   govpay-interaction-backoffice:
     build:
       context: .
@@ -49,6 +65,7 @@ services:
       - .env
     depends_on:
       - db
+      - init-sp-metadata
     entrypoint: ["/usr/local/bin/docker-setup.sh"]
     restart: unless-stopped
     networks:
@@ -60,6 +77,8 @@ services:
       dockerfile: Dockerfile
     image: govpay-iam-proxy-italia:latest
     container_name: iam-proxy-italia
+    volumes:
+      - ./iam-proxy/iam-proxy-italia-project/metadata/sp:/satosa_proxy/metadata/sp:ro
     profiles:
       - iam-proxy
     environment:
