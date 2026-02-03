@@ -55,7 +55,6 @@ services:
     container_name: iam-proxy-italia
     profiles:
       - iam-proxy
-    entrypoint: /docker-entrypoint.sh
     command: /satosa_proxy/entrypoint.sh
     environment:
       # Config minima per esecuzione container (valori dettagliati/secret in .env)
@@ -107,15 +106,50 @@ services:
       - SATOSA_UI_LOGO_HEIGHT=${SATOSA_UI_LOGO_HEIGHT:-60}
     env_file:
       - .env
+    depends_on:
+      iam-proxy-init:
+        condition: service_completed_successfully
     volumes:
-      # Script di inizializzazione - scarica e estrae iam-proxy-italia al primo avvio
-      - ./scripts/iam-proxy-init.sh:/docker-entrypoint.sh:ro
       # La directory deve contenere i file di istanza (proxy_conf.yaml, conf/, pki/, ...)
       # Montata da ./.local/ (fuori dal repository) per evitare di tracciare file generati
       - ./.local/iam-proxy-italia-project:/satosa_proxy
       # Override della configurazione target_based_routing con il mapping del frontoffice SP
       - ./iam-proxy/target_based_routing_override.yaml:/satosa_proxy/conf/microservices/target_based_routing.yaml:ro
     restart: unless-stopped
+
+  iam-proxy-init:
+    image: alpine:3.19
+    container_name: iam-proxy-init
+    profiles:
+      - iam-proxy
+    volumes:
+      - ./.local/iam-proxy-italia-project:/satosa_proxy
+    entrypoint:
+      - /bin/sh
+      - -c
+    command: |
+      set -euo pipefail
+      set -x
+      if [ -f /satosa_proxy/entrypoint.sh ]; then
+        echo '[iam-proxy-init] Instance already initialized';
+        exit 0;
+      fi
+      apk add --no-cache curl unzip bash
+      TMP_ROOT=$(mktemp -d)
+      curl -fsSL "https://github.com/italia/iam-proxy-italia/archive/refs/heads/master.zip" -o "$TMP_ROOT/src.zip"
+      unzip -q "$TMP_ROOT/src.zip" -d "$TMP_ROOT"
+      SRC_DIR=$(find "$TMP_ROOT" -maxdepth 1 -type d -name "iam-proxy-italia-*" | head -1)
+      if [ -z "$SRC_DIR" ]; then
+        echo '[iam-proxy-init] ERROR: extracted directory not found';
+        exit 1;
+      fi
+      cp -r "$SRC_DIR/iam-proxy-italia-project/." /satosa_proxy/
+      if [ -f /satosa_proxy/pki/generate-dev-certs.sh ]; then
+        bash /satosa_proxy/pki/generate-dev-certs.sh || true
+      fi
+      rm -rf "$TMP_ROOT"
+      echo '[iam-proxy-init] Done'
+    restart: "no"
 
   satosa-nginx:
     image: nginx:alpine
