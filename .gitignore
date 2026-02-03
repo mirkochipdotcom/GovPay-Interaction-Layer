@@ -48,6 +48,8 @@ img/favicon.png
 /iam-proxy/iam-proxy-italia-project/*
 !/iam-proxy/iam-proxy-italia-project/.gitkeep
 
+# Local directory for runtime data (outside repository)
+.local/
 /iam-proxy/nginx/html/static/*
 !/iam-proxy/nginx/html/static/.gitkeep
 

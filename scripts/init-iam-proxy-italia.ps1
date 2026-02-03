@@ -14,7 +14,7 @@ function Ensure-Dir([string]$Path) {
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $iamProxyRoot = Join-Path $repoRoot "iam-proxy"
-$projectDst = Join-Path $iamProxyRoot "iam-proxy-italia-project"
+$projectDst = Join-Path $repoRoot ".local\iam-proxy-italia-project"
 $staticDst = Join-Path $iamProxyRoot "nginx\html\static"
 
 Ensure-Dir $projectDst

@@ -109,7 +109,8 @@ services:
     volumes:
       # La directory deve contenere i file di istanza (proxy_conf.yaml, conf/, pki/, ...)
       # Inizializza con: scripts/init-iam-proxy-italia.(ps1|sh)
-      - ./iam-proxy/iam-proxy-italia-project:/satosa_proxy
+      # Montata da ./.local/ (fuori dal repository) per evitare di tracciare file generati
+      - ./.local/iam-proxy-italia-project:/satosa_proxy
       # Override della configurazione target_based_routing con il mapping del frontoffice SP
       - ./iam-proxy/target_based_routing_override.yaml:/satosa_proxy/conf/microservices/target_based_routing.yaml:ro
     restart: unless-stopped
