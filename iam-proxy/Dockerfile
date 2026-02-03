@@ -28,5 +28,26 @@ RUN test -f /satosa_proxy/entrypoint.sh || (echo "ERROR: /satosa_proxy/entrypoin
 # Ensure logs directory is writable
 RUN mkdir -p /satosa_proxy/logs && chmod 777 /satosa_proxy/logs
 
+# Entrypoint script to handle SATOSA backend configuration
+RUN cat > /satosa_proxy/docker-entrypoint.sh << 'EOF'
+#!/bin/sh
+set -e
+
+# Disable problematic backends based on environment variables
+if [ "${SATOSA_DISABLE_CIEOIDC_BACKEND:-false}" = "true" ]; then
+  echo "[SATOSA Init] Disabling CIE OIDC backend..."
+  rm -f /satosa_proxy/conf/backends/cieoidc_backend.yaml
+fi
+
+if [ "${SATOSA_DISABLE_PYEUDIW_BACKEND:-false}" = "true" ]; then
+  echo "[SATOSA Init] Disabling pyeudiw backend..."
+  rm -f /satosa_proxy/conf/backends/pyeudiw_backend.yaml
+fi
+
+# Execute the original entrypoint
+exec /satosa_proxy/entrypoint.sh
+EOF
+chmod +x /satosa_proxy/docker-entrypoint.sh
+
 # Set the entrypoint to start SATOSA
-ENTRYPOINT ["/satosa_proxy/entrypoint.sh"]
+ENTRYPOINT ["/satosa_proxy/docker-entrypoint.sh"]
