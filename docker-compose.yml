@@ -55,7 +55,10 @@ services:
       - govpay-network
 
   iam-proxy-italia:
-    image: ghcr.io/italia/iam-proxy-italia:latest
+    build:
+      context: ./iam-proxy
+      dockerfile: Dockerfile
+    image: govpay-iam-proxy-italia:latest
     container_name: iam-proxy-italia
     profiles:
       - iam-proxy
@@ -109,13 +112,7 @@ services:
       - SATOSA_UI_LOGO_HEIGHT=${SATOSA_UI_LOGO_HEIGHT:-60}
     env_file:
       - .env
-    depends_on:
-      iam-proxy-init:
-        condition: service_completed_successfully
     volumes:
-      # La directory deve contenere i file di istanza (proxy_conf.yaml, conf/, pki/, ...)
-      # Montata da ./.local/ (fuori dal repository) per evitare di tracciare file generati
-      - ./.local/iam-proxy-italia-project:/satosa_proxy
       # Override della configurazione target_based_routing con il mapping del frontoffice SP
       - ./iam-proxy/target_based_routing_override.yaml:/satosa_proxy/conf/microservices/target_based_routing.yaml:ro
     restart: on-failure:3
@@ -125,42 +122,6 @@ services:
       timeout: 2s
       retries: 10
       start_period: 10s
-    networks:
-      - govpay-network
-
-  iam-proxy-init:
-    image: alpine:3.19
-    container_name: iam-proxy-init
-    profiles:
-      - iam-proxy
-    volumes:
-      - ./.local/iam-proxy-italia-project:/satosa_proxy
-    entrypoint:
-      - /bin/sh
-      - -c
-    command: |
-      set -euo pipefail
-      set -x
-      if [ -f /satosa_proxy/entrypoint.sh ]; then
-        echo '[iam-proxy-init] Instance already initialized';
-        exit 0;
-      fi
-      apk add --no-cache curl unzip bash
-      TMP_ROOT=$$(mktemp -d)
-      curl -fsSL "https://github.com/italia/iam-proxy-italia/archive/refs/heads/master.zip" -o "$$TMP_ROOT/src.zip"
-      unzip -q "$$TMP_ROOT/src.zip" -d "$$TMP_ROOT"
-      SRC_DIR=$$(find "$$TMP_ROOT" -maxdepth 1 -type d -name "iam-proxy-italia-*" | head -1)
-      if [ -z "$$SRC_DIR" ]; then
-        echo '[iam-proxy-init] ERROR: extracted directory not found';
-        exit 1;
-      fi
-      cp -r "$$SRC_DIR/iam-proxy-italia-project/." /satosa_proxy/
-      if [ -f /satosa_proxy/pki/generate-dev-certs.sh ]; then
-        bash /satosa_proxy/pki/generate-dev-certs.sh || true
-      fi
-      rm -rf "$$TMP_ROOT"
-      echo '[iam-proxy-init] Done'
-    restart: "no"
     networks:
       - govpay-network
 
