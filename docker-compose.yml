@@ -170,9 +170,25 @@ services:
     networks:
       - govpay-network
 
+  satosa-mongo:
+    image: mongo:7
+    container_name: satosa-mongo
+    profiles:
+      - iam-proxy
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGODB_USERNAME:-satosa_user}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGODB_PASSWORD:-satosa_password}
+      - MONGO_INITDB_DATABASE=${MONGODB_DB:-satosa}
+    volumes:
+      - satosa_mongo_data:/data/db
+    restart: unless-stopped
+    networks:
+      - govpay-network
+
 networks:
   govpay-network:
     driver: bridge
 
 volumes:
   db_data:
+  satosa_mongo_data:
