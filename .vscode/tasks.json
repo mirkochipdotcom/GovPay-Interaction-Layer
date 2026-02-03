@@ -60,7 +60,6 @@
 			"type": "shell",
 			"command": "powershell -ExecutionPolicy Bypass -File .\\scripts\\cleanup-spid-metadata.ps1 -MetadataDir .\\spid-proxy\\metadata -CurrentDir .\\spid-proxy\\metadata-current -ArchiveDir .\\spid-proxy\\metadata-archive",
 			"args": [],
-			"args": [],
 			"isBackground": false,
 			"group": "build",
 			"problemMatcher": []
@@ -93,6 +92,50 @@
 			"label": "docker-run-sanity",
 			"type": "shell",
 			"command": "docker run --rm hello-world",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "init-iam-proxy-italia",
+			"type": "shell",
+			"command": "powershell -ExecutionPolicy Bypass -File .\\scripts\\init-iam-proxy-italia.ps1",
+			"args": [],
+			"isBackground": false,
+			"group": "build",
+			"problemMatcher": []
+		},
+		{
+			"label": "init-iam-proxy-italia-force",
+			"type": "shell",
+			"command": "powershell -ExecutionPolicy Bypass -File .\\scripts\\init-iam-proxy-italia.ps1 -Force",
+			"args": [],
+			"isBackground": false,
+			"group": "build",
+			"problemMatcher": []
+		},
+		{
+			"label": "up-iam-proxy",
+			"type": "shell",
+			"command": "docker compose --profile iam-proxy up -d",
+			"args": [],
+			"isBackground": false,
+			"group": "build",
+			"problemMatcher": []
+		},
+		{
+			"label": "logs-iam-proxy",
+			"type": "shell",
+			"command": "docker compose logs -f satosa-nginx iam-proxy-italia",
+			"args": [],
+			"isBackground": true,
+			"group": "none",
+			"problemMatcher": []
+		},
+		{
+			"label": "up-iam-proxy-now",
+			"type": "shell",
+			"command": "docker compose --profile iam-proxy up -d",
 			"isBackground": false,
 			"problemMatcher": [],
 			"group": "build"

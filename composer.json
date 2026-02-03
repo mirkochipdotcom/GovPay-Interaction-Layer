@@ -7,6 +7,7 @@
     "require": {
         "php": "^8.3",
         "pagopa/checkout-ec-client": "dev-main",
+        "onelogin/php-saml": "^4.2",
         "slim/slim": "^4.13",
         "slim/psr7": "^1.6",
         "nyholm/psr7": "^1.5",
