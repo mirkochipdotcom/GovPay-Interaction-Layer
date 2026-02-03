@@ -123,7 +123,10 @@ services:
     profiles:
       - iam-proxy
     depends_on:
-      - iam-proxy-italia
+      iam-proxy-italia:
+        condition: service_started
+      ssl-init:
+        condition: service_completed_successfully
     ports:
       - "${IAM_PROXY_HTTPS_PORT:-9445}:443"
     environment:
@@ -135,6 +138,27 @@ services:
       # Cert per TLS (riuso di ssl/ locale)
       - ./ssl:/etc/nginx/certs:ro
     restart: unless-stopped
+
+  ssl-init:
+    image: alpine:3.19
+    container_name: satosa-ssl-init
+    profiles:
+      - iam-proxy
+    volumes:
+      - ./ssl:/certs
+    entrypoint: /bin/sh
+    command: >
+      -c "apk add --no-cache openssl >/dev/null 2>&1 &&
+      if [ ! -f /certs/server.crt ] || [ ! -f /certs/server.key ]; then
+        echo '[ssl-init] Generating self-signed certificate';
+        openssl req -x509 -nodes -newkey rsa:2048 -days 3650 \
+          -subj '/CN=localhost' \
+          -keyout /certs/server.key -out /certs/server.crt;
+        chmod 600 /certs/server.key;
+      else
+        echo '[ssl-init] Certificate already exists';
+      fi"
+    restart: "no"
   db:
     image: mariadb:11
     container_name: mariadb
