@@ -251,7 +251,7 @@ Nota importante: **questa parte è pensata per avvio/validazione dello stack**. 
    ```
    
    Al primo avvio, lo script di init (`scripts/iam-proxy-init.sh`) scarica l'archivio da GitHub, estrae in `.local/iam-proxy-italia-project/` e avvia SATOSA.
-   Se mancano i certificati in `ssl/`, il servizio `ssl-init` genera automaticamente un certificato self-signed per `satosa-nginx`.
+   Se mancano i certificati in `ssl/`, uno script di init NGINX (`iam-proxy/nginx/entrypoint.d/10-generate-certs.sh`) genera automaticamente un certificato self-signed per `satosa-nginx`.
 
 2) Oppure, se preferisci inizializzare manualmente (per debug):
 
