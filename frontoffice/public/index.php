@@ -486,6 +486,22 @@ if (!function_exists('frontoffice_satosa_saml_auth')) {
             return null;
         }
 
+        // Se l'SSO URL nei metadata punta a host interni (satosa-nginx/localhost), usa la base pubblica.
+        $proxyBase = rtrim((string)frontoffice_env_value('IAM_PROXY_PUBLIC_BASE_URL', ''), '/');
+        if ($proxyBase === '') {
+            $proxyBase = rtrim((string)frontoffice_env_value('SPID_PROXY_PUBLIC_BASE_URL', ''), '/');
+        }
+        if ($proxyBase !== '' && isset($idp['ssoUrl']) && is_string($idp['ssoUrl'])) {
+            $ssoUrl = $idp['ssoUrl'];
+            if (preg_match('#^https?://(satosa-nginx|localhost|127\\.0\\.0\\.1)(:[0-9]+)?/#i', $ssoUrl)) {
+                $parts = parse_url($ssoUrl);
+                $path = $parts['path'] ?? '';
+                $query = isset($parts['query']) ? '?' . $parts['query'] : '';
+                $fragment = isset($parts['fragment']) ? '#' . $parts['fragment'] : '';
+                $idp['ssoUrl'] = $proxyBase . $path . $query . $fragment;
+            }
+        }
+
         $spEntityId = frontoffice_env_value('FRONTOFFICE_SAML_SP_ENTITY_ID', '');
         if ($spEntityId === '') {
             $spEntityId = rtrim($frontofficeBaseUrl, '/') . '/saml/sp';
