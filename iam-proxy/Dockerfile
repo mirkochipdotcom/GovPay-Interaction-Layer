@@ -15,3 +15,6 @@ RUN set -euo pipefail && \
 
 # Verify entrypoint exists
 RUN test -f /satosa_proxy/entrypoint.sh || (echo "ERROR: /satosa_proxy/entrypoint.sh not found after setup" && exit 1)
+
+# Set the entrypoint to start SATOSA
+ENTRYPOINT ["/satosa_proxy/entrypoint.sh"]
