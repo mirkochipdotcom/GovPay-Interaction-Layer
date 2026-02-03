@@ -237,11 +237,13 @@ Nota: lo script `.sh` richiede `bash`. Se lo lanci con `sh ...` si ri-esegue aut
 - `iam-proxy-italia` (SATOSA uWSGI)
 - `satosa-nginx` (TLS + static + reverse uWSGI)
 
-Nota importante: **questa parte è pensata per avvio/validazione dello stack**. L’integrazione del frontoffice (che oggi parla con il proxy PHP via `/proxy-home.php` e `/proxy.php`) richiede un adattamento applicativo per usare i nuovi endpoint SATOSA.
+La directory di istanza di SATOSA viene generata in **`.local/iam-proxy-italia-project/`** (fuori dal repository) per mantenere il repository pulito.
+
+Nota importante: **questa parte è pensata per avvio/validazione dello stack**. L'integrazione del frontoffice (che oggi parla con il proxy PHP via `/proxy-home.php` e `/proxy.php`) richiede un adattamento applicativo per usare i nuovi endpoint SATOSA.
 
 ### Avvio rapido (locale)
 
-1) Inizializza i file di istanza (scarica upstream e copia `iam-proxy-italia-project/*` e gli static):
+1) Inizializza i file di istanza in `.local/iam-proxy-italia-project/` (scarica upstream e copia i file):
 
 - Windows (PowerShell):
    - task VS Code: `init-iam-proxy-italia-force`
