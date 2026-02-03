@@ -135,7 +135,7 @@ services:
       - ./iam-proxy/nginx/html:/usr/share/nginx/html:ro
       - ./iam-proxy/nginx/entrypoint.d:/docker-entrypoint.d:ro
       # Cert per TLS (riuso di ssl/ locale)
-      - ./ssl:/etc/nginx/certs:ro
+      - ./ssl:/etc/nginx/certs
     restart: unless-stopped
   db:
     image: mariadb:11
