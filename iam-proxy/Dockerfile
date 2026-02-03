@@ -36,11 +36,13 @@ set -e
 # Disable problematic backends based on environment variables
 if [ "${SATOSA_DISABLE_CIEOIDC_BACKEND:-false}" = "true" ]; then
   echo "[SATOSA Init] Disabling CIE OIDC backend..."
+  sed -i '/conf\/backends\/cieoidc_backend.yaml/d' /satosa_proxy/proxy_conf.yaml
   rm -f /satosa_proxy/conf/backends/cieoidc_backend.yaml
 fi
 
 if [ "${SATOSA_DISABLE_PYEUDIW_BACKEND:-false}" = "true" ]; then
   echo "[SATOSA Init] Disabling pyeudiw backend..."
+  sed -i '/conf\/backends\/pyeudiw_backend.yaml/d' /satosa_proxy/proxy_conf.yaml
   rm -f /satosa_proxy/conf/backends/pyeudiw_backend.yaml
 fi
 
@@ -48,7 +50,8 @@ fi
 exec /satosa_proxy/entrypoint.sh
 EOF
 
-RUN chmod +x /satosa_proxy/docker-entrypoint.sh
+RUN sed -i 's/\r$//' /satosa_proxy/docker-entrypoint.sh \
+  && chmod +x /satosa_proxy/docker-entrypoint.sh
 
 # Set the entrypoint to start SATOSA
 ENTRYPOINT ["/satosa_proxy/docker-entrypoint.sh"]
