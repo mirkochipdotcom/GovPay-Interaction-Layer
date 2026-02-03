@@ -118,7 +118,13 @@ services:
       - ./.local/iam-proxy-italia-project:/satosa_proxy
       # Override della configurazione target_based_routing con il mapping del frontoffice SP
       - ./iam-proxy/target_based_routing_override.yaml:/satosa_proxy/conf/microservices/target_based_routing.yaml:ro
-    restart: unless-stopped
+    restart: on-failure:3
+    healthcheck:
+      test: ["CMD", "test", "-f", "/satosa_proxy/entrypoint.sh"]
+      interval: 5s
+      timeout: 2s
+      retries: 10
+      start_period: 10s
     networks:
       - govpay-network
 
