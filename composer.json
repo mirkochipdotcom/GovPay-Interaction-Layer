@@ -6,17 +6,17 @@
     "license": "proprietary",
     "require": {
         "php": "^8.3",
-        "pagopa/checkout-ec-client": "dev-main",
-        "onelogin/php-saml": "^4.2",
-        "slim/slim": "^4.13",
-        "slim/psr7": "^1.6",
-        "nyholm/psr7": "^1.5",
-        "twig/twig": "^3.0",
-        "slim/twig-view": "^3.3",
+        "govpay/backoffice-client": "dev-main",
         "govpay/pagamenti-client": "dev-main",
-        "govpay/ragioneria-client": "dev-main",
         "govpay/pendenze-client": "dev-main",
-        "govpay/backoffice-client": "dev-main"
+        "govpay/ragioneria-client": "dev-main",
+        "nyholm/psr7": "^1.5",
+        "onelogin/php-saml": "^4.2",
+        "pagopa/checkout-ec-client": "dev-main",
+        "slim/psr7": "^1.6",
+        "slim/slim": "^4.13",
+        "slim/twig-view": "^3.3",
+        "twig/twig": "^3.0"
     },
     "repositories": [
         {
