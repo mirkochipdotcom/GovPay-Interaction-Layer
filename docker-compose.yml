@@ -38,59 +38,104 @@ services:
       - DB_NAME=${DB_NAME_CITTADINI}
       - DB_USER=${DB_USER_CITTADINI}
       - DB_PASSWORD=${DB_PASSWORD_CITTADINI}
+      - FRONTOFFICE_PUBLIC_BASE_URL=${FRONTOFFICE_PUBLIC_BASE_URL}
+      - FRONTOFFICE_AUTH_PROXY_TYPE=${FRONTOFFICE_AUTH_PROXY_TYPE:-php-proxy}
+      - IAM_PROXY_PUBLIC_BASE_URL=${IAM_PROXY_PUBLIC_BASE_URL}
+      - IAM_PROXY_SAML2_IDP_METADATA_URL=${IAM_PROXY_SAML2_IDP_METADATA_URL}
+      - IAM_PROXY_SAML2_IDP_METADATA_URL_INTERNAL=${IAM_PROXY_SAML2_IDP_METADATA_URL_INTERNAL}
     env_file:
       - .env
-      - .env.proxyspid
     depends_on:
       - db
     entrypoint: ["/usr/local/bin/docker-setup.sh"]
     restart: unless-stopped
 
-  spid-proxy:
-    build:
-      context: ./spid-proxy
-    image: govpay-spid-proxy:latest
-    container_name: spid-proxy
+  iam-proxy-italia:
+    image: ghcr.io/italia/iam-proxy-italia:latest
+    container_name: iam-proxy-italia
     profiles:
-      - spid-proxy
-    ports:
-      - "${SPID_PROXY_HTTPS_PORT:-8445}:443"
+      - iam-proxy
+    command: /satosa_proxy/entrypoint.sh
+    environment:
+      # Config minima per esecuzione container (valori dettagliati/secret in .env)
+      - SATOSA_BY_DOCKER=1
+      - SATOSA_HOSTNAME=${IAM_PROXY_HOSTNAME:-satosa-nginx}
+      - SATOSA_BASE=https://${IAM_PROXY_HOSTNAME:-satosa-nginx}:${IAM_PROXY_HTTPS_PORT:-9445}
+      - SATOSA_BASE_STATIC=https://${IAM_PROXY_HOSTNAME:-satosa-nginx}:${IAM_PROXY_HTTPS_PORT:-9445}/static
+      - SATOSA_DISCO_SRV=https://${IAM_PROXY_HOSTNAME:-satosa-nginx}:${IAM_PROXY_HTTPS_PORT:-9445}/static/disco.html
+      - SATOSA_UNKNOW_ERROR_REDIRECT_PAGE=${SATOSA_UNKNOW_ERROR_REDIRECT_PAGE:-https://satosa-nginx:9445}
+      - SATOSA_DEBUG=${IAM_PROXY_DEBUG:-false}
+      - SATOSA_SALT=${SATOSA_SALT:-CHANGE_ME}
+      - SATOSA_STATE_ENCRYPTION_KEY=${SATOSA_STATE_ENCRYPTION_KEY:-CHANGE_ME}
+      - SATOSA_ENCRYPTION_KEY=${SATOSA_ENCRYPTION_KEY:-CHANGE_ME}
+      - SATOSA_USER_ID_HASH_SALT=${SATOSA_USER_ID_HASH_SALT:-CHANGE_ME}
+      # In demo/prod puoi abilitare fetch automatico (richiede rete) dei metadata IdP
+      - SATOSA_GET_SPID_IDP_METADATA=${SATOSA_GET_SPID_IDP_METADATA:-false}
+      - SATOSA_GET_CIE_IDP_METADATA=${SATOSA_GET_CIE_IDP_METADATA:-false}
+      - SATOSA_GET_FICEP_IDP_METADATA=${SATOSA_GET_FICEP_IDP_METADATA:-false}
+      - SATOSA_GET_IDEM_MDQ_KEY=${SATOSA_GET_IDEM_MDQ_KEY:-false}
+      # IdP di test SPID (demo.spid.gov.it)
+      - SATOSA_USE_DEMO_SPID_IDP=${SATOSA_USE_DEMO_SPID_IDP:-false}
+      # Paths per chiavi/cert
+      - SATOSA_PRIVATE_KEY=${SATOSA_PRIVATE_KEY:-./pki/privkey.pem}
+      - SATOSA_PUBLIC_KEY=${SATOSA_PUBLIC_KEY:-./pki/cert.pem}
+      # Organization & Contact Person (SPID metadata)
+      - SATOSA_ORGANIZATION_DISPLAY_NAME_EN=${SATOSA_ORGANIZATION_DISPLAY_NAME_EN:-GovPay Interaction Layer}
+      - SATOSA_ORGANIZATION_DISPLAY_NAME_IT=${SATOSA_ORGANIZATION_DISPLAY_NAME_IT:-GovPay - Interazione Layer}
+      - SATOSA_ORGANIZATION_NAME_EN=${SATOSA_ORGANIZATION_NAME_EN:-GovPay}
+      - SATOSA_ORGANIZATION_NAME_IT=${SATOSA_ORGANIZATION_NAME_IT:-GovPay}
+      - SATOSA_ORGANIZATION_URL_EN=${SATOSA_ORGANIZATION_URL_EN:-https://govpay.example.org}
+      - SATOSA_ORGANIZATION_URL_IT=${SATOSA_ORGANIZATION_URL_IT:-https://govpay.example.org}
+      - SATOSA_CONTACT_PERSON_GIVEN_NAME=${SATOSA_CONTACT_PERSON_GIVEN_NAME:-Support}
+      - SATOSA_CONTACT_PERSON_EMAIL_ADDRESS=${SATOSA_CONTACT_PERSON_EMAIL_ADDRESS:-support@example.org}
+      - SATOSA_CONTACT_PERSON_TELEPHONE_NUMBER=${SATOSA_CONTACT_PERSON_TELEPHONE_NUMBER:-+39XXXXXXXXXX}
+      - SATOSA_CONTACT_PERSON_FISCALCODE=${SATOSA_CONTACT_PERSON_FISCALCODE:-XXXXXXXXXXX000W}
+      - SATOSA_CONTACT_PERSON_IPA_CODE=${SATOSA_CONTACT_PERSON_IPA_CODE:-c_x000}
+      - SATOSA_CONTACT_PERSON_MUNICIPALITY=${SATOSA_CONTACT_PERSON_MUNICIPALITY:-Municipality}
+      # UI Information
+      - SATOSA_UI_DISPLAY_NAME_EN=${SATOSA_UI_DISPLAY_NAME_EN:-SPID Authentication System}
+      - SATOSA_UI_DISPLAY_NAME_IT=${SATOSA_UI_DISPLAY_NAME_IT:-Sistema di Autenticazione SPID}
+      - SATOSA_UI_DESCRIPTION_EN=${SATOSA_UI_DESCRIPTION_EN:-Login via SPID to manage your payments}
+      - SATOSA_UI_DESCRIPTION_IT=${SATOSA_UI_DESCRIPTION_IT:-Accedi tramite SPID per gestire i tuoi pagamenti}
+      - SATOSA_UI_INFORMATION_URL_EN=${SATOSA_UI_INFORMATION_URL_EN:-https://govpay.example.org/help}
+      - SATOSA_UI_INFORMATION_URL_IT=${SATOSA_UI_INFORMATION_URL_IT:-https://govpay.example.org/help}
+      - SATOSA_UI_PRIVACY_URL_EN=${SATOSA_UI_PRIVACY_URL_EN:-https://govpay.example.org/privacy}
+      - SATOSA_UI_PRIVACY_URL_IT=${SATOSA_UI_PRIVACY_URL_IT:-https://govpay.example.org/privacy}
+      - SATOSA_UI_LOGO_URL=${SATOSA_UI_LOGO_URL:-https://govpay.example.org/logo.png}
+      - SATOSA_UI_LOGO_WIDTH=${SATOSA_UI_LOGO_WIDTH:-200}
+      - SATOSA_UI_LOGO_HEIGHT=${SATOSA_UI_LOGO_HEIGHT:-60}
     env_file:
       - .env
-      - .env.proxyspid
-      - .env.metadata
     volumes:
-      - ./spid-proxy/data:/var/www/spid-cie-php
-      # Runtime: monta SOLO i metadata correnti (evita di esporre snapshot/next/backup)
-      - ./spid-proxy/metadata-current:/var/www/spid-cie-php/www/metadata:ro
-      - ./ssl:/ssl
+      # La directory deve contenere i file di istanza (proxy_conf.yaml, conf/, pki/, ...)
+      # Inizializza con: scripts/init-iam-proxy-italia.(ps1|sh)
+      - ./iam-proxy/iam-proxy-italia-project:/satosa_proxy
+      # Override della configurazione target_based_routing con il mapping del frontoffice SP
+      - ./iam-proxy/target_based_routing_override.yaml:/satosa_proxy/conf/microservices/target_based_routing.yaml:ro
     restart: unless-stopped
 
-  # Generatore metadata "next": gira su una working directory separata, quindi non tocca il proxy in produzione.
-  # Uso tipico:
-  #   docker compose --profile spid-proxy-metadata run --rm spid-proxy-metadata
-  # Output:
-  #   spid-proxy/metadata/spid-metadata-next.xml (+ cie-metadata-next.xml se abilitato)
-  spid-proxy-metadata:
-    build:
-      context: ./spid-proxy
-    image: govpay-spid-proxy:latest
-    container_name: spid-proxy-metadata
+  satosa-nginx:
+    image: nginx:alpine
+    container_name: satosa-nginx
     profiles:
-      - spid-proxy-metadata
+      - iam-proxy
+    depends_on:
+      - iam-proxy-italia
+    ports:
+      - "${IAM_PROXY_HTTPS_PORT:-9445}:443"
     environment:
-      - SPID_PROXY_IS_METADATA_GENERATOR=1
-    env_file:
-      - .env
-      - .env.proxyspid
-      - .env.metadata
-    command: ["bash", "-lc", "/usr/local/bin/spid-proxy-generate-metadata.sh"]
+      - NGINX_HOST=${IAM_PROXY_HOSTNAME:-satosa-nginx}
+      - TZ=${TZ:-Europe/Rome}
     volumes:
-      - ./spid-proxy/metadata-work:/var/www/spid-cie-php
-      # Generator: scrive snapshot/next in una cartella non montata dal runtime
-      - ./spid-proxy/metadata:/var/www/spid-cie-php/www/metadata
-      - ./ssl:/ssl
-    restart: "no"
+      - ./iam-proxy/nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./iam-proxy/nginx/html:/usr/share/nginx/html:ro
+      # Cert per TLS (riuso di ssl/ locale)
+      - ./ssl:/etc/nginx/certs:ro
+      # Override del file spid-idps.js con valori configurati esternamente
+      - ./iam-proxy/spid-idps_override.js:/usr/share/nginx/html/static/spid/spid-idps.js:ro
+      # Override del file ita.min.js con valori configurati esternamente (SPID Test entityID)
+      - ./iam-proxy/ita_override.min.js:/usr/share/nginx/html/static/js/ita.min.js:ro
+    restart: unless-stopped
   db:
     image: mariadb:11
     container_name: mariadb

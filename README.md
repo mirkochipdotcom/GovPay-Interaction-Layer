@@ -19,6 +19,7 @@ SPDX-License-Identifier: EUPL-1.2
 - [Avvio rapido (primo utilizzo)](#avvio-rapido-primo-utilizzo)
 - [Configurazione: file .env](#configurazione-file-env)
 - [SPID/CIE](#spidcie)
+- [IAM Proxy Italia (SATOSA)](#iam-proxy-italia-satosa)
 - [Metadata SPID/CIE (freeze + next)](#metadata-spidcie-freeze--next)
 - [Setup produzione](#setup-produzione)
 - [Workflow di sviluppo](#workflow-di-sviluppo)
@@ -164,7 +165,40 @@ Modificare questi valori cambia il metadata.
 
 ## SPID/CIE
 
-Il supporto SPID/CIE del frontoffice dipende da `COMPOSE_PROFILES` nel `.env`:
+### ⚠️ MIGRAZIONE VERSO IAM PROXY (Febbraio 2026)
+
+A partire da febbraio 2026, il sistema di autenticazione SPID/CIE è stato **unificato verso il proxy IAM (SATOSA)**.
+
+**Status attuale**:
+- ✅ Vecchio proxy SimpleSAMLphp (`spid-proxy`) è **DEPRECATO**
+- ✅ IAM Proxy (SATOSA) è il nuovo sistema PRIMARY di autenticazione
+- ✅ Il frontoffice supporta già SAML2 SATOSA (zero modifiche necessarie)
+
+**Per nuovi ambienti (consigliato)**:
+- Usare IAM Proxy SATOSA (containers `iam-proxy-italia` + `satosa-nginx`)
+- Vedi documentazione: [MIGRAZIONE-IAM-PROXY.md](./MIGRAZIONE-IAM-PROXY.md) e [TESTING-IAM-PROXY.md](./TESTING-IAM-PROXY.md)
+- Configurazione: usare variabili `SATOSA_*` nel `.env` (vedi `.env.example`)
+
+**Per ambienti legacy (in transizione)**:
+- Il proxy SimpleSAMLphp (`spid-proxy`) rimane disponibile ma disabilitato di default
+- Abilitare manualmente: `COMPOSE_PROFILES=spid-proxy` in `.env` (richiede `.env.proxyspid` e `.env.metadata`)
+- Timeline: dismettere entro giugno 2026
+
+Documentazione completa:
+- [MIGRAZIONE-IAM-PROXY.md](./MIGRAZIONE-IAM-PROXY.md) - Piano dettagliato (7 fasi)
+- [TESTING-IAM-PROXY.md](./TESTING-IAM-PROXY.md) - Guida testing step-by-step
+- [RIEPILOGO-MIGRAZIONE.md](./RIEPILOGO-MIGRAZIONE.md) - Sommario finale
+- [FASE7-CIE-DECISION.md](./FASE7-CIE-DECISION.md) - Decisione CIE (no per fase 1)
+
+---
+
+## SPID/CIE (Sistema Legacy - Deprecato)
+
+⚠️ **ATTENZIONE**: Questa sezione descrive il vecchio proxy SimpleSAMLphp. **È DEPRECATO dal febbraio 2026.**
+
+Se stai leggendo questo per la prima volta: non usare il vecchio proxy. Usa il nuovo IAM Proxy (vedi sezione [MIGRAZIONE VERSO IAM PROXY](#migrazione-verso-iam-proxy-febbraio-2026) sopra).
+
+Il supporto SPID/CIE del frontoffice con il vecchio proxy dipende da `COMPOSE_PROFILES` nel `.env`:
 
 - **No SPID**: `COMPOSE_PROFILES=none` (disabilita login SPID nel frontoffice)
 - **Proxy interno**: `COMPOSE_PROFILES=spid-proxy` (avvia anche il servizio `spid-proxy`)
@@ -196,6 +230,38 @@ Soluzione: rigenera i file persistiti e ricrea il container.
   - (opzionale) `./scripts/regenerate-spid-proxy-config.sh --reset-setup --restart`
 
 Nota: lo script `.sh` richiede `bash`. Se lo lanci con `sh ...` si ri-esegue automaticamente con bash.
+
+---
+
+### Configurazione IAM Proxy SATOSA
+- `iam-proxy-italia` (SATOSA uWSGI)
+- `satosa-nginx` (TLS + static + reverse uWSGI)
+
+Nota importante: **questa parte è pensata per avvio/validazione dello stack**. L’integrazione del frontoffice (che oggi parla con il proxy PHP via `/proxy-home.php` e `/proxy.php`) richiede un adattamento applicativo per usare i nuovi endpoint SATOSA.
+
+### Avvio rapido (locale)
+
+1) Inizializza i file di istanza (scarica upstream e copia `iam-proxy-italia-project/*` e gli static):
+
+- Windows (PowerShell):
+   - task VS Code: `init-iam-proxy-italia-force`
+   - oppure: `powershell -ExecutionPolicy Bypass -File .\scripts\init-iam-proxy-italia.ps1 -Force`
+
+2) Avvia i container:
+
+- task VS Code: `up-iam-proxy`
+- oppure: `docker compose --profile iam-proxy up -d`
+
+3) Verifica endpoint principali:
+
+- Metadata SAML2 IdP: `https://localhost:8445/Saml2IDP/metadata`
+- Metadata SAML2 IdP: `https://localhost:9445/Saml2IDP/metadata`
+- Discovery (static): `https://localhost:9445/static/disco.html`
+
+### Dove si configurano i file
+
+- Istanza SATOSA: directory `iam-proxy/iam-proxy-italia-project/` (popolata dallo script; ignorata da git)
+- Static NGINX: directory `iam-proxy/nginx/html/static/` (popolata dallo script; ignorata da git)
 
 ---
 
