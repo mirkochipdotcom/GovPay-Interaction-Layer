@@ -55,6 +55,7 @@ services:
     container_name: iam-proxy-italia
     profiles:
       - iam-proxy
+    entrypoint: /docker-entrypoint.sh
     command: /satosa_proxy/entrypoint.sh
     environment:
       # Config minima per esecuzione container (valori dettagliati/secret in .env)
@@ -107,8 +108,9 @@ services:
     env_file:
       - .env
     volumes:
+      # Script di inizializzazione - scarica e estrae iam-proxy-italia al primo avvio
+      - ./scripts/iam-proxy-init.sh:/docker-entrypoint.sh:ro
       # La directory deve contenere i file di istanza (proxy_conf.yaml, conf/, pki/, ...)
-      # Inizializza con: scripts/init-iam-proxy-italia.(ps1|sh)
       # Montata da ./.local/ (fuori dal repository) per evitare di tracciare file generati
       - ./.local/iam-proxy-italia-project:/satosa_proxy
       # Override della configurazione target_based_routing con il mapping del frontoffice SP
