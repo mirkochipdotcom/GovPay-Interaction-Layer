@@ -88,6 +88,22 @@ if (!function_exists('frontoffice_load_pem_value')) {
     }
 }
 
+if (!function_exists('frontoffice_inject_spid_contact_extensions')) {
+    function frontoffice_inject_spid_contact_extensions(string $metadata, string $ipaCode): string
+    {
+        if ($ipaCode === '') {
+            $ipaCode = 'c_x000';
+        }
+        if (strpos($metadata, 'xmlns:spid=') === false) {
+            $metadata = preg_replace('/<md:EntityDescriptor\b/', '<md:EntityDescriptor xmlns:spid="https://spid.gov.it/saml-extensions"', $metadata, 1);
+        }
+        if (strpos($metadata, '<spid:IPACode>') === false) {
+            $metadata = preg_replace('/(<md:ContactPerson[^>]*contactType="other"[^>]*>)/', '$1' . "\n        <md:Extensions>\n            <spid:IPACode>{$ipaCode}</spid:IPACode>\n            <spid:Public />\n        </md:Extensions>", $metadata, 1);
+        }
+        return $metadata;
+    }
+}
+
 if (!function_exists('frontoffice_load_service_options')) {
     function frontoffice_load_service_options(): array
     {
@@ -568,8 +584,7 @@ if (!function_exists('frontoffice_satosa_saml_auth')) {
                     'binding' => 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect',
                 ],
                 'NameIDFormat' => 'urn:oasis:names:tc:SAML:2.0:nameid-format:transient',
-                // Per iniziare, non firmiamo le AuthnRequest (SATOSA può essere configurato per accettarle).
-                // Se vuoi firmare, imposta FRONTOFFICE_SAML_SP_X509CERT / FRONTOFFICE_SAML_SP_PRIVATEKEY (vedi README).
+                // Firma AuthnRequest se i certificati SP sono disponibili.
                 'x509cert' => $spCert,
                 'privateKey' => $spKey,
                 'attributeConsumingService' => [
@@ -611,7 +626,7 @@ if (!function_exists('frontoffice_satosa_saml_auth')) {
                 ],
             ],
             'security' => [
-                'authnRequestsSigned' => false,
+                'authnRequestsSigned' => ($spCert !== '' && $spKey !== ''),
                 'wantAssertionsSigned' => $wantAssertionsSigned,
                 'wantMessagesSigned' => $wantMessagesSigned,
                 'wantNameId' => false,
@@ -2556,10 +2571,14 @@ $routes = [
         // Usa la classe Metadata per costruire il metadata XML dal file di configurazione SAML
         try {
             $settings = $auth->getSettings();
-            $spMetadata = Metadata::builder(
-                $settings->getSPData(),
-                $settings->getSecurityData()
-            );
+            $spMetadata = $settings->getSPMetadata();
+            $spMetadata = preg_replace('/<md:AssertionConsumerService([^>]*?)index="\d+"([^>]*?)\/>/', '<md:AssertionConsumerService$1index="0"$2 isDefault="true" />', $spMetadata);
+            $spMetadata = preg_replace('/<md:AttributeConsumingService index="\d+"/', '<md:AttributeConsumingService index="0"', $spMetadata);
+            $ipaCode = trim(frontoffice_env_value('APP_ENTITY_IPA_CODE', ''));
+            if ($ipaCode === '') {
+                $ipaCode = trim(frontoffice_env_value('SATOSA_CONTACT_PERSON_IPA_CODE', ''));
+            }
+            $spMetadata = frontoffice_inject_spid_contact_extensions($spMetadata, $ipaCode);
             
             if ($spMetadata === '' || $spMetadata === null) {
                 http_response_code(500);

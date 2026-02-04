@@ -83,6 +83,13 @@ if (!$supportEmail) {
     $domain = preg_replace('/[^a-z0-9]+/', '', strtolower($orgName)) ?: 'ente';
     $supportEmail = 'support@' . $domain . '.it';
 }
+$ipaCode = getenv('APP_ENTITY_IPA_CODE');
+if (!$ipaCode) {
+    $ipaCode = getenv('SATOSA_CONTACT_PERSON_IPA_CODE');
+}
+if (!$ipaCode) {
+    $ipaCode = 'c_x000';
+}
 
 $spCert = getenv('FRONTOFFICE_SAML_SP_X509CERT') ?: '';
 $spKey = getenv('FRONTOFFICE_SAML_SP_PRIVATEKEY') ?: '';
@@ -105,6 +112,8 @@ $loadPem = static function (string $value): string {
 $spCert = $loadPem($spCert);
 $spKey = $loadPem($spKey);
 $signMetadata = ($spCert !== '' && $spKey !== '');
+
+$authnRequestsSigned = $signMetadata;
 
 $settings = [
     'strict' => false,
@@ -160,7 +169,7 @@ $settings = [
         ],
     ],
     'security' => [
-        'authnRequestsSigned' => false,
+        'authnRequestsSigned' => $authnRequestsSigned,
         'wantAssertionsSigned' => true,
         'wantMessagesSigned' => true,
         'wantNameId' => false,
@@ -175,6 +184,12 @@ $settings = [
 try {
     $settingsObj = new Settings($settings);
     $metadata = $settingsObj->getSPMetadata();
+    if (strpos($metadata, 'xmlns:spid=') === false) {
+        $metadata = preg_replace('/<md:EntityDescriptor\b/', '<md:EntityDescriptor xmlns:spid="https://spid.gov.it/saml-extensions"', $metadata, 1);
+    }
+    $metadata = preg_replace('/(<md:ContactPerson[^>]*contactType="other"[^>]*>)/', '$1' . "\n        <md:Extensions>\n            <spid:IPACode>{$ipaCode}</spid:IPACode>\n            <spid:Public />\n        </md:Extensions>", $metadata, 1);
+    $metadata = preg_replace('/<md:AssertionConsumerService([^>]*?)index="\d+"([^>]*?)\/>/', '<md:AssertionConsumerService$1index="0"$2 isDefault="true" />', $metadata);
+    $metadata = preg_replace('/<md:AttributeConsumingService index="\d+"/', '<md:AttributeConsumingService index="0"', $metadata);
     $errors = $settingsObj->validateMetadata($metadata);
     
     if (!empty($errors)) {
