@@ -507,9 +507,18 @@ if (!function_exists('frontoffice_satosa_saml_auth')) {
             $spEntityId = rtrim($frontofficeBaseUrl, '/') . '/saml/sp';
         }
         $acsUrl = rtrim($frontofficeBaseUrl, '/') . $callbackPath;
+        $sloUrl = rtrim($frontofficeBaseUrl, '/') . '/logout';
+        $spServiceName = trim(frontoffice_env_value('APP_ENTITY_NAME', 'GovPay'));
+        if ($spServiceName === '') {
+            $spServiceName = 'GovPay';
+        }
 
         $wantAssertionsSigned = trim(frontoffice_env_value('FRONTOFFICE_SAML_WANT_ASSERTIONS_SIGNED', '1')) === '1';
         $wantMessagesSigned = trim(frontoffice_env_value('FRONTOFFICE_SAML_WANT_MESSAGES_SIGNED', '1')) === '1';
+
+        $spCert = trim((string)frontoffice_env_value('FRONTOFFICE_SAML_SP_X509CERT', ''));
+        $spKey = trim((string)frontoffice_env_value('FRONTOFFICE_SAML_SP_PRIVATEKEY', ''));
+        $signMetadata = ($spCert !== '' && $spKey !== '');
 
         $settings = [
             'strict' => true,
@@ -520,10 +529,25 @@ if (!function_exists('frontoffice_satosa_saml_auth')) {
                     'url' => $acsUrl,
                     'binding' => 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST',
                 ],
+                'singleLogoutService' => [
+                    'url' => $sloUrl,
+                    'binding' => 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect',
+                ],
                 // Per iniziare, non firmiamo le AuthnRequest (SATOSA può essere configurato per accettarle).
                 // Se vuoi firmare, imposta FRONTOFFICE_SAML_SP_X509CERT / FRONTOFFICE_SAML_SP_PRIVATEKEY (vedi README).
-                'x509cert' => (string)frontoffice_env_value('FRONTOFFICE_SAML_SP_X509CERT', ''),
-                'privateKey' => (string)frontoffice_env_value('FRONTOFFICE_SAML_SP_PRIVATEKEY', ''),
+                'x509cert' => $spCert,
+                'privateKey' => $spKey,
+                'attributeConsumingService' => [
+                    'serviceName' => $spServiceName,
+                    'serviceDescription' => $spServiceName,
+                    'requestedAttributes' => [
+                        ['name' => 'spidCode', 'friendlyName' => 'spidCode', 'nameFormat' => 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic', 'isRequired' => true],
+                        ['name' => 'name', 'friendlyName' => 'name', 'nameFormat' => 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic', 'isRequired' => true],
+                        ['name' => 'familyName', 'friendlyName' => 'familyName', 'nameFormat' => 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic', 'isRequired' => true],
+                        ['name' => 'fiscalNumber', 'friendlyName' => 'fiscalNumber', 'nameFormat' => 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic', 'isRequired' => true],
+                        ['name' => 'email', 'friendlyName' => 'email', 'nameFormat' => 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic', 'isRequired' => true],
+                    ],
+                ],
             ],
             'idp' => [
                 'entityId' => (string)($idp['entityId'] ?? ''),
@@ -540,6 +564,9 @@ if (!function_exists('frontoffice_satosa_saml_auth')) {
                 'wantNameId' => false,
                 'wantNameIdEncrypted' => false,
                 'signatureAlgorithm' => 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha256',
+                'signMetadata' => $signMetadata,
+                'signMetadataAlgorithm' => 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha256',
+                'digestAlgorithm' => 'http://www.w3.org/2001/04/xmlenc#sha256',
             ],
         ];
 
@@ -2441,7 +2468,7 @@ $routes = [
         // Genera i metadati SP usando la libreria OneLogin/php-saml
         // Usa la classe Metadata per costruire il metadata XML dal file di configurazione SAML
         try {
-            $settings = $auth->get_settings();
+            $settings = $auth->getSettings();
             $spMetadata = Metadata::builder(
                 $settings->getSPData(),
                 $settings->getSecurityData()
