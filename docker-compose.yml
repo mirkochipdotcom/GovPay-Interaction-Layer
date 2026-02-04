@@ -27,6 +27,7 @@ services:
     volumes:
       # Monta solo la cartella debug per sviluppo live
       - ./debug:/var/www/html/public/debug
+      - ./iam-proxy/metadata-sp:/var/www/html/metadata-sp:ro
     environment:
       - APACHE_SERVER_NAME=${APACHE_SERVER_NAME}
       # Dice a Composer di installare 'vendor' qui, indipendentemente da dove viene eseguito.

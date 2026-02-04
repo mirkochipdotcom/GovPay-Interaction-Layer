@@ -2463,6 +2463,39 @@ $routes = [
             ];
         }
 
+        $freezeMetadata = trim(frontoffice_env_value('FRONTOFFICE_SAML_SP_METADATA_FREEZE', '0')) === '1';
+        $metadataFile = trim(frontoffice_env_value('FRONTOFFICE_SAML_SP_METADATA_FILE', ''));
+        $metadataCandidates = [];
+        if ($metadataFile !== '') {
+            $metadataCandidates[] = $metadataFile;
+        }
+        $metadataCandidates[] = '/var/www/html/metadata-sp/frontoffice_sp.xml';
+        $metadataCandidates[] = dirname(__DIR__, 2) . '/iam-proxy/metadata-sp/frontoffice_sp.xml';
+        $frozenMetadataPath = null;
+        foreach ($metadataCandidates as $candidate) {
+            if ($candidate !== '' && file_exists($candidate)) {
+                $frozenMetadataPath = $candidate;
+                break;
+            }
+        }
+        if ($frozenMetadataPath !== null) {
+            $xml = @file_get_contents($frozenMetadataPath);
+            if (is_string($xml) && $xml !== '') {
+                header('Content-Type: application/xml; charset=utf-8', true, 200);
+                return [
+                    'raw_output' => $xml,
+                ];
+            }
+        } elseif ($freezeMetadata) {
+            http_response_code(500);
+            return [
+                'template' => 'errors/503.html.twig',
+                'context' => [
+                    'message' => 'Metadata SP freeze attivo ma file non trovato. Configura FRONTOFFICE_SAML_SP_METADATA_FILE o monta metadata-sp nel container.',
+                ],
+            ];
+        }
+
         $frontofficeBaseUrl = rtrim($env('FRONTOFFICE_PUBLIC_BASE_URL', ''), '/');
         if ($frontofficeBaseUrl === '') {
             $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
