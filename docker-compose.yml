@@ -11,7 +11,7 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        apk add --no-cache php php-simplexml curl && \
+        apk add --no-cache php php-simplexml curl openssl && \
         sh /scripts/ensure-sp-metadata.sh || exit 0
     profiles:
       - iam-proxy
