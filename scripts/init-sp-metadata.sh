@@ -37,6 +37,20 @@ use OneLogin\Saml2\Settings;
 $frontofficeBaseUrl = isset($argv[1]) ? $argv[1] : 'https://127.0.0.1:8444';
 $spEntityId = rtrim($frontofficeBaseUrl, '/') . '/saml/sp';
 $acsUrl = rtrim($frontofficeBaseUrl, '/') . '/spid/callback';
+$sloUrl = rtrim($frontofficeBaseUrl, '/') . '/logout';
+$orgName = getenv('APP_ENTITY_NAME') ?: 'GovPay';
+$orgSuffix = getenv('APP_ENTITY_SUFFIX') ?: '';
+$orgDisplay = trim($orgName . ($orgSuffix !== '' ? ' - ' . $orgSuffix : '')) ?: $orgName;
+$orgUrl = getenv('APP_ENTITY_URL') ?: rtrim($frontofficeBaseUrl, '/');
+$supportEmail = getenv('APP_SUPPORT_EMAIL');
+if (!$supportEmail) {
+    $domain = preg_replace('/[^a-z0-9]+/', '', strtolower($orgName)) ?: 'ente';
+    $supportEmail = 'support@' . $domain . '.it';
+}
+
+$spCert = getenv('FRONTOFFICE_SAML_SP_X509CERT') ?: '';
+$spKey = getenv('FRONTOFFICE_SAML_SP_PRIVATEKEY') ?: '';
+$signMetadata = ($spCert !== '' && $spKey !== '');
 
 $settings = [
     'strict' => false,
@@ -46,12 +60,46 @@ $settings = [
         'assertionConsumerService' => [
             'url' => $acsUrl,
             'binding' => 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST',
+            'index' => 0,
+            'isDefault' => true,
         ],
         'singleLogoutService' => [
-            'url' => rtrim($frontofficeBaseUrl, '/') . '/spid/logout',
+            'url' => $sloUrl,
             'binding' => 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect',
         ],
         'NameIDFormat' => 'urn:oasis:names:tc:SAML:2.0:nameid-format:transient',
+        'organization' => [
+            'en' => [
+                'name' => $orgName,
+                'displayname' => $orgDisplay,
+                'url' => $orgUrl,
+            ],
+            'it' => [
+                'name' => $orgName,
+                'displayname' => $orgDisplay,
+                'url' => $orgUrl,
+            ],
+        ],
+        'contactPerson' => [
+            [
+                'contactType' => 'other',
+                'givenName' => $orgName,
+                'emailAddress' => $supportEmail,
+            ],
+        ],
+        'x509cert' => $spCert,
+        'privateKey' => $spKey,
+        'attributeConsumingService' => [
+            'serviceName' => $orgDisplay,
+            'serviceDescription' => $orgDisplay,
+            'requestedAttributes' => [
+                ['name' => 'spidCode', 'friendlyName' => 'spidCode', 'nameFormat' => 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic', 'isRequired' => true],
+                ['name' => 'name', 'friendlyName' => 'name', 'nameFormat' => 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic', 'isRequired' => true],
+                ['name' => 'familyName', 'friendlyName' => 'familyName', 'nameFormat' => 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic', 'isRequired' => true],
+                ['name' => 'fiscalNumber', 'friendlyName' => 'fiscalNumber', 'nameFormat' => 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic', 'isRequired' => true],
+                ['name' => 'email', 'friendlyName' => 'email', 'nameFormat' => 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic', 'isRequired' => true],
+            ],
+        ],
     ],
     'idp' => [
         'entityId' => 'http://placeholder',
@@ -65,6 +113,9 @@ $settings = [
         'wantNameId' => false,
         'wantNameIdEncrypted' => false,
         'signatureAlgorithm' => 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha256',
+        'signMetadata' => $signMetadata,
+        'signMetadataAlgorithm' => 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha256',
+        'digestAlgorithm' => 'http://www.w3.org/2001/04/xmlenc#sha256',
     ],
 ];
 

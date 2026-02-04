@@ -542,6 +542,8 @@ if (!function_exists('frontoffice_satosa_saml_auth')) {
                 'assertionConsumerService' => [
                     'url' => $acsUrl,
                     'binding' => 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST',
+                    'index' => 0,
+                    'isDefault' => true,
                 ],
                 'singleLogoutService' => [
                     'url' => $sloUrl,
