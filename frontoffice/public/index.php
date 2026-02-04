@@ -467,7 +467,7 @@ if (!function_exists('frontoffice_satosa_idp_metadata')) {
                 if ($fallback === '') {
                     $fallback = $location;
                 }
-                if ($location !== '' && stripos($location, '/spidSaml2/') !== false) {
+                if ($location !== '' && stripos($location, '/Saml2IDP/') !== false) {
                     $ssoUrl = $location;
                     break;
                 }
