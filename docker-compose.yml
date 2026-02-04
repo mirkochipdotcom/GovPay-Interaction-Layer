@@ -9,6 +9,13 @@ services:
       - ./iam-proxy/metadata-sp:/var/www/html/metadata-sp
     environment:
       - FRONTOFFICE_PUBLIC_BASE_URL=${FRONTOFFICE_PUBLIC_BASE_URL:-https://127.0.0.1:8444}
+      - APP_ENTITY_NAME=${APP_ENTITY_NAME}
+      - APP_ENTITY_SUFFIX=${APP_ENTITY_SUFFIX}
+      - APP_ENTITY_URL=${APP_ENTITY_URL}
+      - APP_SUPPORT_EMAIL=${APP_SUPPORT_EMAIL}
+      - APP_ENTITY_IPA_CODE=${APP_ENTITY_IPA_CODE}
+    env_file:
+      - .env
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
