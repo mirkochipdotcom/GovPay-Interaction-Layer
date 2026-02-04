@@ -2571,7 +2571,16 @@ $routes = [
         // Usa la classe Metadata per costruire il metadata XML dal file di configurazione SAML
         try {
             $settings = $auth->getSettings();
-            $spMetadata = $settings->getSPMetadata();
+            $securityData = $settings->getSecurityData();
+            $spMetadata = Metadata::builder(
+                $settings->getSPData(),
+                (bool)($securityData['authnRequestsSigned'] ?? false),
+                (bool)($securityData['wantAssertionsSigned'] ?? false),
+                null,
+                null,
+                $settings->getContacts(),
+                $settings->getOrganization()
+            );
             $spMetadata = preg_replace('/<md:AssertionConsumerService([^>]*?)index="\d+"([^>]*?)\/>/', '<md:AssertionConsumerService$1index="0"$2 isDefault="true" />', $spMetadata);
             $spMetadata = preg_replace('/<md:AttributeConsumingService index="\d+"/', '<md:AttributeConsumingService index="0"', $spMetadata);
             $ipaCode = trim(frontoffice_env_value('APP_ENTITY_IPA_CODE', ''));
@@ -2579,6 +2588,20 @@ $routes = [
                 $ipaCode = trim(frontoffice_env_value('SATOSA_CONTACT_PERSON_IPA_CODE', ''));
             }
             $spMetadata = frontoffice_inject_spid_contact_extensions($spMetadata, $ipaCode);
+            if (!empty($securityData['signMetadata'])) {
+                $spKey = $settings->getSPkey();
+                $spCert = $settings->getSPcert();
+                if ($spKey !== '' && $spCert !== '') {
+                    $spMetadata = Metadata::addX509KeyDescriptors($spMetadata, $spCert, false);
+                    $spMetadata = Metadata::signMetadata(
+                        $spMetadata,
+                        $spKey,
+                        $spCert,
+                        $securityData['signMetadataAlgorithm'] ?? null,
+                        $securityData['digestAlgorithm'] ?? null
+                    );
+                }
+            }
             
             if ($spMetadata === '' || $spMetadata === null) {
                 http_response_code(500);
