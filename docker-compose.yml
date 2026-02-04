@@ -28,6 +28,7 @@ services:
       # Monta solo la cartella debug per sviluppo live
       - ./debug:/var/www/html/public/debug
       - ./iam-proxy/metadata-sp:/var/www/html/metadata-sp:ro
+      - ./iam-proxy/metadata-sp:/metadata/sp:ro
     environment:
       - APACHE_SERVER_NAME=${APACHE_SERVER_NAME}
       # Dice a Composer di installare 'vendor' qui, indipendentemente da dove viene eseguito.
@@ -49,6 +50,11 @@ services:
     container_name: govpay-interaction-frontoffice
     ports:
       - "${FRONTOFFICE_HTTPS_PORT:-8444}:443"
+    volumes:
+      # Monta solo la cartella debug per sviluppo live
+      - ./debug:/var/www/html/public/debug
+      - ./iam-proxy/metadata-sp:/var/www/html/metadata-sp:ro
+      - ./iam-proxy/metadata-sp:/metadata/sp:ro
     environment:
       - APACHE_SERVER_NAME=${APACHE_SERVER_NAME}
       - COMPOSER_VENDOR_DIR=/var/www/html/vendor

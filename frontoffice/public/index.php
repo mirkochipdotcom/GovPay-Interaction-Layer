@@ -2470,6 +2470,7 @@ $routes = [
             $metadataCandidates[] = $metadataFile;
         }
         $metadataCandidates[] = '/var/www/html/metadata-sp/frontoffice_sp.xml';
+        $metadataCandidates[] = '/metadata/sp/frontoffice_sp.xml';
         $metadataCandidates[] = dirname(__DIR__, 2) . '/iam-proxy/metadata-sp/frontoffice_sp.xml';
         $frozenMetadataPath = null;
         foreach ($metadataCandidates as $candidate) {
