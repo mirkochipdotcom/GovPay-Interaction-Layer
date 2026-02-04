@@ -568,25 +568,6 @@ if (!function_exists('frontoffice_satosa_saml_auth')) {
                     'binding' => 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect',
                 ],
                 'NameIDFormat' => 'urn:oasis:names:tc:SAML:2.0:nameid-format:transient',
-                'organization' => [
-                    'en' => [
-                        'name' => $spServiceName,
-                        'displayname' => $spServiceFull,
-                        'url' => $orgUrl,
-                    ],
-                    'it' => [
-                        'name' => $spServiceName,
-                        'displayname' => $spServiceFull,
-                        'url' => $orgUrl,
-                    ],
-                ],
-                'contactPerson' => [
-                    [
-                        'contactType' => 'other',
-                        'givenName' => $spServiceName,
-                        'emailAddress' => $supportEmail,
-                    ],
-                ],
                 // Per iniziare, non firmiamo le AuthnRequest (SATOSA può essere configurato per accettarle).
                 // Se vuoi firmare, imposta FRONTOFFICE_SAML_SP_X509CERT / FRONTOFFICE_SAML_SP_PRIVATEKEY (vedi README).
                 'x509cert' => $spCert,
@@ -610,6 +591,24 @@ if (!function_exists('frontoffice_satosa_saml_auth')) {
                     'binding' => 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect',
                 ],
                 'x509cert' => (string)($idp['x509cert'] ?? ''),
+            ],
+            'organization' => [
+                'en' => [
+                    'name' => $spServiceName,
+                    'displayname' => $spServiceFull,
+                    'url' => $orgUrl,
+                ],
+                'it' => [
+                    'name' => $spServiceName,
+                    'displayname' => $spServiceFull,
+                    'url' => $orgUrl,
+                ],
+            ],
+            'contactPerson' => [
+                'other' => [
+                    'givenName' => $spServiceName,
+                    'emailAddress' => $supportEmail,
+                ],
             ],
             'security' => [
                 'authnRequestsSigned' => false,
