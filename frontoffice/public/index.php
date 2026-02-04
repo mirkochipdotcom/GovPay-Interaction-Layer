@@ -512,6 +512,20 @@ if (!function_exists('frontoffice_satosa_saml_auth')) {
         if ($spServiceName === '') {
             $spServiceName = 'GovPay';
         }
+        $spServiceSuffix = trim(frontoffice_env_value('APP_ENTITY_SUFFIX', ''));
+        $spServiceFull = trim($spServiceName . ($spServiceSuffix !== '' ? ' - ' . $spServiceSuffix : ''));
+        if ($spServiceFull === '') {
+            $spServiceFull = $spServiceName;
+        }
+        $orgUrl = trim(frontoffice_env_value('APP_ENTITY_URL', ''));
+        if ($orgUrl === '') {
+            $orgUrl = rtrim($frontofficeBaseUrl, '/');
+        }
+        $supportEmail = trim(frontoffice_env_value('APP_SUPPORT_EMAIL', ''));
+        if ($supportEmail === '') {
+            $domain = preg_replace('/[^a-z0-9]+/', '', strtolower($spServiceName)) ?: 'ente';
+            $supportEmail = 'support@' . $domain . '.it';
+        }
 
         $wantAssertionsSigned = trim(frontoffice_env_value('FRONTOFFICE_SAML_WANT_ASSERTIONS_SIGNED', '1')) === '1';
         $wantMessagesSigned = trim(frontoffice_env_value('FRONTOFFICE_SAML_WANT_MESSAGES_SIGNED', '1')) === '1';
@@ -534,6 +548,25 @@ if (!function_exists('frontoffice_satosa_saml_auth')) {
                     'binding' => 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect',
                 ],
                 'NameIDFormat' => 'urn:oasis:names:tc:SAML:2.0:nameid-format:transient',
+                'organization' => [
+                    'en' => [
+                        'name' => $spServiceName,
+                        'displayname' => $spServiceFull,
+                        'url' => $orgUrl,
+                    ],
+                    'it' => [
+                        'name' => $spServiceName,
+                        'displayname' => $spServiceFull,
+                        'url' => $orgUrl,
+                    ],
+                ],
+                'contactPerson' => [
+                    [
+                        'contactType' => 'other',
+                        'givenName' => $spServiceName,
+                        'emailAddress' => $supportEmail,
+                    ],
+                ],
                 // Per iniziare, non firmiamo le AuthnRequest (SATOSA può essere configurato per accettarle).
                 // Se vuoi firmare, imposta FRONTOFFICE_SAML_SP_X509CERT / FRONTOFFICE_SAML_SP_PRIVATEKEY (vedi README).
                 'x509cert' => $spCert,
