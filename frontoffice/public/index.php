@@ -533,6 +533,7 @@ if (!function_exists('frontoffice_satosa_saml_auth')) {
                     'url' => $sloUrl,
                     'binding' => 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect',
                 ],
+                'NameIDFormat' => 'urn:oasis:names:tc:SAML:2.0:nameid-format:transient',
                 // Per iniziare, non firmiamo le AuthnRequest (SATOSA può essere configurato per accettarle).
                 // Se vuoi firmare, imposta FRONTOFFICE_SAML_SP_X509CERT / FRONTOFFICE_SAML_SP_PRIVATEKEY (vedi README).
                 'x509cert' => $spCert,
