@@ -136,7 +136,7 @@ services:
       - SATOSA_HOSTNAME=${IAM_PROXY_HOSTNAME:-satosa-nginx}
       - SATOSA_BASE=${IAM_PROXY_PUBLIC_BASE_URL:-https://satosa-nginx:9445}
       - SATOSA_BASE_STATIC=${IAM_PROXY_PUBLIC_BASE_URL:-https://satosa-nginx:9445}/static
-      - SATOSA_DISCO_SRV=${IAM_PROXY_PUBLIC_BASE_URL:-https://satosa-nginx:9445}/static/disco.html
+      - SATOSA_DISCO_SRV=${SATOSA_DISCO_SRV:-${IAM_PROXY_PUBLIC_BASE_URL:-https://satosa-nginx:9445}/static/disco.html}
       - SATOSA_UNKNOW_ERROR_REDIRECT_PAGE=${SATOSA_UNKNOW_ERROR_REDIRECT_PAGE:-${IAM_PROXY_PUBLIC_BASE_URL:-https://satosa-nginx:9445}}
       - SATOSA_DEBUG=${IAM_PROXY_DEBUG:-false}
       - SATOSA_SALT=${SATOSA_SALT:-CHANGE_ME}
