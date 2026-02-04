@@ -51,6 +51,10 @@ img/favicon.png
 iam-proxy/metadata-sp/*
 !iam-proxy/metadata-sp/README.md
 
+# Certificati SPID generati (non versionare)
+iam-proxy/spid-certs/*
+!iam-proxy/spid-certs/README.md
+
 # Local directory for runtime data (outside repository)
 .local/
 /iam-proxy/nginx/html/static/*
