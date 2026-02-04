@@ -158,7 +158,7 @@ if [ "$APP_SUITE" = "frontoffice" ]; then
     for entry in "$TARGET_PUBLIC"/*; do
       name="$(basename "$entry")"
       case "$name" in
-        .|..|assets|img|.htaccess)
+        .|..|assets|img|.htaccess|debug)
           continue
           ;;
       esac
@@ -166,7 +166,7 @@ if [ "$APP_SUITE" = "frontoffice" ]; then
     done
     shopt -u dotglob
     cp -R "$SOURCE_PUBLIC"/. "$TARGET_PUBLIC"/
-    rm -rf "$TARGET_PUBLIC"/debug
+    rm -rf "$TARGET_PUBLIC"/debug || true
     chown -R www-app:www-data "$TARGET_PUBLIC" || true
     echo "✅ Frontoffice pubblicato in $TARGET_PUBLIC (debug disattivata)"
   else
