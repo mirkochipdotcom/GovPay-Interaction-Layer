@@ -11,13 +11,44 @@ else
     METADATA_SP_DIR="${PROJECT_ROOT}/iam-proxy/metadata-sp"
 fi
 FRONTOFFICE_PUBLIC_BASE_URL="${FRONTOFFICE_PUBLIC_BASE_URL:-https://127.0.0.1:8444}"
-METADATA_FILE="${METADATA_SP_DIR}/frontoffice_sp.xml"
+METADATA_BASENAME="frontoffice_sp.xml"
+FORCE_OVERWRITE=0
+MODE_NEW=0
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --new)
+            MODE_NEW=1
+            ;;
+        --force)
+            FORCE_OVERWRITE=1
+            ;;
+        --output)
+            shift
+            if [ -n "$1" ]; then
+                METADATA_BASENAME="$1"
+            fi
+            ;;
+    esac
+    shift
+done
+
+if [ "$MODE_NEW" -eq 1 ]; then
+    METADATA_BASENAME="frontoffice_sp-new.xml"
+fi
+
+METADATA_FILE="${METADATA_SP_DIR}/${METADATA_BASENAME}"
+
+if [ "$MODE_NEW" -eq 1 ] && [ -f "$METADATA_FILE" ]; then
+    TS="$(date +%Y%m%d%H%M%S)"
+    METADATA_FILE="${METADATA_SP_DIR}/frontoffice_sp-new-${TS}.xml"
+fi
 
 # Crea la directory se non esiste
 mkdir -p "$METADATA_SP_DIR"
 
-# Se il file esiste già, non rigenerare
-if [ -f "$METADATA_FILE" ]; then
+# Se il file esiste già, non rigenerare (modalità idempotente)
+if [ -f "$METADATA_FILE" ] && [ "$FORCE_OVERWRITE" -ne 1 ]; then
     echo "[INFO] Metadata SP già presente"
     exit 0
 fi
