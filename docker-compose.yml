@@ -1,5 +1,30 @@
 services:
   # Servizio di utility che genera i metadata SP al primo avvio
+  init-spid-cert:
+    image: italia/spid-compliant-certificates:latest
+    container_name: govpay-init-spid-cert
+    volumes:
+      - ./iam-proxy/metadata-sp:/certs
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        spid-compliant-certificates generator \
+          --key-size "$${SPID_CERT_KEY_SIZE:-3072}" \
+          --common-name "$${SPID_CERT_COMMON_NAME:-$${APP_ENTITY_NAME:-GovPay}}" \
+          --days "$${SPID_CERT_DAYS:-365}" \
+          --entity-id "$${SPID_CERT_ENTITY_ID:-$${FRONTOFFICE_PUBLIC_BASE_URL:-https://127.0.0.1:8444}/saml/sp}" \
+          --locality-name "$${SPID_CERT_LOCALITY_NAME:-Roma}" \
+          --org-id "$${SPID_CERT_ORG_ID:-PA:IT-$${APP_ENTITY_IPA_CODE:-c_x000}}" \
+          --org-name "$${SPID_CERT_ORG_NAME:-$${APP_ENTITY_NAME:-GovPay}}" \
+          --sector "$${SPID_CERT_SECTOR:-public}" \
+          --key-out /certs/sp-signing.key \
+          --csr-out /certs/sp-signing.csr \
+          --crt-out /certs/sp-signing.crt
+    env_file:
+      - .env
+    profiles:
+      - iam-proxy
+
   init-sp-metadata:
     image: govpay-interaction-frontoffice:latest
     container_name: govpay-init-sp-metadata
@@ -16,6 +41,9 @@ services:
       - APP_ENTITY_IPA_CODE=${APP_ENTITY_IPA_CODE}
     env_file:
       - .env
+    depends_on:
+      init-spid-cert:
+        condition: service_completed_successfully
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |

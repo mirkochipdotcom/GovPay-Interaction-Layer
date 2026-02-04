@@ -74,33 +74,8 @@ normalize_cert_path() {
     esac
 }
 
-ensure_sp_signing_keys() {
-    local cert_path="$1"
-    local key_path="$2"
-    if is_inline_pem "$cert_path" || is_inline_pem "$key_path"; then
-        return 0
-    fi
-    if [ -f "$cert_path" ] && [ -f "$key_path" ]; then
-        return 0
-    fi
-    if ! command -v openssl >/dev/null 2>&1; then
-        echo "[WARN] openssl non trovato: impossibile generare certificati SP di default"
-        return 0
-    fi
-    echo "[INFO] Generazione certificati SP di default"
-    local org_name="${APP_ENTITY_NAME:-GovPay}"
-    mkdir -p "$(dirname "$cert_path")" "$(dirname "$key_path")"
-    openssl req -newkey rsa:2048 -nodes \
-        -keyout "$key_path" \
-        -x509 -days 3650 \
-        -out "$cert_path" \
-        -subj "/C=IT/O=${org_name}/CN=SP Metadata Signing" >/dev/null 2>&1
-}
-
 FRONTOFFICE_SAML_SP_X509CERT="$(normalize_cert_path "$FRONTOFFICE_SAML_SP_X509CERT")"
 FRONTOFFICE_SAML_SP_PRIVATEKEY="$(normalize_cert_path "$FRONTOFFICE_SAML_SP_PRIVATEKEY")"
-
-ensure_sp_signing_keys "$FRONTOFFICE_SAML_SP_X509CERT" "$FRONTOFFICE_SAML_SP_PRIVATEKEY"
 
 export FRONTOFFICE_SAML_SP_X509CERT
 export FRONTOFFICE_SAML_SP_PRIVATEKEY
@@ -233,6 +208,18 @@ $loadPem = static function (string $value): string {
 $spCert = $loadPem($spCert);
 $spKey = $loadPem($spKey);
 $signMetadata = ($spCert !== '' && $spKey !== '');
+
+if ($signMetadata) {
+    $pkey = @openssl_pkey_get_private($spKey);
+    if ($pkey === false) {
+        fwrite(STDERR, "Invalid SP private key: unable to load private key\n");
+        exit(1);
+    }
+    if (@openssl_x509_parse($spCert) === false) {
+        fwrite(STDERR, "Invalid SP certificate: unable to parse X509\n");
+        exit(1);
+    }
+}
 
 $authnRequestsSigned = $signMetadata;
 

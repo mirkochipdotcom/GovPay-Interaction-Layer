@@ -2592,6 +2592,12 @@ $routes = [
                 $spKey = $settings->getSPkey();
                 $spCert = $settings->getSPcert();
                 if ($spKey !== '' && $spCert !== '') {
+                    if (@openssl_pkey_get_private($spKey) === false) {
+                        throw new \RuntimeException('SP private key non valida');
+                    }
+                    if (@openssl_x509_parse($spCert) === false) {
+                        throw new \RuntimeException('Certificato SP non valido');
+                    }
                     $spMetadata = Metadata::addX509KeyDescriptors($spMetadata, $spCert, false);
                     $spMetadata = Metadata::signMetadata(
                         $spMetadata,
