@@ -81,8 +81,6 @@ services:
       - ./iam-proxy/metadata-sp:/satosa_proxy/metadata/sp:ro
       # Override della configurazione target_based_routing con il mapping del frontoffice SP
       - ./iam-proxy/target_based_routing_override.yaml:/satosa_proxy/conf/microservices/target_based_routing.yaml:ro
-      # Override frontend config per limitare metadata ai soli XML
-      - ./iam-proxy/iam-proxy-italia-project/conf/frontends/saml2_frontend.yaml:/satosa_proxy/conf/frontends/saml2_frontend.yaml:ro
     profiles:
       - iam-proxy
     depends_on:
