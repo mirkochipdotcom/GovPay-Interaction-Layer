@@ -243,25 +243,6 @@ $settings = [
             'binding' => 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect',
         ],
         'NameIDFormat' => 'urn:oasis:names:tc:SAML:2.0:nameid-format:transient',
-        'organization' => [
-            'en' => [
-                'name' => $orgName,
-                'displayname' => $orgDisplay,
-                'url' => $orgUrl,
-            ],
-            'it' => [
-                'name' => $orgName,
-                'displayname' => $orgDisplay,
-                'url' => $orgUrl,
-            ],
-        ],
-        'contactPerson' => [
-            [
-                'contactType' => 'other',
-                'givenName' => $orgName,
-                'emailAddress' => $supportEmail,
-            ],
-        ],
         'x509cert' => $spCert,
         'privateKey' => $spKey,
         'attributeConsumingService' => [
@@ -280,6 +261,24 @@ $settings = [
         'entityId' => 'http://placeholder',
         'singleSignOnService' => ['url' => 'http://placeholder'],
         'x509cert' => 'placeholder',
+    ],
+    'organization' => [
+        'en' => [
+            'name' => $orgName,
+            'displayname' => $orgDisplay,
+            'url' => $orgUrl,
+        ],
+        'it' => [
+            'name' => $orgName,
+            'displayname' => $orgDisplay,
+            'url' => $orgUrl,
+        ],
+    ],
+    'contactPerson' => [
+        'other' => [
+            'givenName' => $orgName,
+            'emailAddress' => $supportEmail,
+        ],
     ],
     'security' => [
         'authnRequestsSigned' => false,
