@@ -309,8 +309,18 @@ try {
         $metadata = preg_replace('/<md:EntityDescriptor\b/', '<md:EntityDescriptor xmlns:spid="https://spid.gov.it/saml-extensions"', $metadata, 1);
     }
     $metadata = preg_replace('/(<md:ContactPerson[^>]*contactType="other"[^>]*>)/', '$1' . "\n        <md:Extensions>\n            <spid:IPACode>{$ipaCode}</spid:IPACode>\n            <spid:Public />\n        </md:Extensions>", $metadata, 1);
-    $metadata = preg_replace('/<md:AssertionConsumerService([^>]*?)index="\d+"([^>]*?)\/>/', '<md:AssertionConsumerService$1index="0"$2 isDefault="true" />', $metadata);
-    $metadata = preg_replace('/<md:AttributeConsumingService index="\d+"/', '<md:AttributeConsumingService index="0"', $metadata);
+    $metadata = preg_replace('/<md:AssertionConsumerService([^>]*?)index=\"\d+\"([^>]*?)\/>/', '<md:AssertionConsumerService$1index="0"$2 isDefault="true" />', $metadata);
+    $metadata = preg_replace('/<md:AttributeConsumingService index=\"\d+\"/', '<md:AttributeConsumingService index="0"', $metadata);
+    if ($signMetadata) {
+        $metadata = \OneLogin\Saml2\Metadata::addX509KeyDescriptors($metadata, $spCert, false);
+        $metadata = \OneLogin\Saml2\Metadata::signMetadata(
+            $metadata,
+            $spKey,
+            $spCert,
+            $settings['security']['signMetadataAlgorithm'] ?? null,
+            $settings['security']['digestAlgorithm'] ?? null
+        );
+    }
     $errors = $settingsObj->validateMetadata($metadata);
     
     if (!empty($errors)) {
