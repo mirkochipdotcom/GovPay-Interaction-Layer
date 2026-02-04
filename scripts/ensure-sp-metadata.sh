@@ -122,6 +122,7 @@ use OneLogin\Saml2\Settings;
 $autoloaderPaths = [
     __DIR__ . '/../vendor/autoload.php',
     __DIR__ . '/../frontoffice/vendor/autoload.php',
+    '/var/www/html/vendor/autoload.php',
 ];
 
 foreach ($autoloaderPaths as $path) {
