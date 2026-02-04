@@ -51,12 +51,6 @@ fi
 # Crea la directory se non esiste
 mkdir -p "$METADATA_SP_DIR"
 
-# Se il file esiste già, non rigenerare (modalità idempotente)
-if [ -f "$METADATA_FILE" ] && [ "$FORCE_OVERWRITE" -ne 1 ]; then
-    echo "[INFO] Metadata SP già presente"
-    exit 0
-fi
-
 is_inline_pem() {
     echo "$1" | grep -q "BEGIN "
 }
@@ -110,6 +104,12 @@ ensure_sp_signing_keys "$FRONTOFFICE_SAML_SP_X509CERT" "$FRONTOFFICE_SAML_SP_PRI
 
 export FRONTOFFICE_SAML_SP_X509CERT
 export FRONTOFFICE_SAML_SP_PRIVATEKEY
+
+# Se il file esiste già, non rigenerare (modalità idempotente)
+if [ -f "$METADATA_FILE" ] && [ "$FORCE_OVERWRITE" -ne 1 ]; then
+    echo "[INFO] Metadata SP già presente"
+    exit 0
+fi
 
 echo "[INFO] Generando metadata SP per: $FRONTOFFICE_PUBLIC_BASE_URL"
 

@@ -23,12 +23,6 @@ mkdir -p "$METADATA_SP_DIR"
 # File metadata SP
 METADATA_FILE="${METADATA_SP_DIR}/frontoffice_sp.xml"
 
-# Se il file esiste già, non rigenerare
-if [ -f "$METADATA_FILE" ]; then
-    echo "[INFO] Metadata SP già presente: $METADATA_FILE"
-    exit 0
-fi
-
 is_inline_pem() {
     echo "$1" | grep -q "BEGIN "
 }
@@ -60,6 +54,12 @@ ensure_sp_signing_keys "$FRONTOFFICE_SAML_SP_X509CERT" "$FRONTOFFICE_SAML_SP_PRI
 
 export FRONTOFFICE_SAML_SP_X509CERT
 export FRONTOFFICE_SAML_SP_PRIVATEKEY
+
+# Se il file esiste già, non rigenerare
+if [ -f "$METADATA_FILE" ]; then
+    echo "[INFO] Metadata SP già presente: $METADATA_FILE"
+    exit 0
+fi
 
 # Genere i metadata usando il container frontoffice
 echo "[INFO] Generando metadata SP per: $FRONTOFFICE_PUBLIC_BASE_URL"
