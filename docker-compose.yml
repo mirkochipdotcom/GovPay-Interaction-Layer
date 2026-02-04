@@ -132,6 +132,7 @@ services:
     environment:
       # Config minima per esecuzione container (valori dettagliati/secret in .env)
       - SATOSA_BY_DOCKER=1
+      - FRONTOFFICE_PUBLIC_BASE_URL=${FRONTOFFICE_PUBLIC_BASE_URL}
       - SATOSA_HOSTNAME=${IAM_PROXY_HOSTNAME:-satosa-nginx}
       - SATOSA_BASE=${IAM_PROXY_PUBLIC_BASE_URL:-https://satosa-nginx:9445}
       - SATOSA_BASE_STATIC=${IAM_PROXY_PUBLIC_BASE_URL:-https://satosa-nginx:9445}/static
