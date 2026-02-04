@@ -10,7 +10,11 @@ if [ -f "$PROJECT_ROOT/.env" ]; then
     export $(cat "$PROJECT_ROOT/.env" | grep -v '^#' | xargs)
 fi
 
-METADATA_SP_DIR="${PROJECT_ROOT}/iam-proxy/iam-proxy-italia-project/metadata/sp"
+if [ -d "/metadata/sp" ]; then
+    METADATA_SP_DIR="/metadata/sp"
+else
+    METADATA_SP_DIR="${PROJECT_ROOT}/iam-proxy/metadata-sp"
+fi
 FRONTOFFICE_PUBLIC_BASE_URL="${FRONTOFFICE_PUBLIC_BASE_URL:-https://127.0.0.1:8444}"
 METADATA_FILE="${METADATA_SP_DIR}/frontoffice_sp.xml"
 
