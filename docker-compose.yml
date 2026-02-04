@@ -5,7 +5,7 @@ services:
     container_name: govpay-init-sp-metadata
     volumes:
       - ./scripts/ensure-sp-metadata.sh:/scripts/ensure-sp-metadata.sh:ro
-      - ./iam-proxy/iam-proxy-italia-project/metadata/sp:/metadata/sp
+      - ./iam-proxy/metadata-sp:/metadata/sp
     environment:
       - FRONTOFFICE_PUBLIC_BASE_URL=${FRONTOFFICE_PUBLIC_BASE_URL:-https://127.0.0.1:8444}
     entrypoint: ["/bin/sh", "-c"]

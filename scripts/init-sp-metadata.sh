@@ -4,7 +4,11 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-METADATA_SP_DIR="${PROJECT_ROOT}/iam-proxy/iam-proxy-italia-project/metadata/sp"
+if [ -d "/metadata/sp" ]; then
+    METADATA_SP_DIR="/metadata/sp"
+else
+    METADATA_SP_DIR="${PROJECT_ROOT}/iam-proxy/metadata-sp"
+fi
 FRONTOFFICE_PUBLIC_BASE_URL="${FRONTOFFICE_PUBLIC_BASE_URL:-https://127.0.0.1:8444}"
 
 echo "[INIT] Inizializzazione metadata SP per SATOSA..."

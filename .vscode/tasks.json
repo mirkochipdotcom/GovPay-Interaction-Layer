@@ -53,6 +53,26 @@
 			"isBackground": false,
 			"problemMatcher": [],
 			"group": "build"
+		},
+		{
+			"label": "init-sp-metadata-clean",
+			"type": "shell",
+			"command": "docker compose run --rm init-sp-metadata",
+			"isBackground": false,
+			"group": "build",
+			"problemMatcher": []
+		},
+		{
+			"label": "up-iam-proxy-with-metadata",
+			"type": "shell",
+			"command": "echo 'Starting iam-proxy with fresh SP metadata'",
+			"isBackground": false,
+			"group": "build",
+			"dependsOn": [
+				"init-sp-metadata-clean",
+				"up-iam-proxy"
+			],
+			"problemMatcher": []
 		}
 	]
 }
