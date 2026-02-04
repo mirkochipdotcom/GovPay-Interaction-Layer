@@ -177,7 +177,26 @@ A partire da febbraio 2026, il sistema di autenticazione SPID/CIE è stato **uni
 **Per nuovi ambienti (consigliato)**:
 - Usare IAM Proxy SATOSA (containers `iam-proxy-italia` + `satosa-nginx`)
 - Vedi documentazione: [MIGRAZIONE-IAM-PROXY.md](./MIGRAZIONE-IAM-PROXY.md) e [TESTING-IAM-PROXY.md](./TESTING-IAM-PROXY.md)
-- Configurazione: usare variabili `SATOSA_*` nel `.env` (vedi `.env.example`)
+- **Configurazione semplificata**: imposta solo `IAM_PROXY_PUBLIC_BASE_URL` nel `.env` - tutti gli altri URL sono derivati automaticamente
+
+### Configurazione semplificata IAM Proxy
+
+La configurazione del proxy IAM è stata semplificata (febbraio 2026) per evitare errori dovuti a URL ridondanti o inconsistenti.
+
+**Variabile principale** (unica da modificare):
+- `IAM_PROXY_PUBLIC_BASE_URL`: URL pubblico usato dal browser per accedere al proxy SPID/CIE
+  - Esempio DEV: `https://localhost:9445`
+  - Esempio PROD: `https://login.comune.it` (senza porta se è standard 443)
+
+**Variabili derivate automaticamente** (non modificare, lasciale vuote nel `.env`):
+- `IAM_PROXY_SAML2_IDP_METADATA_URL`: derivato da `${IAM_PROXY_PUBLIC_BASE_URL}/Saml2IDP/metadata`
+- `SATOSA_UNKNOW_ERROR_REDIRECT_PAGE`: derivato da `${IAM_PROXY_PUBLIC_BASE_URL}`
+- `SATOSA_BASE`, `SATOSA_BASE_STATIC`, `SATOSA_DISCO_SRV`: derivati automaticamente dal docker-compose
+
+**Variabile interna** (non toccare a meno di rinominare i servizi docker):
+- `IAM_PROXY_SAML2_IDP_METADATA_URL_INTERNAL`: sempre `https://satosa-nginx:443/Saml2IDP/metadata`
+
+Se in precedenza avevi valori hardcodati come `SATOSA_UNKNOW_ERROR_REDIRECT_PAGE=https://satosa-nginx:9445`, **rimuovili** o commentali nel tuo `.env` - il sistema userà automaticamente il valore derivato da `IAM_PROXY_PUBLIC_BASE_URL`.
 
 **Per ambienti legacy (in transizione)**:
 - Il proxy SimpleSAMLphp (`spid-proxy`) rimane disponibile ma disabilitato di default
