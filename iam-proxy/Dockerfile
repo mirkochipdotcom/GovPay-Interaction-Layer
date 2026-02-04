@@ -35,12 +35,15 @@ set -e
 
 # Inject frontoffice SP entityID into routing override if placeholder present
 TARGET_ROUTING_FILE="/satosa_proxy/conf/microservices/target_based_routing.yaml"
+RUNTIME_ROUTING_FILE="/satosa_proxy/runtime/target_based_routing.yaml"
 if [ -f "$TARGET_ROUTING_FILE" ] && grep -q "__FRONTOFFICE_SAML_SP_ENTITY_ID__" "$TARGET_ROUTING_FILE"; then
   BASE_URL="${FRONTOFFICE_PUBLIC_BASE_URL:-}"
   if [ -n "$BASE_URL" ]; then
     BASE_URL="${BASE_URL%/}"
     SP_ENTITY_ID="${FRONTOFFICE_SAML_SP_ENTITY_ID:-${BASE_URL}/saml/sp}"
-    sed -i "s|__FRONTOFFICE_SAML_SP_ENTITY_ID__|${SP_ENTITY_ID}|g" "$TARGET_ROUTING_FILE"
+    mkdir -p /satosa_proxy/runtime
+    sed "s|__FRONTOFFICE_SAML_SP_ENTITY_ID__|${SP_ENTITY_ID}|g" "$TARGET_ROUTING_FILE" > "$RUNTIME_ROUTING_FILE"
+    sed -i "s|conf/microservices/target_based_routing.yaml|runtime/target_based_routing.yaml|" /satosa_proxy/proxy_conf.yaml
   fi
 fi
 
