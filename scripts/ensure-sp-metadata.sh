@@ -1,18 +1,13 @@
-#!/bin/bash
+#!/bin/sh
 # Script che viene eseguito prima di docker compose up per generare i metadata SP
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-
-# Source delle variabili d'ambiente
-if [ -f "$PROJECT_ROOT/.env" ]; then
-    export $(cat "$PROJECT_ROOT/.env" | grep -v '^#' | xargs)
-fi
-
+# In container usa path assoluto, altrimenti calcola da script location
 if [ -d "/metadata/sp" ]; then
     METADATA_SP_DIR="/metadata/sp"
 else
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
     METADATA_SP_DIR="${PROJECT_ROOT}/iam-proxy/metadata-sp"
 fi
 FRONTOFFICE_PUBLIC_BASE_URL="${FRONTOFFICE_PUBLIC_BASE_URL:-https://127.0.0.1:8444}"
@@ -29,8 +24,8 @@ fi
 
 echo "[INFO] Generando metadata SP per: $FRONTOFFICE_PUBLIC_BASE_URL"
 
-# Geniera i metadata usando uno script inline
-php - "$FRONTOFFICE_PUBLIC_BASE_URL" > "$METADATA_FILE" << 'PHPEOF'
+# Genera i metadata usando uno script inline (scrivi su file temp poi esegui)
+cat > /tmp/generate-metadata.php << 'PHPEOF'
 <?php
 use OneLogin\Saml2\Settings;
 
@@ -125,6 +120,8 @@ try {
     exit(1);
 }
 PHPEOF
+
+php /tmp/generate-metadata.php "$FRONTOFFICE_PUBLIC_BASE_URL" > "$METADATA_FILE"
 
 if [ $? -ne 0 ]; then
     echo "[ERROR] Fallito il caricamento dei metadata SP"
