@@ -5,8 +5,7 @@ config:
 
   target_mapping:
     # Frontoffice Service Provider (IAM PROXY SAML2)
-    "!ENV FRONTOFFICE_PUBLIC_BASE_URL": "spidSaml2"
-    "!ENV FRONTOFFICE_PUBLIC_BASE_URL/saml/sp": "spidSaml2"
+    "__FRONTOFFICE_SAML_SP_ENTITY_ID__": "spidSaml2"
     
     # test platforms
     "http://idpspid.testunical.it:8088": "spidSaml2"
