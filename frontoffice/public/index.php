@@ -70,6 +70,24 @@ $env = static function (string $key, ?string $default = null): string {
     return frontoffice_env_value($key, $default);
 };
 
+if (!function_exists('frontoffice_load_pem_value')) {
+    function frontoffice_load_pem_value(string $value): string
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return '';
+        }
+        if (str_contains($trimmed, 'BEGIN ')) {
+            return $trimmed;
+        }
+        if (is_file($trimmed)) {
+            $content = @file_get_contents($trimmed);
+            return $content !== false ? trim($content) : '';
+        }
+        return $trimmed;
+    }
+}
+
 if (!function_exists('frontoffice_load_service_options')) {
     function frontoffice_load_service_options(): array
     {
@@ -530,8 +548,8 @@ if (!function_exists('frontoffice_satosa_saml_auth')) {
         $wantAssertionsSigned = trim(frontoffice_env_value('FRONTOFFICE_SAML_WANT_ASSERTIONS_SIGNED', '1')) === '1';
         $wantMessagesSigned = trim(frontoffice_env_value('FRONTOFFICE_SAML_WANT_MESSAGES_SIGNED', '1')) === '1';
 
-        $spCert = trim((string)frontoffice_env_value('FRONTOFFICE_SAML_SP_X509CERT', ''));
-        $spKey = trim((string)frontoffice_env_value('FRONTOFFICE_SAML_SP_PRIVATEKEY', ''));
+        $spCert = frontoffice_load_pem_value((string)frontoffice_env_value('FRONTOFFICE_SAML_SP_X509CERT', ''));
+        $spKey = frontoffice_load_pem_value((string)frontoffice_env_value('FRONTOFFICE_SAML_SP_PRIVATEKEY', ''));
         $signMetadata = ($spCert !== '' && $spKey !== '');
 
         $settings = [

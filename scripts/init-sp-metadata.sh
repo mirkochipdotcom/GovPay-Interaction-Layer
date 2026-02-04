@@ -10,6 +10,10 @@ else
     METADATA_SP_DIR="${PROJECT_ROOT}/iam-proxy/metadata-sp"
 fi
 FRONTOFFICE_PUBLIC_BASE_URL="${FRONTOFFICE_PUBLIC_BASE_URL:-https://127.0.0.1:8444}"
+DEFAULT_SP_CERT_PATH="${METADATA_SP_DIR}/sp-signing.crt"
+DEFAULT_SP_KEY_PATH="${METADATA_SP_DIR}/sp-signing.key"
+FRONTOFFICE_SAML_SP_X509CERT="${FRONTOFFICE_SAML_SP_X509CERT:-$DEFAULT_SP_CERT_PATH}"
+FRONTOFFICE_SAML_SP_PRIVATEKEY="${FRONTOFFICE_SAML_SP_PRIVATEKEY:-$DEFAULT_SP_KEY_PATH}"
 
 echo "[INIT] Inizializzazione metadata SP per SATOSA..."
 
@@ -24,6 +28,38 @@ if [ -f "$METADATA_FILE" ]; then
     echo "[INFO] Metadata SP già presente: $METADATA_FILE"
     exit 0
 fi
+
+is_inline_pem() {
+    echo "$1" | grep -q "BEGIN "
+}
+
+ensure_sp_signing_keys() {
+    local cert_path="$1"
+    local key_path="$2"
+    if is_inline_pem "$cert_path" || is_inline_pem "$key_path"; then
+        return 0
+    fi
+    if [ -f "$cert_path" ] && [ -f "$key_path" ]; then
+        return 0
+    fi
+    if ! command -v openssl >/dev/null 2>&1; then
+        echo "[WARN] openssl non trovato: impossibile generare certificati SP di default"
+        return 0
+    fi
+    echo "[INFO] Generazione certificati SP di default"
+    local org_name="${APP_ENTITY_NAME:-GovPay}"
+    mkdir -p "$(dirname "$cert_path")" "$(dirname "$key_path")"
+    openssl req -newkey rsa:2048 -nodes \
+        -keyout "$key_path" \
+        -x509 -days 3650 \
+        -out "$cert_path" \
+        -subj "/C=IT/O=${org_name}/CN=SP Metadata Signing" >/dev/null 2>&1
+}
+
+ensure_sp_signing_keys "$FRONTOFFICE_SAML_SP_X509CERT" "$FRONTOFFICE_SAML_SP_PRIVATEKEY"
+
+export FRONTOFFICE_SAML_SP_X509CERT
+export FRONTOFFICE_SAML_SP_PRIVATEKEY
 
 # Genere i metadata usando il container frontoffice
 echo "[INFO] Generando metadata SP per: $FRONTOFFICE_PUBLIC_BASE_URL"
@@ -50,6 +86,24 @@ if (!$supportEmail) {
 
 $spCert = getenv('FRONTOFFICE_SAML_SP_X509CERT') ?: '';
 $spKey = getenv('FRONTOFFICE_SAML_SP_PRIVATEKEY') ?: '';
+
+$loadPem = static function (string $value): string {
+    $trimmed = trim($value);
+    if ($trimmed === '') {
+        return '';
+    }
+    if (str_contains($trimmed, 'BEGIN ')) {
+        return $trimmed;
+    }
+    if (is_file($trimmed)) {
+        $content = @file_get_contents($trimmed);
+        return $content !== false ? trim($content) : '';
+    }
+    return $trimmed;
+};
+
+$spCert = $loadPem($spCert);
+$spKey = $loadPem($spKey);
 $signMetadata = ($spCert !== '' && $spKey !== '');
 
 $settings = [
