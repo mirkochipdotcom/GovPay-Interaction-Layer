@@ -2166,8 +2166,9 @@ $routes = [
                 ];
             }
 
-            // RelayState: usa disco page del frontoffice (senza modificare SATOSA)
-            $discoUrl = rtrim($frontofficeBaseUrl, '/') . '/spid/disco';
+            // RelayState: usa disco page del proxy IAM
+            $proxyBase = rtrim($env('IAM_PROXY_PUBLIC_BASE_URL', ''), '/');
+            $discoUrl = $proxyBase ? ($proxyBase . '/static/disco.html') : '/static/disco.html';
             $auth->login($discoUrl);
             exit;
         }
@@ -2259,29 +2260,6 @@ $routes = [
 
         header('Location: ' . $target, true, 302);
         exit;
-    },
-    '/spid/disco' => static function () use ($env): array {
-        if (!frontoffice_spid_enabled()) {
-            http_response_code(404);
-            return [
-                'template' => 'errors/404.html.twig',
-                'context' => [
-                    'requested_path' => '/spid/disco',
-                ],
-            ];
-        }
-
-        $proxyBase = rtrim($env('IAM_PROXY_PUBLIC_BASE_URL', ''), '/');
-        if ($proxyBase === '') {
-            $proxyBase = rtrim($env('SPID_PROXY_PUBLIC_BASE_URL', ''), '/');
-        }
-
-        return [
-            'template' => 'spid/disco.html.twig',
-            'context' => [
-                'iam_proxy_public_base_url' => $proxyBase,
-            ],
-        ];
     },
     '/spid/callback' => static function () use ($method, $env): array {
         // DEBUG: Write entry point
