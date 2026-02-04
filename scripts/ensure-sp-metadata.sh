@@ -10,9 +10,14 @@ else
     PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
     METADATA_SP_DIR="${PROJECT_ROOT}/iam-proxy/metadata-sp"
 fi
+if [ -d "/var/www/html/spid-certs" ]; then
+    SPID_CERTS_DIR="/var/www/html/spid-certs"
+else
+    SPID_CERTS_DIR="${PROJECT_ROOT}/iam-proxy/spid-certs"
+fi
 FRONTOFFICE_PUBLIC_BASE_URL="${FRONTOFFICE_PUBLIC_BASE_URL:-https://127.0.0.1:8444}"
-DEFAULT_SP_CERT_PATH="${METADATA_SP_DIR}/sp-signing.crt"
-DEFAULT_SP_KEY_PATH="${METADATA_SP_DIR}/sp-signing.key"
+DEFAULT_SP_CERT_PATH="${SPID_CERTS_DIR}/sp-signing.crt"
+DEFAULT_SP_KEY_PATH="${SPID_CERTS_DIR}/sp-signing.key"
 FRONTOFFICE_SAML_SP_X509CERT="${FRONTOFFICE_SAML_SP_X509CERT:-$DEFAULT_SP_CERT_PATH}"
 FRONTOFFICE_SAML_SP_PRIVATEKEY="${FRONTOFFICE_SAML_SP_PRIVATEKEY:-$DEFAULT_SP_KEY_PATH}"
 METADATA_BASENAME="frontoffice_sp.xml"
@@ -64,6 +69,9 @@ normalize_cert_path() {
     case "$value" in
         /var/www/html/metadata-sp/*)
             echo "${METADATA_SP_DIR}/${value#/var/www/html/metadata-sp/}"
+            ;;
+        /var/www/html/spid-certs/*)
+            echo "${SPID_CERTS_DIR}/${value#/var/www/html/spid-certs/}"
             ;;
         /metadata/sp/*)
             echo "${METADATA_SP_DIR}/${value#/metadata/sp/}"
