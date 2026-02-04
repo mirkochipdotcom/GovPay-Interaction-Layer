@@ -1,17 +1,17 @@
 services:
   # Servizio di utility che genera i metadata SP al primo avvio
   init-sp-metadata:
-    image: alpine:latest
+    image: govpay-interaction-frontoffice:latest
     container_name: govpay-init-sp-metadata
     volumes:
       - ./scripts/ensure-sp-metadata.sh:/scripts/ensure-sp-metadata.sh:ro
       - ./iam-proxy/metadata-sp:/metadata/sp
+      - ./iam-proxy/metadata-sp:/var/www/html/metadata-sp
     environment:
       - FRONTOFFICE_PUBLIC_BASE_URL=${FRONTOFFICE_PUBLIC_BASE_URL:-https://127.0.0.1:8444}
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        apk add --no-cache php php-simplexml curl openssl && \
         sh /scripts/ensure-sp-metadata.sh || exit 0
     profiles:
       - iam-proxy
