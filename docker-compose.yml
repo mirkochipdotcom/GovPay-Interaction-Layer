@@ -12,7 +12,7 @@ services:
     command:
       - |
         apk add --no-cache php php-simplexml curl && \
-        /scripts/ensure-sp-metadata.sh || exit 0
+        sh /scripts/ensure-sp-metadata.sh || exit 0
     profiles:
       - iam-proxy
   
