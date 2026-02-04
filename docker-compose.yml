@@ -3,6 +3,7 @@ services:
   init-spid-cert:
     image: italia/spid-compliant-certificates:latest
     container_name: govpay-init-spid-cert
+    user: "0:0"
     volumes:
       - ./iam-proxy/spid-certs:/certs
     entrypoint: ["/bin/sh", "-c"]
