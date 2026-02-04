@@ -304,7 +304,19 @@ $settings = [
 
 try {
     $settingsObj = new Settings($settings);
-    $metadata = $settingsObj->getSPMetadata();
+    $spData = $settingsObj->getSPData();
+    $securityData = $settingsObj->getSecurityData();
+    $contacts = $settingsObj->getContacts();
+    $organization = $settingsObj->getOrganization();
+    $metadata = \OneLogin\Saml2\Metadata::builder(
+        $spData,
+        (bool)($securityData['authnRequestsSigned'] ?? false),
+        (bool)($securityData['wantAssertionsSigned'] ?? false),
+        null,
+        null,
+        $contacts,
+        $organization
+    );
     if (strpos($metadata, 'xmlns:spid=') === false) {
         $metadata = preg_replace('/<md:EntityDescriptor\b/', '<md:EntityDescriptor xmlns:spid="https://spid.gov.it/saml-extensions"', $metadata, 1);
     }
@@ -317,8 +329,8 @@ try {
             $metadata,
             $spKey,
             $spCert,
-            $settings['security']['signMetadataAlgorithm'] ?? null,
-            $settings['security']['digestAlgorithm'] ?? null
+            $securityData['signMetadataAlgorithm'] ?? null,
+            $securityData['digestAlgorithm'] ?? null
         );
     }
     $errors = $settingsObj->validateMetadata($metadata);
