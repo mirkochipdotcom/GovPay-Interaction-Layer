@@ -1,7 +1,7 @@
 module: satosa.micro_services.custom_routing.DecideBackendByTargetIssuer
 name: TargetRouter
 config:
-  default_backend: Saml2
+  default_backend: spidSaml2
 
   target_mapping:
     # Frontoffice Service Provider (IAM PROXY SAML2)
