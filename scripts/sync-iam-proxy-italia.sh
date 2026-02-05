@@ -186,6 +186,15 @@ if [ -f "$DISCO_HTML" ]; then
   else
     echo "[sync-iam-proxy] SPID IdPs script already present in disco.html"
   fi
+  
+  # Disable wallets.js that overrides our IdP list
+  if grep -q '<script type="module" src="js/wallets.js"></script>' "$DISCO_HTML"; then
+    echo "[sync-iam-proxy] Disabling wallets.js that conflicts with spid-idps.js..."
+    sed -i 's|<script type="module" src="js/wallets.js"></script>|<!-- <script type="module" src="js/wallets.js"></script> (disabled by sync) -->|' "$DISCO_HTML"
+    echo "[sync-iam-proxy] Disabled wallets.js in disco.html"
+  else
+    echo "[sync-iam-proxy] wallets.js already disabled or not found"
+  fi
 else
   echo "[sync-iam-proxy] WARNING: disco.html not found at $DISCO_HTML"
 fi
