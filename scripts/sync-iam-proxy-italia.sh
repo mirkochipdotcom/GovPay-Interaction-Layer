@@ -236,7 +236,11 @@ DISCO_TEMPLATE="$REPO_ROOT/iam-proxy/disco.html.template"
 
 if [ -f "$DISCO_TEMPLATE" ]; then
   echo "[sync-iam-proxy] Replacing disco.html with custom template..."
-  cp "$DISCO_TEMPLATE" "$DISCO_HTML"
+  if command -v envsubst >/dev/null 2>&1; then
+    envsubst < "$DISCO_TEMPLATE" > "$DISCO_HTML"
+  else
+    cp "$DISCO_TEMPLATE" "$DISCO_HTML"
+  fi
   echo "[sync-iam-proxy] Replaced disco.html with custom template"
 else
   echo "[sync-iam-proxy] WARNING: disco.html.template not found at $DISCO_TEMPLATE"
