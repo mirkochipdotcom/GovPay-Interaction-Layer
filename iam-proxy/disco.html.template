@@ -90,13 +90,8 @@
       justify-content: center;
     }
 
-    /* Hide empty sections */
     .wallet-section {
-      display: none;
-    }
-
-    .wallet-section:has(> .row:not(:empty)) {
-      display: block;
+      /* wallets.js doesn't create this class, so this is just a placeholder */
     }
 
     .wallet-section h3 {
@@ -244,45 +239,47 @@
 
   <!-- Scripts -->
   <script>
-    // Set Italian as default language BEFORE i18next loads
-    window.currentLanguage = 'it';
-    
-    // Load wallets configuration synchronously before wallets.js
-    async function initializeWalletsConfig() {
-      try {
-        const response = await fetch('/static/config/wallets-config.json');
-        if (response.ok) {
-          const config = await response.json();
-          window.WALLETS_CONFIG = config;
-          console.debug('Wallets config loaded:', config);
-        } else {
-          console.debug('Wallets config file not found');
-          window.WALLETS_CONFIG = {};
-        }
-      } catch (err) {
-        console.debug('Error loading wallets config:', err);
-        window.WALLETS_CONFIG = {};
-      }
-    }
-    
-    // Initialize before wallets.js loads
-    initializeWalletsConfig();
+    // Force Italian language from the start
+    window.i18nextLanguage = 'it';
   </script>
-  <script src="/static/js/config-override.js"></script>
-  <script type="module" src="js/wallets.js"></script>
-  <script src="/static/spid/spid-idps.js"></script>
   
-  <script>
-    // Hide empty wallet sections after page loads
-    window.addEventListener('load', function() {
-      const sections = document.querySelectorAll('.wallet-section');
-      sections.forEach(section => {
-        const row = section.querySelector('.row');
-        if (!row || row.children.length === 0) {
+  <script type="module">
+    import('./js/wallets.js').then(() => {
+      // After wallets.js loads, force Italian and cleanup
+      setTimeout(() => {
+        if (window.i18next) {
+          window.i18next.changeLanguage('it');
+        }
+        cleanupWallets();
+      }, 100);
+    }).catch(err => console.error('Error loading wallets.js:', err));
+    
+    // Cleanup disabled wallets and empty sections
+    function cleanupWallets() {
+      // Hide disabled buttons
+      document.querySelectorAll('button[disabled], a.disabled').forEach(btn => {
+        btn.style.display = 'none';
+      });
+      
+      // Hide empty wallet sections (div.mb-4 that have no visible content)
+      document.querySelectorAll('#wallets-container > div.mb-4').forEach(section => {
+        const visibleButtons = section.querySelectorAll('button:not([disabled]), a:not(.disabled)');
+        if (visibleButtons.length === 0) {
           section.style.display = 'none';
         }
       });
+    }
+    
+    // Run cleanup when language changes
+    document.getElementById('lang-select')?.addEventListener('change', (e) => {
+      const lang = e.target.value;
+      if (window.i18next) {
+        window.i18next.changeLanguage(lang).then(() => {
+          setTimeout(cleanupWallets, 100);
+        });
+      }
     });
   </script>
+  <script src="/static/spid/spid-idps.js"></script>
 </body>
 </html>
