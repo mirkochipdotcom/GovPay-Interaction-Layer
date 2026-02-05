@@ -4,6 +4,13 @@
 
 set -e
 
+is_true() {
+  case "${1:-}" in
+    1|true|TRUE|True|yes|YES|Yes|on|ON|On) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 PROJECT_DST="$REPO_ROOT/iam-proxy/iam-proxy-italia-project"
@@ -207,7 +214,7 @@ mkdir -p "$PROJECT_DST/metadata/idp"
 mkdir -p "$PROJECT_DST/metadata/sp"
 
 # Download demo SPID IdP metadata if SATOSA_USE_DEMO_SPID_IDP=true
-if [ "$SATOSA_USE_DEMO_SPID_IDP" = "true" ]; then
+if is_true "$SATOSA_USE_DEMO_SPID_IDP"; then
   DEMO_METADATA_URL="https://demo.spid.gov.it/metadata.xml"
   DEMO_METADATA_FILE="$PROJECT_DST/metadata/idp/demo-spid.xml"
   
@@ -234,8 +241,40 @@ else
   echo "[sync-iam-proxy] Skipping demo SPID IdP metadata (SATOSA_USE_DEMO_SPID_IDP not set to 'true')"
 fi
 
-# Use upstream disco.html as-is (static resource)
-echo "[sync-iam-proxy] Using upstream disco.html (no custom override)"
+# Build static disco.html based on .env flags
+DISCO_HTML="$PROJECT_DST/static/disco.html"
+DISCO_TEMPLATE="$REPO_ROOT/iam-proxy/disco.static.html.template"
+
+if [ -f "$DISCO_TEMPLATE" ]; then
+  echo "[sync-iam-proxy] Building static disco.html from template..."
+  cp "$DISCO_TEMPLATE" "$DISCO_HTML"
+
+  if ! is_true "$ENABLE_SPID"; then
+    sed -i '/SPID_BLOCK_START/,/SPID_BLOCK_END/d' "$DISCO_HTML"
+  fi
+  if ! is_true "$SATOSA_USE_DEMO_SPID_IDP"; then
+    sed -i '/SPID_DEMO_START/,/SPID_DEMO_END/d' "$DISCO_HTML"
+  fi
+  if ! is_true "$ENABLE_CIE"; then
+    sed -i '/CIE_BLOCK_START/,/CIE_BLOCK_END/d' "$DISCO_HTML"
+  fi
+  if ! is_true "$ENABLE_CIE_OIDC"; then
+    sed -i '/CIE_OIDC_BLOCK_START/,/CIE_OIDC_BLOCK_END/d' "$DISCO_HTML"
+  fi
+  if ! is_true "$ENABLE_IT_WALLET"; then
+    sed -i '/IT_WALLET_BLOCK_START/,/IT_WALLET_BLOCK_END/d' "$DISCO_HTML"
+  fi
+  if ! is_true "$ENABLE_IDEM"; then
+    sed -i '/IDEM_BLOCK_START/,/IDEM_BLOCK_END/d' "$DISCO_HTML"
+  fi
+  if ! is_true "$ENABLE_EIDAS"; then
+    sed -i '/EIDAS_BLOCK_START/,/EIDAS_BLOCK_END/d' "$DISCO_HTML"
+  fi
+
+  echo "[sync-iam-proxy] Built disco.html with enabled components only"
+else
+  echo "[sync-iam-proxy] WARNING: disco.static.html.template not found at $DISCO_TEMPLATE"
+fi
 
 echo "[sync-iam-proxy] Skipping wallets.js patch (use upstream defaults)"
 
