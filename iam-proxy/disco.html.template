@@ -326,7 +326,7 @@
       if (!entityID || !servicePath) return;
 
       const idps = [
-        { name: 'SPID Test', entityID: 'https://demo.spid.gov.it', logo: '' },
+        { name: 'SPID Test', entityID: 'https://demo.spid.gov.it', logo: '/static/spid/spid-agid-logo-lb.png' },
         { name: 'Aruba ID', entityID: 'https://loginspid.aruba.it', logo: '/static/spid/spid-idp-arubaid.svg' },
         { name: 'Infocert ID', entityID: 'https://identity.infocert.it', logo: '/static/spid/spid-idp-infocertid.svg' },
         { name: 'Intesa ID', entityID: 'https://spid.intesa.it', logo: '/static/spid/spid-idp-intesaid.svg' },
