@@ -1,0 +1,7 @@
+<!-- Dropdown language -->
+<div>
+  <select id="lang-select" class="form-select form-select-sm text-white" style="background-color: #0072CE">
+    <option value="it" selected>ITA</option>
+    <option value="en">EN</option>
+  </select>
+</div>

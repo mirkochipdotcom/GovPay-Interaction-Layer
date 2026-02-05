@@ -113,12 +113,22 @@ fi
 
 # Copy config-override.js for disco page JavaScript personalization
 echo "[sync-iam-proxy] Copying config-override.js for disco page..."
-if [ -f "/iam-proxy/config-override.js" ]; then
+if [ -f "$REPO_ROOT/iam-proxy/config-override.js" ]; then
   mkdir -p "$PROJECT_DST/static/js"
-  cp "/iam-proxy/config-override.js" "$PROJECT_DST/static/js/config-override.js"
+  cp "$REPO_ROOT/iam-proxy/config-override.js" "$PROJECT_DST/static/js/config-override.js"
   echo "[sync-iam-proxy] Copied config-override.js to static/js/"
 else
-  echo "[sync-iam-proxy] WARNING: config-override.js not found at /iam-proxy/config-override.js"
+  echo "[sync-iam-proxy] WARNING: config-override.js not found at $REPO_ROOT/iam-proxy/config-override.js"
+fi
+
+# Generate wallets-config.json for wallets UI filtering
+echo "[sync-iam-proxy] Generating wallets-config.json for wallets UI filtering..."
+if [ -f "$REPO_ROOT/iam-proxy/wallets-config.json.template" ]; then
+  mkdir -p "$PROJECT_DST/static/config"
+  envsubst < "$REPO_ROOT/iam-proxy/wallets-config.json.template" > "$PROJECT_DST/static/config/wallets-config.json"
+  echo "[sync-iam-proxy] Generated wallets-config.json with environment variables"
+else
+  echo "[sync-iam-proxy] WARNING: wallets-config.json.template not found at $REPO_ROOT/iam-proxy/wallets-config.json.template"
 fi
 
 # Patch proxy_conf.yaml to disable problematic backends for test environment
@@ -211,42 +221,48 @@ else
   echo "[sync-iam-proxy] Skipping demo SPID IdP metadata (SATOSA_USE_DEMO_SPID_IDP not set to 'true')"
 fi
 
-# Patch disco.html to include spid-idps.js script
+# Replace disco.html with custom template
 DISCO_HTML="$PROJECT_DST/static/disco.html"
-if [ -f "$DISCO_HTML" ]; then
-  echo "[sync-iam-proxy] Patching disco.html to include SPID IdPs script..."
-  
-  # Backup original if not exists
-  [ ! -f "$DISCO_HTML.original" ] && cp "$DISCO_HTML" "$DISCO_HTML.original"
-  
-  # Add config-override.js for organization personalization
-  if ! grep -q "config-override.js" "$DISCO_HTML"; then
-    # Add config-override.js script before </body>
-    sed -i 's|</body>|  <script src="/static/js/config-override.js"></script>\n</body>|' "$DISCO_HTML"
-    echo "[sync-iam-proxy] Added config-override.js to disco.html"
-  else
-    echo "[sync-iam-proxy] config-override.js already present in disco.html"
-  fi
+DISCO_TEMPLATE="$REPO_ROOT/iam-proxy/disco.html.template"
 
-  # Check if script tag already exists
-  if ! grep -q "spid/spid-idps.js" "$DISCO_HTML"; then
-    # Add script tag before </body>
-    sed -i 's|</body>|  <script src="/static/spid/spid-idps.js"></script>\n</body>|' "$DISCO_HTML"
-    echo "[sync-iam-proxy] Added SPID IdPs script to disco.html"
-  else
-    echo "[sync-iam-proxy] SPID IdPs script already present in disco.html"
-  fi
-  
-  # Disable wallets.js that overrides our IdP list
-  if grep -q '<script type="module" src="js/wallets.js"></script>' "$DISCO_HTML"; then
-    echo "[sync-iam-proxy] Disabling wallets.js that conflicts with spid-idps.js..."
-    sed -i 's|<script type="module" src="js/wallets.js"></script>|<!-- <script type="module" src="js/wallets.js"></script> (disabled by sync) -->|' "$DISCO_HTML"
-    echo "[sync-iam-proxy] Disabled wallets.js in disco.html"
-  else
-    echo "[sync-iam-proxy] wallets.js already disabled or not found"
-  fi
+if [ -f "$DISCO_TEMPLATE" ]; then
+  echo "[sync-iam-proxy] Replacing disco.html with custom template..."
+  cp "$DISCO_TEMPLATE" "$DISCO_HTML"
+  echo "[sync-iam-proxy] Replaced disco.html with custom template"
 else
-  echo "[sync-iam-proxy] WARNING: disco.html not found at $DISCO_HTML"
+  echo "[sync-iam-proxy] WARNING: disco.html.template not found at $DISCO_TEMPLATE"
+fi
+
+# Patch wallets.js to add wallet filtering support
+echo "[sync-iam-proxy] Patching wallets.js to add wallet filtering..."
+if [ -f "$PROJECT_DST/static/js/wallets.js" ]; then
+  # Replace createWallet function with filtered version
+  sed -i '/^function createWallet(resource, id_key, container) {$/,/^}$/c\
+// ----------------------- Create Wallet -----------------------\
+function createWallet(resource, id_key, container) {\
+  const row = document.createElement('"'"'div'"'"');\
+  row.className = '"'"'row'"'"';\
+  \
+  // Filter wallets based on configuration loaded from wallets-config.json\
+  const config = window.WALLETS_CONFIG && window.WALLETS_CONFIG[id_key] ? window.WALLETS_CONFIG[id_key] : {};\
+  \
+  Object.entries(resource[id_key]).forEach(([key, wallet]) => {\
+    // Skip if wallet is explicitly disabled in config\
+    if (config.hasOwnProperty(key) && config[key] === false) {\
+      console.debug(`Wallet ${key} is disabled in configuration`);\
+      return;\
+    }\
+    \
+    const col = document.createElement('"'"'div'"'"');\
+    col.className = '"'"'col-12 col-md-6 mb-3'"'"';\
+    col.appendChild(createWalletBox(resource, wallet));\
+    row.appendChild(col);\
+  });\
+  container.appendChild(row);\
+}' "$PROJECT_DST/static/js/wallets.js"
+  echo "[sync-iam-proxy] Patched wallets.js with wallet filtering"
+else
+  echo "[sync-iam-proxy] WARNING: Could not patch wallets.js (file not found)"
 fi
 
 # Set permissions for directories that SATOSA needs to write to

@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title id="tab-title">Accedi</title>
+  <meta name="description" content="" id="tab-title">
+
+  <link rel="stylesheet" href="/static/css/style.css">
+  <!-- Bootstrap Italia CSS -->
+  <link href="/static/css/bootstrap-italia.min.css" rel="stylesheet">
+  <!-- ita-bayon CSS -->
+  <link href="/static/css/ita.min.css" rel="stylesheet">
+
+  <script src="https://cdn.jsdelivr.net/npm/i18next-http-backend@1.3.1/i18nextHttpBackend.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/i18next@25.5.2/i18next.min.js"></script>
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="js/ita.min.js"></script>
+  <script src="js/bootstrap-italia.bundle.min.js"></script>
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      background-color: #f2f2f2;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    main {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem 1rem;
+    }
+
+    header svg.icon {
+      width: 32px;
+      height: 32px;
+    }
+
+    footer {
+      margin-top: auto;
+      padding: 2rem 1rem;
+      background-color: #0072CE;
+      color: white;
+    }
+
+    footer .container {
+      text-align: center;
+    }
+
+    .login-container {
+      background-color: white;
+      border-radius: 4px;
+      padding: 3rem 2.5rem;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      max-width: 800px;
+      width: 100%;
+    }
+
+    .login-title {
+      text-align: center;
+      margin-bottom: 1.5rem;
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: #333;
+    }
+
+    .login-description {
+      text-align: center;
+      margin-bottom: 2.5rem;
+      font-size: 1rem;
+      color: #666;
+      line-height: 1.5;
+    }
+
+    #wallets-container {
+      margin-bottom: 1rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 2rem;
+      justify-content: center;
+    }
+
+    /* Hide empty sections */
+    .wallet-section {
+      display: none;
+    }
+
+    .wallet-section:has(> .row:not(:empty)) {
+      display: block;
+    }
+
+    .wallet-section h3 {
+      margin-top: 2rem;
+      margin-bottom: 1.5rem;
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #333;
+      text-align: center;
+    }
+
+    .wallet-section .row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1.5rem;
+      align-items: center;
+    }
+
+    .wallet-box {
+      display: block;
+      padding: 1.5rem;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      background-color: #f9f9f9;
+      text-decoration: none;
+      color: inherit;
+      transition: all 0.2s ease;
+      cursor: pointer;
+      text-align: center;
+      min-height: 120px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .wallet-box:hover {
+      background-color: #f0f8ff;
+      border-color: #0072CE;
+      box-shadow: 0 4px 12px rgba(0, 114, 206, 0.15);
+      transform: translateY(-2px);
+    }
+
+    .wallet-box svg {
+      width: 48px;
+      height: 48px;
+      margin-bottom: 1rem;
+      display: inline-block;
+    }
+
+    .wallet-box strong {
+      display: block;
+      font-weight: 600;
+      font-size: 1rem;
+      color: #333;
+    }
+
+    .wallet-box p {
+      margin: 0.5rem 0 0 0;
+      font-size: 0.85rem;
+      color: #666;
+    }
+
+    @media (max-width: 768px) {
+      .wallet-section .row {
+        grid-template-columns: 1fr;
+      }
+
+      .login-container {
+        padding: 2rem 1.5rem;
+      }
+
+      .login-title {
+        font-size: 1.5rem;
+      }
+
+      main {
+        padding: 2rem 1rem;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .login-container {
+        padding: 1.5rem 1rem;
+      }
+
+      .login-title {
+        font-size: 1.25rem;
+      }
+
+      .login-description {
+        font-size: 0.9rem;
+      }
+
+      .wallet-box {
+        padding: 1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- HEADER -->
+  <header class="it-header-wrapper">
+    <div class="it-header-slim-wrapper bg-primary">
+      <div class="container">
+        <div class="d-flex justify-content-between align-items-center" style="padding: 0.5rem 0;">
+          <span class="d-none d-lg-block text-white" style="font-weight: 600;">
+            <span id="organization-name">Accedi</span>
+          </span>
+          <div>
+            <select id="lang-select" class="form-select form-select-sm" style="background-color: #0072CE; color: white; border: none; width: 80px;">
+              <option value="it" selected>ITA</option>
+              <option value="en">EN</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN CONTENT -->
+  <main class="container">
+    <div class="login-container">
+      <h1 class="login-title" id="wallet-title">Accedi</h1>
+      <p class="login-description" id="wallet-description">Seleziona il metodo di accesso per continuare</p>
+      
+      <div id="wallets-container">
+        <!-- Wallets will be rendered here by wallets.js -->
+      </div>
+    </div>
+  </main>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="container">
+      <div class="d-flex flex-wrap justify-content-center gap-3">
+        <a id="footer-legal" href="" class="text-white text-decoration-none" target="_blank" rel="noopener"></a>
+        <span class="text-white" style="opacity: 0.5;">|</span>
+        <a id="footer-privacy" href="" class="text-white text-decoration-none" target="_blank" rel="noopener"></a>
+        <span class="text-white" style="opacity: 0.5;">|</span>
+        <a id="footer-accessibility" href="" class="text-white text-decoration-none" target="_blank" rel="noopener"></a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script>
+    // Set Italian as default language BEFORE i18next loads
+    window.currentLanguage = 'it';
+    
+    // Load wallets configuration synchronously before wallets.js
+    async function initializeWalletsConfig() {
+      try {
+        const response = await fetch('/static/config/wallets-config.json');
+        if (response.ok) {
+          const config = await response.json();
+          window.WALLETS_CONFIG = config;
+          console.debug('Wallets config loaded:', config);
+        } else {
+          console.debug('Wallets config file not found');
+          window.WALLETS_CONFIG = {};
+        }
+      } catch (err) {
+        console.debug('Error loading wallets config:', err);
+        window.WALLETS_CONFIG = {};
+      }
+    }
+    
+    // Initialize before wallets.js loads
+    initializeWalletsConfig();
+  </script>
+  <script src="/static/js/config-override.js"></script>
+  <script type="module" src="js/wallets.js"></script>
+  <script src="/static/spid/spid-idps.js"></script>
+  
+  <script>
+    // Hide empty wallet sections after page loads
+    window.addEventListener('load', function() {
+      const sections = document.querySelectorAll('.wallet-section');
+      sections.forEach(section => {
+        const row = section.querySelector('.row');
+        if (!row || row.children.length === 0) {
+          section.style.display = 'none';
+        }
+      });
+    });
+  </script>
+</body>
+</html>

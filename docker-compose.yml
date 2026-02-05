@@ -205,6 +205,8 @@ services:
       - SATOSA_UI_INFORMATION_URL_IT=${SATOSA_UI_INFORMATION_URL_IT:-https://govpay.example.org/help}
       - SATOSA_UI_PRIVACY_URL_EN=${SATOSA_UI_PRIVACY_URL_EN:-https://govpay.example.org/privacy}
       - SATOSA_UI_PRIVACY_URL_IT=${SATOSA_UI_PRIVACY_URL_IT:-https://govpay.example.org/privacy}
+      - SATOSA_UI_LEGAL_URL_EN=${SATOSA_UI_LEGAL_URL_EN:-https://govpay.example.org/legal}
+      - SATOSA_UI_LEGAL_URL_IT=${SATOSA_UI_LEGAL_URL_IT:-https://govpay.example.org/note-legali}
       - SATOSA_UI_LOGO_URL=${SATOSA_UI_LOGO_URL:-https://govpay.example.org/logo.png}
       - SATOSA_UI_LOGO_WIDTH=${SATOSA_UI_LOGO_WIDTH:-200}
       - SATOSA_UI_LOGO_HEIGHT=${SATOSA_UI_LOGO_HEIGHT:-60}

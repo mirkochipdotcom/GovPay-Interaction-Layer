@@ -1,3 +1,21 @@
+// Load wallets configuration from JSON
+async function loadWalletsConfig() {
+  try {
+    const response = await fetch('/static/config/wallets-config.json');
+    if (!response.ok) {
+      console.debug('Wallets config file not found, all wallets enabled');
+      return null;
+    }
+    const config = await response.json();
+    window.WALLETS_CONFIG = config;
+    console.debug('Wallets config loaded:', config);
+    return config;
+  } catch (err) {
+    console.debug('Error loading wallets config:', err);
+    return null;
+  }
+}
+
 // Load configuration override for disco page personalization
 async function loadConfigOverride() {
   try {
@@ -119,6 +137,9 @@ function applyHeaderBranding(config) {
 
 // Main initialization
 document.addEventListener('DOMContentLoaded', async function() {
+  // Load wallets configuration before wallets.js runs
+  await loadWalletsConfig();
+  
   const config = await loadConfigOverride();
   if (config) {
     applyOrganizationBranding(config);
