@@ -27,6 +27,7 @@ services:
           --crt-out /certs/sp-signing.crt
     env_file:
       - .env
+      - .env.frontoffice
       - .env.iam-proxy
     profiles:
       - iam-proxy
@@ -39,10 +40,9 @@ services:
       - ./iam-proxy/metadata-sp:/metadata/sp
       - ./iam-proxy/metadata-sp:/var/www/html/metadata-sp
       - ./iam-proxy/spid-certs:/var/www/html/spid-certs
-    environment:
-      - FRONTOFFICE_PUBLIC_BASE_URL=${FRONTOFFICE_PUBLIC_BASE_URL:-https://127.0.0.1:8444}
     env_file:
       - .env
+      - .env.frontoffice
       - .env.iam-proxy
     depends_on:
       init-spid-cert:
@@ -74,6 +74,7 @@ services:
       - APP_SUITE=backoffice
     env_file:
       - .env # Assicura il caricamento dei parametri, leggere il readme
+      - .env.backoffice
     depends_on:
       - db
     entrypoint: ["/usr/local/bin/docker-setup.sh"] # Esegue script di setup (composer/autoload + cert) poi CMD apache
@@ -103,13 +104,9 @@ services:
       - DB_NAME=${DB_NAME_CITTADINI}
       - DB_USER=${DB_USER_CITTADINI}
       - DB_PASSWORD=${DB_PASSWORD_CITTADINI}
-      - FRONTOFFICE_PUBLIC_BASE_URL=${FRONTOFFICE_PUBLIC_BASE_URL}
-      - FRONTOFFICE_AUTH_PROXY_TYPE=${FRONTOFFICE_AUTH_PROXY_TYPE:-php-proxy}
-      - IAM_PROXY_PUBLIC_BASE_URL=${IAM_PROXY_PUBLIC_BASE_URL}
-      - IAM_PROXY_SAML2_IDP_METADATA_URL=${IAM_PROXY_SAML2_IDP_METADATA_URL:-${IAM_PROXY_PUBLIC_BASE_URL:-https://satosa-nginx:9445}/Saml2IDP/metadata}
-      - IAM_PROXY_SAML2_IDP_METADATA_URL_INTERNAL=${IAM_PROXY_SAML2_IDP_METADATA_URL_INTERNAL:-https://satosa-nginx:443/Saml2IDP/metadata}
     env_file:
       - .env
+      - .env.frontoffice
       - .env.iam-proxy
     depends_on:
       - db
@@ -121,9 +118,6 @@ services:
   sync-iam-proxy:
     image: alpine:latest
     container_name: sync-iam-proxy
-    environment:
-      - SATOSA_USE_DEMO_SPID_IDP=${SATOSA_USE_DEMO_SPID_IDP:-false}
-      - ENABLE_CIE_OIDC=${ENABLE_CIE_OIDC:-false}
     env_file:
       - .env
       - .env.iam-proxy
@@ -166,62 +160,11 @@ services:
     environment:
       # Config minima per esecuzione container (valori dettagliati/secret in .env)
       - SATOSA_BY_DOCKER=1
-      - FRONTOFFICE_PUBLIC_BASE_URL=${FRONTOFFICE_PUBLIC_BASE_URL}
-      - SATOSA_HOSTNAME=${IAM_PROXY_HOSTNAME:-satosa-nginx}
-      - SATOSA_BASE=${IAM_PROXY_PUBLIC_BASE_URL:-https://satosa-nginx:9445}
-      - SATOSA_BASE_STATIC=${IAM_PROXY_PUBLIC_BASE_URL:-https://satosa-nginx:9445}/static
-      - SATOSA_DISCO_SRV=${SATOSA_DISCO_SRV:-${IAM_PROXY_PUBLIC_BASE_URL:-https://satosa-nginx:9445}/static/disco.html}
-      - SATOSA_UNKNOW_ERROR_REDIRECT_PAGE=${SATOSA_UNKNOW_ERROR_REDIRECT_PAGE:-${IAM_PROXY_PUBLIC_BASE_URL:-https://satosa-nginx:9445}}
-      - SATOSA_DEBUG=${IAM_PROXY_DEBUG:-false}
-      - SATOSA_SALT=${SATOSA_SALT:-CHANGE_ME}
-      - SATOSA_STATE_ENCRYPTION_KEY=${SATOSA_STATE_ENCRYPTION_KEY:-CHANGE_ME}
-      - SATOSA_ENCRYPTION_KEY=${SATOSA_ENCRYPTION_KEY:-CHANGE_ME}
-      - SATOSA_USER_ID_HASH_SALT=${SATOSA_USER_ID_HASH_SALT:-CHANGE_ME}
-      # In demo/prod puoi abilitare fetch automatico (richiede rete) dei metadata IdP
-      - SATOSA_GET_SPID_IDP_METADATA=${SATOSA_GET_SPID_IDP_METADATA:-false}
-      - SATOSA_GET_CIE_IDP_METADATA=${SATOSA_GET_CIE_IDP_METADATA:-false}
-      - SATOSA_GET_FICEP_IDP_METADATA=${SATOSA_GET_FICEP_IDP_METADATA:-false}
-      - SATOSA_GET_IDEM_MDQ_KEY=${SATOSA_GET_IDEM_MDQ_KEY:-false}
-      # IdP di test SPID (demo.spid.gov.it)
-      - SATOSA_USE_DEMO_SPID_IDP=${SATOSA_USE_DEMO_SPID_IDP:-false}
-      # Paths per chiavi/cert
-      - SATOSA_PRIVATE_KEY=${SATOSA_PRIVATE_KEY:-./pki/privkey.pem}
-      - SATOSA_PUBLIC_KEY=${SATOSA_PUBLIC_KEY:-./pki/cert.pem}
-      # Organization & Contact Person (SPID metadata)
-      - SATOSA_ORGANIZATION_DISPLAY_NAME_EN=${SATOSA_ORGANIZATION_DISPLAY_NAME_EN:-GovPay Interaction Layer}
-      - SATOSA_ORGANIZATION_DISPLAY_NAME_IT=${SATOSA_ORGANIZATION_DISPLAY_NAME_IT:-GovPay - Interazione Layer}
-      - SATOSA_ORGANIZATION_NAME_EN=${SATOSA_ORGANIZATION_NAME_EN:-GovPay}
-      - SATOSA_ORGANIZATION_NAME_IT=${SATOSA_ORGANIZATION_NAME_IT:-GovPay}
-      - SATOSA_ORGANIZATION_URL_EN=${SATOSA_ORGANIZATION_URL_EN:-https://govpay.example.org}
-      - SATOSA_ORGANIZATION_URL_IT=${SATOSA_ORGANIZATION_URL_IT:-https://govpay.example.org}
-      - SATOSA_CONTACT_PERSON_GIVEN_NAME=${SATOSA_CONTACT_PERSON_GIVEN_NAME:-Support}
-      - SATOSA_CONTACT_PERSON_EMAIL_ADDRESS=${SATOSA_CONTACT_PERSON_EMAIL_ADDRESS:-support@example.org}
-      - SATOSA_CONTACT_PERSON_TELEPHONE_NUMBER=${SATOSA_CONTACT_PERSON_TELEPHONE_NUMBER:-+39XXXXXXXXXX}
-      - SATOSA_CONTACT_PERSON_FISCALCODE=${SATOSA_CONTACT_PERSON_FISCALCODE:-XXXXXXXXXXX000W}
-      - SATOSA_CONTACT_PERSON_IPA_CODE=${SATOSA_CONTACT_PERSON_IPA_CODE:-c_x000}
-      - SATOSA_CONTACT_PERSON_MUNICIPALITY=${SATOSA_CONTACT_PERSON_MUNICIPALITY:-Municipality}
-      # UI Information
-      - SATOSA_UI_DISPLAY_NAME_EN=${SATOSA_UI_DISPLAY_NAME_EN:-SPID Authentication System}
-      - SATOSA_UI_DISPLAY_NAME_IT=${SATOSA_UI_DISPLAY_NAME_IT:-Sistema di Autenticazione SPID}
-      - SATOSA_UI_DESCRIPTION_EN=${SATOSA_UI_DESCRIPTION_EN:-Login via SPID to manage your payments}
-      - SATOSA_UI_DESCRIPTION_IT=${SATOSA_UI_DESCRIPTION_IT:-Accedi tramite SPID per gestire i tuoi pagamenti}
-      - SATOSA_UI_INFORMATION_URL_EN=${SATOSA_UI_INFORMATION_URL_EN:-https://govpay.example.org/help}
-      - SATOSA_UI_INFORMATION_URL_IT=${SATOSA_UI_INFORMATION_URL_IT:-https://govpay.example.org/help}
-      - SATOSA_UI_PRIVACY_URL_EN=${SATOSA_UI_PRIVACY_URL_EN:-https://govpay.example.org/privacy}
-      - SATOSA_UI_PRIVACY_URL_IT=${SATOSA_UI_PRIVACY_URL_IT:-https://govpay.example.org/privacy}
-      - SATOSA_UI_LEGAL_URL_EN=${SATOSA_UI_LEGAL_URL_EN:-https://govpay.example.org/legal}
-      - SATOSA_UI_LEGAL_URL_IT=${SATOSA_UI_LEGAL_URL_IT:-https://govpay.example.org/note-legali}
-      - SATOSA_UI_LOGO_URL=${SATOSA_UI_LOGO_URL:-https://govpay.example.org/logo.png}
-      - SATOSA_UI_LOGO_WIDTH=${SATOSA_UI_LOGO_WIDTH:-200}
-      - SATOSA_UI_LOGO_HEIGHT=${SATOSA_UI_LOGO_HEIGHT:-60}
-      # MongoDB credentials (required by backends/frontends)
-      - MONGODB_USERNAME=${MONGODB_USERNAME:-satosa_user}
-      - MONGODB_PASSWORD=${MONGODB_PASSWORD:-satosa_password}
-      - MONGODB_HOST=${MONGODB_HOST:-localhost}
-      - MONGODB_PORT=${MONGODB_PORT:-27017}
-      - MONGODB_DB=${MONGODB_DB:-satosa}
+      - SATOSA_DISCO_SRV=${SATOSA_DISCO_SRV:-https://127.0.0.1:9445/static/disco.html}
     env_file:
       - .env
+      - .env.frontoffice
+      - .env.iam-proxy
     restart: on-failure:3
     healthcheck:
       test: ["CMD", "test", "-f", "/satosa_proxy/entrypoint.sh"]
@@ -278,10 +221,8 @@ services:
     container_name: satosa-mongo
     profiles:
       - iam-proxy
-    environment:
-      - MONGO_INITDB_ROOT_USERNAME=${MONGODB_USERNAME:-satosa_user}
-      - MONGO_INITDB_ROOT_PASSWORD=${MONGODB_PASSWORD:-satosa_password}
-      - MONGO_INITDB_DATABASE=${MONGODB_DB:-satosa}
+    env_file:
+      - .env.iam-proxy
     volumes:
       - satosa_mongo_data:/data/db
     restart: unless-stopped
