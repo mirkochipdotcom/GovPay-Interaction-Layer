@@ -115,17 +115,45 @@ services:
     networks:
       - govpay-network
 
+  sync-iam-proxy:
+    image: alpine:latest
+    container_name: sync-iam-proxy
+    volumes:
+      - ./iam-proxy:/iam-proxy
+      - ./scripts:/scripts:ro
+    working_dir: /scripts
+    command: 
+      - /bin/sh
+      - -c
+      - |
+        apk add --no-cache bash git curl unzip
+        bash /scripts/sync-iam-proxy-italia.sh
+    profiles:
+      - iam-proxy
+
   iam-proxy-italia:
     image: ghcr.io/italia/iam-proxy-italia:latest
     container_name: iam-proxy-italia
-    command: ["/bin/bash", "/satosa_proxy/entrypoint.sh"]
+    command: 
+      - /bin/bash
+      - -c
+      - |
+        if [ -f /satosa_proxy/entrypoint.sh ]; then
+          exec /bin/bash /satosa_proxy/entrypoint.sh
+        else
+          echo "[ERROR] /satosa_proxy/entrypoint.sh not found. Volume mount issue?"
+          exit 1
+        fi
     volumes:
       - ./iam-proxy/iam-proxy-italia-project:/satosa_proxy
       - ./iam-proxy/metadata-sp:/satosa_proxy/metadata/sp:ro
     profiles:
       - iam-proxy
     depends_on:
-      - init-sp-metadata
+      sync-iam-proxy:
+        condition: service_completed_successfully
+      init-sp-metadata:
+        condition: service_completed_successfully
     environment:
       # Config minima per esecuzione container (valori dettagliati/secret in .env)
       - SATOSA_BY_DOCKER=1
