@@ -151,13 +151,39 @@
   <section class="disco-section" id="spid-section">
     <h3>Accedi con SPID</h3>
     <div class="spid-login-wrap">
-      <a class="italia-it-button italia-it-button-size-xl button-spid" href="#wallets-container">
+      <a class="italia-it-button italia-it-button-size-xl button-spid" href="#" spid-idp-button="#spid-idp-button-xlarge-post" data-horizontal-offset="0" data-vertical-offset="10">
         <span class="italia-it-button-icon">
           <img src="/static/spid/spid-ico-circle-bb.svg" alt="" aria-hidden="true">
         </span>
         <span class="italia-it-button-text">Entra con SPID</span>
       </a>
       <p class="spid-helper">Seleziona il tuo Identity Provider SPID dall’elenco.</p>
+    </div>
+
+    <div id="spid-idp-button-xlarge-post" class="spid-idp-button spid-idp-button-tip spid-idp-button-relative spid-idp-button-scroll">
+      <ul id="spid-idp-list-xlarge-root-post" class="spid-idp-button-menu">
+        <!-- SPID_DEMO_START -->
+        <li class="spid-idp-button-link">
+          <a class="disco-idp-link" data-entity-id="https://demo.spid.gov.it">
+            <img src="/static/spid/spid-agid-logo-lb.png" alt="SPID Test">
+          </a>
+        </li>
+        <!-- SPID_DEMO_END -->
+        <li class="spid-idp-button-link"><a class="disco-idp-link" data-entity-id="https://loginspid.aruba.it"><img src="/static/spid/spid-idp-arubaid.svg" alt="Aruba ID"></a></li>
+        <li class="spid-idp-button-link"><a class="disco-idp-link" data-entity-id="https://identity.infocert.it"><img src="/static/spid/spid-idp-infocertid.svg" alt="Infocert ID"></a></li>
+        <li class="spid-idp-button-link"><a class="disco-idp-link" data-entity-id="https://spid.intesa.it"><img src="/static/spid/spid-idp-intesaid.svg" alt="Intesa ID"></a></li>
+        <li class="spid-idp-button-link"><a class="disco-idp-link" data-entity-id="https://id.lepida.it/idp/shibboleth"><img src="/static/spid/spid-idp-lepidaid.svg" alt="Lepida ID"></a></li>
+        <li class="spid-idp-button-link"><a class="disco-idp-link" data-entity-id="https://idp.namirialtsp.com/idp"><img src="/static/spid/spid-idp-namirialid.svg" alt="Namirial ID"></a></li>
+        <li class="spid-idp-button-link"><a class="disco-idp-link" data-entity-id="https://posteid.poste.it"><img src="/static/spid/spid-idp-posteid.svg" alt="Poste ID"></a></li>
+        <li class="spid-idp-button-link"><a class="disco-idp-link" data-entity-id="https://identity.sieltecloud.it"><img src="/static/spid/spid-idp-sielteid.svg" alt="Sielte ID"></a></li>
+        <li class="spid-idp-button-link"><a class="disco-idp-link" data-entity-id="https://spid.register.it"><img src="/static/spid/spid-idp-spiditalia.svg" alt="SPIDItalia"></a></li>
+        <li class="spid-idp-button-link"><a class="disco-idp-link" data-entity-id="https://login.id.tim.it/affwebservices/public/saml2sso"><img src="/static/spid/spid-idp-timid.svg" alt="Tim ID"></a></li>
+        <li class="spid-idp-button-link"><a class="disco-idp-link" data-entity-id="https://spid.teamsystem.com/idp"><img src="/static/spid/spid-idp-teamsystemid.svg" alt="TeamSystem ID"></a></li>
+
+        <li class="spid-idp-support-link"><a href="https://www.spid.gov.it/" target="_blank" rel="noopener">Maggiori informazioni</a></li>
+        <li class="spid-idp-support-link"><a href="https://www.spid.gov.it/richiedi-spid" target="_blank" rel="noopener">Non hai SPID?</a></li>
+        <li class="spid-idp-support-link"><a href="https://www.spid.gov.it/serve-aiuto" target="_blank" rel="noopener">Serve aiuto?</a></li>
+      </ul>
     </div>
   </section>
   <!-- SPID_BLOCK_END -->
@@ -247,6 +273,7 @@
     });
   })();
 </script>
-<script src="/static/spid/spid-idps.js"></script>
+<script src="/static/spid/spid-sp-access-button.js"></script>
+<script src="/static/spid/spid_button.js"></script>
 </body>
 </html>
