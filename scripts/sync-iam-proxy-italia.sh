@@ -82,22 +82,24 @@ fi
 
 # Generate i18n JSON files from templates with environment variables
 echo "[sync-iam-proxy] Generating i18n JSON files from templates..."
-if [ -f "/iam-proxy/wallets-it.json.template" ]; then
-  envsubst < "/iam-proxy/wallets-it.json.template" > "$PROJECT_DST/static/locales/it/wallets.json"
+if [ -f "$REPO_ROOT/iam-proxy/wallets-it.json.template" ]; then
+  mkdir -p "$PROJECT_DST/static/locales/it"
+  envsubst < "$REPO_ROOT/iam-proxy/wallets-it.json.template" > "$PROJECT_DST/static/locales/it/wallets.json"
   echo "[sync-iam-proxy] Generated wallets-it.json with environment variables"
 fi
-if [ -f "/iam-proxy/wallets-en.json.template" ]; then
-  envsubst < "/iam-proxy/wallets-en.json.template" > "$PROJECT_DST/static/locales/en/wallets.json"
+if [ -f "$REPO_ROOT/iam-proxy/wallets-en.json.template" ]; then
+  mkdir -p "$PROJECT_DST/static/locales/en"
+  envsubst < "$REPO_ROOT/iam-proxy/wallets-en.json.template" > "$PROJECT_DST/static/locales/en/wallets.json"
   echo "[sync-iam-proxy] Generated wallets-en.json with environment variables"
 fi
 
 # Generate customized spid_base.html template from override
 echo "[sync-iam-proxy] Generating customized spid_base.html template..."
-if [ -f "/iam-proxy/spid_base_override.html.template" ]; then
+if [ -f "$REPO_ROOT/iam-proxy/spid_base_override.html.template" ]; then
   # Backup original if not exists
   [ ! -f "$PROJECT_DST/templates/spid_base.html.original" ] && cp "$PROJECT_DST/templates/spid_base.html" "$PROJECT_DST/templates/spid_base.html.original"
   
-  envsubst < "/iam-proxy/spid_base_override.html.template" > "$PROJECT_DST/templates/spid_base.html"
+  envsubst < "$REPO_ROOT/iam-proxy/spid_base_override.html.template" > "$PROJECT_DST/templates/spid_base.html"
   echo "[sync-iam-proxy] Generated spid_base.html with environment variables"
 fi
 
