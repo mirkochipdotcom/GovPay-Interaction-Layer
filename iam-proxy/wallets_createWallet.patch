@@ -1,0 +1,22 @@
+// ----------------------- Create Wallet -----------------------
+function createWallet(resource, id_key, container) {
+  const row = document.createElement('div');
+  row.className = 'row';
+  
+  // Filter wallets based on configuration loaded from wallets-config.json
+  const config = window.WALLETS_CONFIG && window.WALLETS_CONFIG[id_key] ? window.WALLETS_CONFIG[id_key] : {};
+  
+  Object.entries(resource[id_key]).forEach(([key, wallet]) => {
+    // Skip if wallet is explicitly disabled in config
+    if (config.hasOwnProperty(key) && config[key] === false) {
+      console.debug(`Wallet ${key} is disabled in configuration`);
+      return;
+    }
+    
+    const col = document.createElement('div');
+    col.className = 'col-12 col-md-6 mb-3';
+    col.appendChild(createWalletBox(resource, wallet));
+    row.appendChild(col);
+  });
+  container.appendChild(row);
+}

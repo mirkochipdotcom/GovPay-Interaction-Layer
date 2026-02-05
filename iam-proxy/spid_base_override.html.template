@@ -50,6 +50,12 @@
 
 		  </nav>
 		</div>
+		<div class="header-slim-right-zone">
+		  <a class="btn btn-primary btn-sm" href="${FRONTOFFICE_PUBLIC_BASE_URL}" title="Torna al portale">
+		    <svg class="icon icon-white icon-sm"><use xlink:href="{{ static }}spid/svg/sprite.svg#it-arrow-left"></use></svg>
+		    Torna al portale
+		  </a>
+		</div>
 
 
 	      </div>
@@ -70,7 +76,7 @@
 		    <a href="${SATOSA_ORGANIZATION_URL_IT}">
 
 		      <div class="col-10 col-md-12 offset-1 offset-md-0">
-			<img src="${SATOSA_UI_LOGO_URL}" style="width: ${SATOSA_UI_LOGO_WIDTH}px; height: ${SATOSA_UI_LOGO_HEIGHT}px;" alt="${SATOSA_ORGANIZATION_DISPLAY_NAME_IT}">
+			<img src="${SATOSA_UI_LOGO_URL}" style="max-width: ${SATOSA_UI_LOGO_WIDTH}px; height: auto;" alt="${SATOSA_ORGANIZATION_DISPLAY_NAME_IT}">
 		      </div>
 
 
@@ -166,7 +172,7 @@
 	      <div class="col-sm-12">
 		<div class="it-brand-wrapper">
 		  <a href="${SATOSA_ORGANIZATION_URL_IT}">
-		    <img src="${SATOSA_UI_LOGO_URL}" style="width: ${SATOSA_UI_LOGO_WIDTH}px; height: ${SATOSA_UI_LOGO_HEIGHT}px;" alt="${SATOSA_ORGANIZATION_DISPLAY_NAME_IT}">
+		    <img src="${SATOSA_UI_LOGO_URL}" style="max-width: ${SATOSA_UI_LOGO_WIDTH}px; height: auto;" alt="${SATOSA_ORGANIZATION_DISPLAY_NAME_IT}">
 		    <div class="it-brand-text">
 		      <h2 class="no_toc">
 			${SATOSA_ORGANIZATION_NAME_IT}

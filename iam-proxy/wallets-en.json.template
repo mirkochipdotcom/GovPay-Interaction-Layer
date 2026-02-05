@@ -3,7 +3,7 @@
     "wallet-title": "${SATOSA_ORGANIZATION_DISPLAY_NAME_EN}",
     "wallet-description": "Select your access method to continue",
     "footer-legal": "Legal notes",
-    "footer-legal-url": "${SATOSA_UI_INFORMATION_URL_EN}",
+    "footer-legal-url": "${SATOSA_UI_LEGAL_URL_EN}",
     "footer-privacy": "Privacy",
     "footer-privacy-url": "${SATOSA_UI_PRIVACY_URL_EN}",
     "footer-accessibility": "Accessibility",
