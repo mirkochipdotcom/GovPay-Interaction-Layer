@@ -239,9 +239,6 @@
 
   <!-- Scripts -->
   <script>
-    // Force Italian language from the start
-    window.i18nextLanguage = 'it';
-    
     // Define cleanup function globally BEFORE wallets.js loads
     function cleanupWallets() {
       try {
@@ -266,12 +263,13 @@
 
   <script type="module">
     import('./js/wallets.js').then(() => {
-      // After wallets.js loads, force Italian and cleanup
+      // After wallets.js loads, cleanup and set language
       setTimeout(() => {
+        cleanupWallets();
+        // Then force Italian language
         if (window.i18next) {
           window.i18next.changeLanguage('it');
         }
-        cleanupWallets();
       }, 100);
     }).catch(err => console.error('Error loading wallets.js:', err));
 
