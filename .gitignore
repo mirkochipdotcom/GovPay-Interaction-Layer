@@ -1,6 +1,6 @@
 .env
-.env.proxyspid
-.env.metadata
+.env.*
+!.env.*.example
 *.log
 *.pid
 
