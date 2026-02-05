@@ -237,12 +237,6 @@ DISCO_TEMPLATE="$REPO_ROOT/iam-proxy/disco.html.template"
 if [ -f "$DISCO_TEMPLATE" ]; then
   echo "[sync-iam-proxy] Replacing disco.html with custom template..."
   cp "$DISCO_TEMPLATE" "$DISCO_HTML"
-  # Replace demo SPID flag placeholder
-  if [ -n "$SATOSA_USE_DEMO_SPID_IDP" ]; then
-    sed -i "s/__SATOSA_USE_DEMO_SPID_IDP__/$SATOSA_USE_DEMO_SPID_IDP/g" "$DISCO_HTML"
-  else
-    sed -i "s/__SATOSA_USE_DEMO_SPID_IDP__/false/g" "$DISCO_HTML"
-  fi
   echo "[sync-iam-proxy] Replaced disco.html with custom template"
 else
   echo "[sync-iam-proxy] WARNING: disco.html.template not found at $DISCO_TEMPLATE"
