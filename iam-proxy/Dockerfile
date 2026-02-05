@@ -36,14 +36,30 @@ set -e
 # Inject frontoffice SP entityID into routing override if placeholder present
 TARGET_ROUTING_FILE="/satosa_proxy/conf/microservices/target_based_routing.yaml"
 RUNTIME_ROUTING_FILE="/satosa_proxy/runtime/target_based_routing.yaml"
-if [ -f "$TARGET_ROUTING_FILE" ] && grep -q "__FRONTOFFICE_SAML_SP_ENTITY_ID__" "$TARGET_ROUTING_FILE"; then
+if [ -f "$TARGET_ROUTING_FILE" ]; then
+  mkdir -p /satosa_proxy/runtime
+  cp "$TARGET_ROUTING_FILE" "$RUNTIME_ROUTING_FILE"
+  
+  # Replace __FRONTOFFICE_SAML_SP_ENTITY_ID__ placeholder
   BASE_URL="${FRONTOFFICE_PUBLIC_BASE_URL:-}"
   if [ -n "$BASE_URL" ]; then
     BASE_URL="${BASE_URL%/}"
     SP_ENTITY_ID="${FRONTOFFICE_SAML_SP_ENTITY_ID:-${BASE_URL}/saml/sp}"
-    mkdir -p /satosa_proxy/runtime
-    sed "s|__FRONTOFFICE_SAML_SP_ENTITY_ID__|${SP_ENTITY_ID}|g" "$TARGET_ROUTING_FILE" > "$RUNTIME_ROUTING_FILE"
-    sed -i "s|conf/microservices/target_based_routing.yaml|runtime/target_based_routing.yaml|" /satosa_proxy/proxy_conf.yaml
+    sed -i "s|__FRONTOFFICE_SAML_SP_ENTITY_ID__|${SP_ENTITY_ID}|g" "$RUNTIME_ROUTING_FILE"
+  fi
+  
+  # Replace __IAM_PROXY_DOMAIN__ placeholder with domain extracted from IAM_PROXY_PUBLIC_BASE_URL
+  IAM_PROXY_BASE_URL="${SATOSA_BASE:-${IAM_PROXY_PUBLIC_BASE_URL:-https://localhost:9445}}"
+  IAM_PROXY_DOMAIN=$(echo "$IAM_PROXY_BASE_URL" | sed 's|https://||;s|http://||;s|:[0-9]*||;s|/.*||')
+  if [ -n "$IAM_PROXY_DOMAIN" ]; then
+    sed -i "s|__IAM_PROXY_DOMAIN__|https://${IAM_PROXY_DOMAIN}|g" "$RUNTIME_ROUTING_FILE"
+  fi
+  
+  # Update proxy_conf.yaml to use the runtime version if it was modified
+  if grep -q "__" "$RUNTIME_ROUTING_FILE"; then
+    echo "[WARN] Some placeholders were not replaced in target_based_routing.yaml"
+  else
+    sed -i 's|conf/microservices/target_based_routing.yaml|runtime/target_based_routing.yaml|' /satosa_proxy/proxy_conf.yaml
   fi
 fi
 
