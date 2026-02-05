@@ -241,8 +241,24 @@
   <script>
     // Force Italian language from the start
     window.i18nextLanguage = 'it';
+    
+    // Define cleanup function globally BEFORE wallets.js loads
+    function cleanupWallets() {
+      // Hide disabled buttons
+      document.querySelectorAll('button[disabled], a.disabled').forEach(btn => {
+        btn.style.display = 'none';
+      });
+
+      // Hide empty wallet sections (div.mb-4 that have no visible content)
+      document.querySelectorAll('#wallets-container > div.mb-4').forEach(section => {
+        const visibleButtons = section.querySelectorAll('button:not([disabled]), a:not(.disabled)');
+        if (visibleButtons.length === 0) {
+          section.style.display = 'none';
+        }
+      });
+    }
   </script>
-  
+
   <script type="module">
     import('./js/wallets.js').then(() => {
       // After wallets.js loads, force Italian and cleanup
@@ -253,23 +269,7 @@
         cleanupWallets();
       }, 100);
     }).catch(err => console.error('Error loading wallets.js:', err));
-    
-    // Cleanup disabled wallets and empty sections
-    function cleanupWallets() {
-      // Hide disabled buttons
-      document.querySelectorAll('button[disabled], a.disabled').forEach(btn => {
-        btn.style.display = 'none';
-      });
-      
-      // Hide empty wallet sections (div.mb-4 that have no visible content)
-      document.querySelectorAll('#wallets-container > div.mb-4').forEach(section => {
-        const visibleButtons = section.querySelectorAll('button:not([disabled]), a:not(.disabled)');
-        if (visibleButtons.length === 0) {
-          section.style.display = 'none';
-        }
-      });
-    }
-    
+
     // Run cleanup when language changes
     document.getElementById('lang-select')?.addEventListener('change', (e) => {
       const lang = e.target.value;
