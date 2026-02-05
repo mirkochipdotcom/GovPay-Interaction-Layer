@@ -27,6 +27,7 @@ services:
           --crt-out /certs/sp-signing.crt
     env_file:
       - .env
+      - .env.iam-proxy
     profiles:
       - iam-proxy
 
@@ -42,6 +43,7 @@ services:
       - FRONTOFFICE_PUBLIC_BASE_URL=${FRONTOFFICE_PUBLIC_BASE_URL:-https://127.0.0.1:8444}
     env_file:
       - .env
+      - .env.iam-proxy
     depends_on:
       init-spid-cert:
         condition: service_completed_successfully
@@ -108,6 +110,7 @@ services:
       - IAM_PROXY_SAML2_IDP_METADATA_URL_INTERNAL=${IAM_PROXY_SAML2_IDP_METADATA_URL_INTERNAL:-https://satosa-nginx:443/Saml2IDP/metadata}
     env_file:
       - .env
+      - .env.iam-proxy
     depends_on:
       - db
     entrypoint: ["/usr/local/bin/docker-setup.sh"]
@@ -123,6 +126,7 @@ services:
       - ENABLE_CIE_OIDC=${ENABLE_CIE_OIDC:-false}
     env_file:
       - .env
+      - .env.iam-proxy
     volumes:
       - ./iam-proxy:/iam-proxy
       - ./scripts:/scripts:ro
