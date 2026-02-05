@@ -103,6 +103,14 @@ if [ -f "$REPO_ROOT/iam-proxy/spid_base_override.html.template" ]; then
   echo "[sync-iam-proxy] Generated spid_base.html with environment variables"
 fi
 
+# Generate config-override.json for disco page personalization
+echo "[sync-iam-proxy] Generating config-override.json for disco page..."
+if [ -f "$REPO_ROOT/iam-proxy/config-override.json.template" ]; then
+  mkdir -p "$PROJECT_DST/static/config"
+  envsubst < "$REPO_ROOT/iam-proxy/config-override.json.template" > "$PROJECT_DST/static/config/config-override.json"
+  echo "[sync-iam-proxy] Generated config-override.json with environment variables"
+fi
+
 # Patch proxy_conf.yaml to disable problematic backends for test environment
 # Set ENABLE_CIE_OIDC=true in environment to skip this patching
 if [ -f "$PROJECT_DST/proxy_conf.yaml" ] && [ "$ENABLE_CIE_OIDC" != "true" ]; then
