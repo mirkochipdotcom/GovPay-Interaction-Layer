@@ -71,10 +71,13 @@ if [ -f "$PROJECT_DST/proxy_conf.yaml" ] && [ "$ENABLE_CIE_OIDC" != "true" ]; th
   [ ! -f "$PROJECT_DST/proxy_conf.yaml.original" ] && cp "$PROJECT_DST/proxy_conf.yaml" "$PROJECT_DST/proxy_conf.yaml.original"
   
   # Comment out CIE OIDC backend (requires proper trust chain configuration)
-  sed -i 's|^  - backends/cieoidc_backend.yaml|  # - backends/cieoidc_backend.yaml  # Disabled (set ENABLE_CIE_OIDC=true to enable)|' "$PROJECT_DST/proxy_conf.yaml"
+  sed -i 's|^  - "conf/backends/cieoidc_backend.yaml"|  # - "conf/backends/cieoidc_backend.yaml"  # Disabled (set ENABLE_CIE_OIDC=true to enable)|' "$PROJECT_DST/proxy_conf.yaml"
   
-  # Comment out Saml2 generic backend if present (we only need spidSaml2 for SPID)
-  sed -i 's|^  - backends/saml2_backend.yaml|  # - backends/saml2_backend.yaml  # Disabled, using spidSaml2 only|' "$PROJECT_DST/proxy_conf.yaml"
+  # Comment out pyeudiw backend (also requires trust chain)
+  sed -i 's|^  - "conf/backends/pyeudiw_backend.yaml"|  # - "conf/backends/pyeudiw_backend.yaml"  # Disabled, requires trust chain config|' "$PROJECT_DST/proxy_conf.yaml"
+  
+  # Comment out generic saml2 backend if present (we only need spidSaml2 for SPID)
+  sed -i 's|^  - "conf/backends/saml2_backend.yaml"|  # - "conf/backends/saml2_backend.yaml"  # Disabled, using spidSaml2 only|' "$PROJECT_DST/proxy_conf.yaml"
 fi
 
 # Restore .gitkeep
