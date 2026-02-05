@@ -241,6 +241,8 @@ services:
       - ./iam-proxy/nginx/conf.d:/etc/nginx/conf.d:ro
       - ./iam-proxy/nginx/html:/usr/share/nginx/html:ro
       - ./iam-proxy/nginx/entrypoint.d:/docker-entrypoint.d:ro
+      # Mount SATOSA static files for serving by nginx
+      - ./iam-proxy/iam-proxy-italia-project/static:/usr/share/nginx/html/static:ro
       # Cert per TLS (riuso di ssl/ locale)
       - ./ssl:/etc/nginx/certs
     restart: unless-stopped
