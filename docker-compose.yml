@@ -118,6 +118,9 @@ services:
   sync-iam-proxy:
     image: alpine:latest
     container_name: sync-iam-proxy
+    environment:
+      - SATOSA_USE_DEMO_SPID_IDP=${SATOSA_USE_DEMO_SPID_IDP:-false}
+      - ENABLE_CIE_OIDC=${ENABLE_CIE_OIDC:-false}
     volumes:
       - ./iam-proxy:/iam-proxy
       - ./scripts:/scripts:ro
