@@ -25,6 +25,12 @@ const urlParams = new URLSearchParams(window.location.search);
 const servicePath = urlParams.get("return");
 const entityID = urlParams.get('entityID');
 
+// Debug logging
+console.log('[SPID-IDPS] Script loaded');
+console.log('[SPID-IDPS] servicePath:', servicePath);
+console.log('[SPID-IDPS] entityID:', entityID);
+console.log('[SPID-IDPS] Total IdPs:', idps.length);
+
 // function addIdpEntry creates a Bootstrap wallet-box div with the IdP link
 //
 // options:
@@ -62,19 +68,26 @@ function addIdpEntry(data, container) {
 
 // when page is ready add each idps entry in the wallets container
 document.addEventListener('DOMContentLoaded', function () {
+  console.log('[SPID-IDPS] DOMContentLoaded event fired');
+  
   // user alert if the page is loaded without entityID param
   if (! entityID ) { 
+    console.error('[SPID-IDPS] No entityID parameter in URL!');
     alert('To use a Discovery Service you must come from a Service Provider') 
   }
   
   // get the wallets container
   var container = document.querySelector('div#wallets-container');
+  console.log('[SPID-IDPS] wallets-container element:', container);
+  
   if (container) {
+    console.log('[SPID-IDPS] Adding', idps.length, 'IdP entries to container');
     // add each IdP as a wallet-box
     for (var i = 0; i < idps.length; i++) { 
       addIdpEntry(idps[i], container); 
     }
+    console.log('[SPID-IDPS] All IdP entries added successfully');
   } else {
-    console.error('wallets-container not found in the page');
+    console.error('[SPID-IDPS] wallets-container not found in the page');
   }
 });
