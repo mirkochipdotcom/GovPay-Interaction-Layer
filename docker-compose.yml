@@ -121,6 +121,8 @@ services:
     environment:
       - SATOSA_USE_DEMO_SPID_IDP=${SATOSA_USE_DEMO_SPID_IDP:-false}
       - ENABLE_CIE_OIDC=${ENABLE_CIE_OIDC:-false}
+    env_file:
+      - .env
     volumes:
       - ./iam-proxy:/iam-proxy
       - ./scripts:/scripts:ro
