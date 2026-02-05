@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title id="tab-title">Accedi</title>
+  <meta name="description" content="" id="tab-title">
+
+  <link rel="stylesheet" href="/static/css/style.css">
+
+  <!-- Bootstrap Italia CSS -->
+  <link href="/static/css/bootstrap-italia.min.css" rel="stylesheet">
+  <!-- ita-bayon CSS -->
+  <link href="/static/css/ita.min.css" rel="stylesheet">
+  <link type="text/css" rel="stylesheet" href="/static/spid/spid-sp-access-button.css">
+
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="js/bootstrap-italia.bundle.min.js"></script>
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    main {
+      flex: 1;
+    }
+
+    header svg.icon {
+      width: 32px;
+      height: 32px;
+    }
+
+    footer {
+      margin: 0;
+      padding: 1rem 0;
+      background-color: #0072CE;
+      color: white;
+      position: relative;
+      width: 100%;
+      height: auto;
+    }
+
+    .disco-section {
+      margin-bottom: 2rem;
+    }
+
+    .disco-section h3 {
+      margin-bottom: 1rem;
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #333;
+    }
+
+    .disco-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem;
+    }
+
+    .disco-card {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 1rem;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      background-color: #f9f9f9;
+      text-decoration: none;
+      color: inherit;
+      transition: all 0.2s ease;
+    }
+
+    .disco-card:hover {
+      background-color: #f0f8ff;
+      border-color: #0072CE;
+      box-shadow: 0 2px 8px rgba(0, 114, 206, 0.15);
+      transform: translateY(-1px);
+    }
+
+    .disco-card img {
+      width: 40px;
+      height: 40px;
+      object-fit: contain;
+    }
+
+    .spid-login-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      align-items: flex-start;
+    }
+
+    .spid-helper {
+      margin: 0;
+      font-size: 0.95rem;
+      color: #555;
+    }
+
+    @media (max-width: 576px) {
+      .container {
+        padding-left: 8px !important;
+        padding-right: 8px !important;
+      }
+      header .it-header-slim-wrapper-content {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+      }
+      footer {
+        padding: 0.5rem 0;
+        font-size: 0.9rem;
+      }
+    }
+  </style>
+</head>
+<body>
+<!-- HEADER -->
+<header class="it-header-wrapper">
+  <div class="it-header-slim-wrapper bg-primary">
+    <div class="container">
+      <div class="it-header-slim-wrapper-content d-flex justify-content-between align-items-center">
+        <span class="d-none d-lg-block navbar-brand text-white">
+          <strong>Nome della Regione</strong>
+        </span>
+      </div>
+    </div>
+  </div>
+  <div style="background-color: #F2F7FC;">
+    <div class="container py-3">
+      <div class="d-flex align-items-center">
+        <svg class="icon icon-lg me-2" aria-hidden="true">
+          <use xlink:href="/static/svg/sprites.svg#it-code-circle"></use>
+        </svg>
+        <h2>Accedi</h2>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- SEZIONE LOGIN -->
+<main class="container my-4">
+  <!-- SPID_BLOCK_START -->
+  <section class="disco-section" id="spid-section">
+    <h3>Accedi con SPID</h3>
+    <div class="spid-login-wrap">
+      <a class="italia-it-button italia-it-button-size-xl button-spid" href="#" spid-idp-button="#spid-idp-button-xlarge-post" data-horizontal-offset="0" data-vertical-offset="10">
+        <span class="italia-it-button-icon">
+          <img src="/static/spid/spid-ico-circle-bb.svg" alt="" aria-hidden="true">
+        </span>
+        <span class="italia-it-button-text">Entra con SPID</span>
+      </a>
+      <p class="spid-helper">Seleziona il tuo Identity Provider SPID dall’elenco.</p>
+    </div>
+
+    <div id="spid-idp-button-xlarge-post" class="spid-idp-button spid-idp-button-tip spid-idp-button-relative spid-idp-button-scroll">
+      <ul id="spid-idp-list-xlarge-root-post" class="spid-idp-button-menu">
+        <!-- SPID_DEMO_START -->
+        <li class="spid-idp-button-link">
+          <a class="disco-idp-link" data-entity-id="https://demo.spid.gov.it">
+            <img src="/static/spid/spid-agid-logo-lb.png" alt="SPID Test">
+          </a>
+        </li>
+        <!-- SPID_DEMO_END -->
+        <li class="spid-idp-button-link"><a class="disco-idp-link" data-entity-id="https://loginspid.aruba.it"><img src="/static/spid/spid-idp-arubaid.svg" alt="Aruba ID"></a></li>
+        <li class="spid-idp-button-link"><a class="disco-idp-link" data-entity-id="https://identity.infocert.it"><img src="/static/spid/spid-idp-infocertid.svg" alt="Infocert ID"></a></li>
+        <li class="spid-idp-button-link"><a class="disco-idp-link" data-entity-id="https://spid.intesa.it"><img src="/static/spid/spid-idp-intesaid.svg" alt="Intesa ID"></a></li>
+        <li class="spid-idp-button-link"><a class="disco-idp-link" data-entity-id="https://id.lepida.it/idp/shibboleth"><img src="/static/spid/spid-idp-lepidaid.svg" alt="Lepida ID"></a></li>
+        <li class="spid-idp-button-link"><a class="disco-idp-link" data-entity-id="https://idp.namirialtsp.com/idp"><img src="/static/spid/spid-idp-namirialid.svg" alt="Namirial ID"></a></li>
+        <li class="spid-idp-button-link"><a class="disco-idp-link" data-entity-id="https://posteid.poste.it"><img src="/static/spid/spid-idp-posteid.svg" alt="Poste ID"></a></li>
+        <li class="spid-idp-button-link"><a class="disco-idp-link" data-entity-id="https://identity.sieltecloud.it"><img src="/static/spid/spid-idp-sielteid.svg" alt="Sielte ID"></a></li>
+        <li class="spid-idp-button-link"><a class="disco-idp-link" data-entity-id="https://spid.register.it"><img src="/static/spid/spid-idp-spiditalia.svg" alt="SPIDItalia"></a></li>
+        <li class="spid-idp-button-link"><a class="disco-idp-link" data-entity-id="https://login.id.tim.it/affwebservices/public/saml2sso"><img src="/static/spid/spid-idp-timid.svg" alt="Tim ID"></a></li>
+        <li class="spid-idp-button-link"><a class="disco-idp-link" data-entity-id="https://spid.teamsystem.com/idp"><img src="/static/spid/spid-idp-teamsystemid.svg" alt="TeamSystem ID"></a></li>
+
+        <li class="spid-idp-support-link"><a href="https://www.spid.gov.it/" target="_blank" rel="noopener">Maggiori informazioni</a></li>
+        <li class="spid-idp-support-link"><a href="https://www.spid.gov.it/richiedi-spid" target="_blank" rel="noopener">Non hai SPID?</a></li>
+        <li class="spid-idp-support-link"><a href="https://www.spid.gov.it/serve-aiuto" target="_blank" rel="noopener">Serve aiuto?</a></li>
+      </ul>
+    </div>
+  </section>
+  <!-- SPID_BLOCK_END -->
+
+  <!-- CIE_BLOCK_START -->
+  <section class="disco-section" id="cie-section">
+    <h3>Accedi con CIE</h3>
+    <div class="disco-cards">
+      <a class="disco-card disco-idp-link" data-entity-id="https://idserver.servizicie.interno.gov.it/idp/profile/SAML2/POST/SSO">
+        <img src="/static/cie/cie_white.svg" alt="CIE">
+        <strong>Entra con CIE</strong>
+      </a>
+    </div>
+  </section>
+  <!-- CIE_BLOCK_END -->
+
+  <!-- CIE_OIDC_BLOCK_START -->
+  <section class="disco-section" id="cie-oidc-section">
+    <h3>Accedi con CIE OIDC</h3>
+    <div class="disco-cards">
+      <a class="disco-card disco-idp-link" data-entity-id="http://cie-provider.example.org:8002/oidc/op/">
+        <img src="/static/cie/cie_white.svg" alt="CIE OIDC">
+        <strong>Entra con CIE OIDC</strong>
+      </a>
+    </div>
+  </section>
+  <!-- CIE_OIDC_BLOCK_END -->
+
+  <!-- IT_WALLET_BLOCK_START -->
+  <section class="disco-section" id="it-wallet-section">
+    <h3>Accedi con IT-Wallet</h3>
+    <div class="disco-cards">
+      <a class="disco-card disco-idp-link" data-entity-id="wallet">
+        <img src="/static/wallet-it/wallet_icon.svg" alt="IT Wallet">
+        <strong>Entra con IT-Wallet</strong>
+      </a>
+    </div>
+  </section>
+  <!-- IT_WALLET_BLOCK_END -->
+
+  <!-- IDEM_BLOCK_START -->
+  <section class="disco-section" id="idem-section">
+    <h3>Accedi con IDEM</h3>
+    <div class="disco-cards">
+      <a class="disco-card" href="https://wayf.idem.garr.it/WAYF?entityID=_YourEntityID_&return=_YourReturnURL_" target="_blank" rel="noopener">
+        <img src="/static/img/ficep.svg" alt="IDEM">
+        <strong>Entra con IDEM</strong>
+      </a>
+    </div>
+  </section>
+  <!-- IDEM_BLOCK_END -->
+
+  <!-- EIDAS_BLOCK_START -->
+  <section class="disco-section" id="eidas-section">
+    <h3>Accedi con eIDAS</h3>
+    <div class="disco-cards">
+      <a class="disco-card disco-idp-link" data-entity-id="https://sp-proxy.eid.gov.it/spproxy/idpit">
+        <img src="/static/cie/cie_white.svg" alt="eIDAS">
+        <strong>Entra con eIDAS</strong>
+      </a>
+    </div>
+  </section>
+  <!-- EIDAS_BLOCK_END -->
+</main>
+
+<!-- FOOTER -->
+<footer>
+  <div class="container h-100 d-flex align-items-center">
+    <div class="d-flex flex-wrap justify-content-start">
+      <a href="" class="text-white me-4 mb-2" target="_blank" rel="noopener">Note legali</a>
+      <a href="" class="text-white me-4 mb-2" target="_blank" rel="noopener">Privacy policy</a>
+      <a href="" class="text-white mb-2" target="_blank" rel="noopener">Accessibilità</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  (function applyDiscoLinks() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const servicePath = urlParams.get('return');
+    if (!servicePath) return;
+
+    document.querySelectorAll('.disco-idp-link').forEach((link) => {
+      const entityId = link.getAttribute('data-entity-id');
+      if (!entityId) return;
+      link.setAttribute('href', `${servicePath}?entityID=${encodeURIComponent(entityId)}&return=${encodeURIComponent(servicePath)}`);
+    });
+  })();
+</script>
+<script src="/static/spid/spid-sp-access-button.js"></script>
+<script src="/static/spid/spid_button.js"></script>
+</body>
+</html>

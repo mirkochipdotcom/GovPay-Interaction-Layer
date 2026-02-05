@@ -89,6 +89,42 @@ fi
 
 echo "[sync-iam-proxy] Skipping disco config overrides (use upstream defaults)"
 
+# Build static disco.html based on .env flags
+DISCO_HTML="$PROJECT_DST/static/disco.html"
+DISCO_TEMPLATE="$REPO_ROOT/iam-proxy/disco.static.html.template"
+
+if [ -f "$DISCO_TEMPLATE" ]; then
+  echo "[sync-iam-proxy] Building static disco.html from template..."
+  cp "$DISCO_TEMPLATE" "$DISCO_HTML"
+
+  # Remove blocks for disabled components
+  if [ "$ENABLE_SPID" != "true" ]; then
+    sed -i '/SPID_BLOCK_START/,/SPID_BLOCK_END/d' "$DISCO_HTML"
+  fi
+  if [ "$SATOSA_USE_DEMO_SPID_IDP" != "true" ]; then
+    sed -i '/SPID_DEMO_START/,/SPID_DEMO_END/d' "$DISCO_HTML"
+  fi
+  if [ "$ENABLE_CIE" != "true" ]; then
+    sed -i '/CIE_BLOCK_START/,/CIE_BLOCK_END/d' "$DISCO_HTML"
+  fi
+  if [ "$ENABLE_CIE_OIDC" != "true" ]; then
+    sed -i '/CIE_OIDC_BLOCK_START/,/CIE_OIDC_BLOCK_END/d' "$DISCO_HTML"
+  fi
+  if [ "$ENABLE_IT_WALLET" != "true" ]; then
+    sed -i '/IT_WALLET_BLOCK_START/,/IT_WALLET_BLOCK_END/d' "$DISCO_HTML"
+  fi
+  if [ "$ENABLE_IDEM" != "true" ]; then
+    sed -i '/IDEM_BLOCK_START/,/IDEM_BLOCK_END/d' "$DISCO_HTML"
+  fi
+  if [ "$ENABLE_EIDAS" != "true" ]; then
+    sed -i '/EIDAS_BLOCK_START/,/EIDAS_BLOCK_END/d' "$DISCO_HTML"
+  fi
+
+  echo "[sync-iam-proxy] Built disco.html with enabled components only"
+else
+  echo "[sync-iam-proxy] WARNING: disco.static.html.template not found at $DISCO_TEMPLATE"
+fi
+
 # Generate wallets-config.json for wallets UI filtering
 echo "[sync-iam-proxy] Generating wallets-config.json for wallets UI filtering..."
 if [ -f "$REPO_ROOT/iam-proxy/wallets-config.json.template" ]; then
