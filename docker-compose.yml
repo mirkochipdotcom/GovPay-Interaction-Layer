@@ -118,6 +118,7 @@ services:
   iam-proxy-italia:
     image: ghcr.io/italia/iam-proxy-italia:latest
     container_name: iam-proxy-italia
+    command: ["/bin/bash", "/satosa_proxy/entrypoint.sh"]
     volumes:
       - ./iam-proxy/iam-proxy-italia-project:/satosa_proxy
       - ./iam-proxy/metadata-sp:/satosa_proxy/metadata/sp:ro
