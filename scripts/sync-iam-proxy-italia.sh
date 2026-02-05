@@ -113,12 +113,12 @@ fi
 
 # Copy config-override.js for disco page JavaScript personalization
 echo "[sync-iam-proxy] Copying config-override.js for disco page..."
-if [ -f "$REPO_ROOT/iam-proxy/config-override.js" ]; then
+if [ -f "/iam-proxy/config-override.js" ]; then
   mkdir -p "$PROJECT_DST/static/js"
-  cp "$REPO_ROOT/iam-proxy/config-override.js" "$PROJECT_DST/static/js/config-override.js"
+  cp "/iam-proxy/config-override.js" "$PROJECT_DST/static/js/config-override.js"
   echo "[sync-iam-proxy] Copied config-override.js to static/js/"
 else
-  echo "[sync-iam-proxy] WARNING: config-override.js not found at $REPO_ROOT/iam-proxy/config-override.js"
+  echo "[sync-iam-proxy] WARNING: config-override.js not found at /iam-proxy/config-override.js"
 fi
 
 # Patch proxy_conf.yaml to disable problematic backends for test environment
