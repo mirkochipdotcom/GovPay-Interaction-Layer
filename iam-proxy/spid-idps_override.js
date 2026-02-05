@@ -25,25 +25,56 @@ const urlParams = new URLSearchParams(window.location.search);
 const servicePath = urlParams.get("return");
 const entityID = urlParams.get('entityID');
 
-// function addIdpEntry make a "li" element with the ipd link and prepend this in a element
+// function addIdpEntry creates a Bootstrap wallet-box div with the IdP link
 //
 // options:
 // - data - is an object with "entityName", "entityID" and "logo" values
-// - element - is the element where is added the new "li" element
-function addIdpEntry(data, element) {
-  let li = document.createElement('li');
-  li.className = 'spid-idp-button-link'
-  li.innerHTML = `<a href="${servicePath}?entityID=${data['entityID']}&return=${servicePath}"><span class="spid-sr-only">${data['entityName']}</span><img src="${data['logo']}" alt="${data['entityName']}"></a>`
-  element.prepend(li)
+// - container - is the container element where the wallet-box will be added
+function addIdpEntry(data, container) {
+  let col = document.createElement('div');
+  col.className = 'col-12 col-md-6 col-lg-4 mb-3';
+  
+  let walletBox = document.createElement('div');
+  walletBox.className = 'wallet-box border rounded p-3 h-100 d-flex align-items-center';
+  
+  let link = document.createElement('a');
+  link.href = `${servicePath}?entityID=${data['entityID']}&return=${servicePath}`;
+  link.className = 'text-decoration-none text-dark d-flex align-items-center w-100';
+  
+  if (data['logo']) {
+    let img = document.createElement('img');
+    img.src = data['logo'];
+    img.alt = data['entityName'];
+    img.style.maxWidth = '60px';
+    img.style.marginRight = '15px';
+    link.appendChild(img);
+  }
+  
+  let span = document.createElement('span');
+  span.textContent = data['entityName'];
+  span.style.fontSize = '1.1rem';
+  link.appendChild(span);
+  
+  walletBox.appendChild(link);
+  col.appendChild(walletBox);
+  container.appendChild(col);
 }
 
-// when page is ready add each idps entry in the ul element
-document.onreadystatechange = function () {
-  if (document.readyState == "interactive") {
-    // user alert if the page is loaded without entityID param
-    if (! entityID ) { alert('To use a Discovery Service you must come from a Service Provider') }
-    // var ul define the contain of ipds link
-    var ul = document.querySelector('ul#spid-idp-list-medium-root-get');
-    for (var i = 0; i < idps.length; i++) { addIdpEntry(idps[i], ul); }
+// when page is ready add each idps entry in the wallets container
+document.addEventListener('DOMContentLoaded', function () {
+  // user alert if the page is loaded without entityID param
+  if (! entityID ) { 
+    alert('To use a Discovery Service you must come from a Service Provider') 
   }
-}
+  
+  // get the wallets container
+  var container = document.querySelector('div#wallets-container');
+  if (container) {
+    // add each IdP as a wallet-box
+    for (var i = 0; i < idps.length; i++) { 
+      addIdpEntry(idps[i], container); 
+    }
+  } else {
+    console.error('wallets-container not found in the page');
+  }
+});
