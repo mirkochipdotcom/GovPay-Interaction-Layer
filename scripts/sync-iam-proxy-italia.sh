@@ -111,6 +111,15 @@ if [ -f "$REPO_ROOT/iam-proxy/config-override.json.template" ]; then
   echo "[sync-iam-proxy] Generated config-override.json with environment variables"
 fi
 
+# Copy config-override.js for disco page JavaScript personalization
+echo "[sync-iam-proxy] Copying config-override.js for disco page..."
+if [ -f "$PROJECT_DST/static/js/config-override.js" ]; then
+  # File already exists in the destination (mounted volume)
+  echo "[sync-iam-proxy] config-override.js already in place"
+else
+  echo "[sync-iam-proxy] WARNING: config-override.js not found in mounted volume"
+fi
+
 # Patch proxy_conf.yaml to disable problematic backends for test environment
 # Set ENABLE_CIE_OIDC=true in environment to skip this patching
 if [ -f "$PROJECT_DST/proxy_conf.yaml" ] && [ "$ENABLE_CIE_OIDC" != "true" ]; then
