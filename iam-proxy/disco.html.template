@@ -244,18 +244,37 @@
     
     // Define cleanup function globally BEFORE wallets.js loads
     function cleanupWallets() {
+      console.log('[disco] Starting cleanupWallets...');
+      
       // Hide disabled buttons
-      document.querySelectorAll('button[disabled], a.disabled').forEach(btn => {
+      const disabledBtns = document.querySelectorAll('button[disabled], a.disabled');
+      console.log('[disco] Found disabled buttons:', disabledBtns.length);
+      disabledBtns.forEach(btn => {
+        console.log('[disco] Hiding disabled button:', btn);
+        btn.style.display = 'none';
+      });
+
+      // Also hide buttons with disabled class
+      const disabledBtnsByClass = document.querySelectorAll('button.disabled, a.wallet-box[disabled]');
+      console.log('[disco] Found buttons with disabled class:', disabledBtnsByClass.length);
+      disabledBtnsByClass.forEach(btn => {
+        console.log('[disco] Hiding button with disabled class:', btn);
         btn.style.display = 'none';
       });
 
       // Hide empty wallet sections (div.mb-4 that have no visible content)
-      document.querySelectorAll('#wallets-container > div.mb-4').forEach(section => {
-        const visibleButtons = section.querySelectorAll('button:not([disabled]), a:not(.disabled)');
+      const sections = document.querySelectorAll('#wallets-container > div.mb-4');
+      console.log('[disco] Found wallet sections:', sections.length);
+      sections.forEach(section => {
+        const visibleButtons = section.querySelectorAll('button:not([disabled]):not(.disabled), a:not(.disabled)');
+        console.log('[disco] Section has visible buttons:', visibleButtons.length);
         if (visibleButtons.length === 0) {
+          console.log('[disco] Hiding empty section');
           section.style.display = 'none';
         }
       });
+      
+      console.log('[disco] cleanupWallets completed');
     }
   </script>
 
