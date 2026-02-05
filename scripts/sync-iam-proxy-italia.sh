@@ -83,5 +83,12 @@ mkdir -p "$PROJECT_DST/logs"
 mkdir -p "$PROJECT_DST/metadata/idp"
 mkdir -p "$PROJECT_DST/metadata/sp"
 
+# Set permissions for directories that SATOSA needs to write to
+# SATOSA container runs as user satosa (UID 100, GID 101)
+# Make logs writable by all (container user needs write access)
+chmod -R 777 "$PROJECT_DST/logs" 2>/dev/null || true
+chmod -R 777 "$PROJECT_DST/metadata" 2>/dev/null || true
+chmod -R 755 "$PROJECT_DST/pki" 2>/dev/null || true
+
 echo "[sync-iam-proxy] Sync complete. Files are now up-to-date with upstream."
 echo "[sync-iam-proxy] You can now run: docker compose --profile iam-proxy up -d"
