@@ -325,8 +325,8 @@
       if (!list) return;
       if (!entityID || !servicePath) return;
 
+      const demoEnabled = '${SATOSA_USE_DEMO_SPID_IDP}' === 'true';
       const idps = [
-        { name: 'SPID Test', entityID: 'https://demo.spid.gov.it', logo: '/static/spid/spid-agid-logo-lb.png' },
         { name: 'Aruba ID', entityID: 'https://loginspid.aruba.it', logo: '/static/spid/spid-idp-arubaid.svg' },
         { name: 'Infocert ID', entityID: 'https://identity.infocert.it', logo: '/static/spid/spid-idp-infocertid.svg' },
         { name: 'Intesa ID', entityID: 'https://spid.intesa.it', logo: '/static/spid/spid-idp-intesaid.svg' },
@@ -338,6 +338,10 @@
         { name: 'Tim ID', entityID: 'https://login.id.tim.it/affwebservices/public/saml2sso', logo: '/static/spid/spid-idp-timid.svg' },
         { name: 'TeamSystem ID', entityID: 'https://spid.teamsystem.com/idp', logo: '/static/spid/spid-idp-teamsystemid.svg' }
       ];
+
+      if (demoEnabled) {
+        idps.unshift({ name: 'SPID Test', entityID: 'https://demo.spid.gov.it', logo: '/static/spid/spid-agid-logo-lb.png' });
+      }
 
       idps.sort(() => Math.random() - 0.5);
 
