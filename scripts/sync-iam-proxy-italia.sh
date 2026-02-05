@@ -62,23 +62,7 @@ echo "[sync-iam-proxy] Copying files from upstream..."
 cp -r "$PROJECT_SRC"/* "$PROJECT_DST/"
 cp -r "$PROJECT_SRC"/.??* "$PROJECT_DST/" 2>/dev/null || true
 
-# Copy override files from iam-proxy directory
-echo "[sync-iam-proxy] Copying override files..."
-if [ -f "/iam-proxy/spid-idps_override.js" ]; then
-  cp "/iam-proxy/spid-idps_override.js" "$PROJECT_DST/static/spid/spid-idps.js"
-  echo "[sync-iam-proxy] Copied spid-idps_override.js -> static/spid/spid-idps.js"
-fi
-if [ -f "/iam-proxy/ita_override.min.js" ]; then
-  cp "/iam-proxy/ita_override.min.js" "$PROJECT_DST/static/js/ita.min.js"
-  echo "[sync-iam-proxy] Copied ita_override.min.js -> static/js/ita.min.js"
-fi
-if [ -f "/iam-proxy/target_based_routing_override.yaml" ]; then
-  # Only copy if file is not intentionally empty
-  if [ -s "/iam-proxy/target_based_routing_override.yaml" ] && ! grep -q "intentionally left blank" "/iam-proxy/target_based_routing_override.yaml"; then
-    cp "/iam-proxy/target_based_routing_override.yaml" "$PROJECT_DST/conf/microservices/target_based_routing.yaml"
-    echo "[sync-iam-proxy] Copied target_based_routing_override.yaml"
-  fi
-fi
+echo "[sync-iam-proxy] Skipping JS overrides for disco (use upstream defaults)"
 
 # Generate i18n JSON files from templates with environment variables
 echo "[sync-iam-proxy] Generating i18n JSON files from templates..."
@@ -103,23 +87,7 @@ if [ -f "$REPO_ROOT/iam-proxy/spid_base_override.html.template" ]; then
   echo "[sync-iam-proxy] Generated spid_base.html with environment variables"
 fi
 
-# Generate config-override.json for disco page personalization
-echo "[sync-iam-proxy] Generating config-override.json for disco page..."
-if [ -f "$REPO_ROOT/iam-proxy/config-override.json.template" ]; then
-  mkdir -p "$PROJECT_DST/static/config"
-  envsubst < "$REPO_ROOT/iam-proxy/config-override.json.template" > "$PROJECT_DST/static/config/config-override.json"
-  echo "[sync-iam-proxy] Generated config-override.json with environment variables"
-fi
-
-# Copy config-override.js for disco page JavaScript personalization
-echo "[sync-iam-proxy] Copying config-override.js for disco page..."
-if [ -f "$REPO_ROOT/iam-proxy/config-override.js" ]; then
-  mkdir -p "$PROJECT_DST/static/js"
-  cp "$REPO_ROOT/iam-proxy/config-override.js" "$PROJECT_DST/static/js/config-override.js"
-  echo "[sync-iam-proxy] Copied config-override.js to static/js/"
-else
-  echo "[sync-iam-proxy] WARNING: config-override.js not found at $REPO_ROOT/iam-proxy/config-override.js"
-fi
+echo "[sync-iam-proxy] Skipping disco config overrides (use upstream defaults)"
 
 # Generate wallets-config.json for wallets UI filtering
 echo "[sync-iam-proxy] Generating wallets-config.json for wallets UI filtering..."
@@ -230,49 +198,10 @@ else
   echo "[sync-iam-proxy] Skipping demo SPID IdP metadata (SATOSA_USE_DEMO_SPID_IDP not set to 'true')"
 fi
 
-# Replace disco.html with custom template
-DISCO_HTML="$PROJECT_DST/static/disco.html"
-DISCO_TEMPLATE="$REPO_ROOT/iam-proxy/disco.html.template"
+# Use upstream disco.html as-is (static resource)
+echo "[sync-iam-proxy] Using upstream disco.html (no custom override)"
 
-if [ -f "$DISCO_TEMPLATE" ]; then
-  echo "[sync-iam-proxy] Replacing disco.html with custom template..."
-  cp "$DISCO_TEMPLATE" "$DISCO_HTML"
-  echo "[sync-iam-proxy] Replaced disco.html with custom template"
-else
-  echo "[sync-iam-proxy] WARNING: disco.html.template not found at $DISCO_TEMPLATE"
-fi
-
-# Patch wallets.js to add wallet filtering support
-echo "[sync-iam-proxy] Patching wallets.js to add wallet filtering..."
-if [ -f "$PROJECT_DST/static/js/wallets.js" ]; then
-  # Replace createWallet function with filtered version
-  sed -i '/^function createWallet(resource, id_key, container) {$/,/^}$/c\
-// ----------------------- Create Wallet -----------------------\
-function createWallet(resource, id_key, container) {\
-  const row = document.createElement('"'"'div'"'"');\
-  row.className = '"'"'row'"'"';\
-  \
-  // Filter wallets based on configuration loaded from wallets-config.json\
-  const config = window.WALLETS_CONFIG && window.WALLETS_CONFIG[id_key] ? window.WALLETS_CONFIG[id_key] : {};\
-  \
-  Object.entries(resource[id_key]).forEach(([key, wallet]) => {\
-    // Skip if wallet is explicitly disabled in config\
-    if (config.hasOwnProperty(key) && config[key] === false) {\
-      console.debug(`Wallet ${key} is disabled in configuration`);\
-      return;\
-    }\
-    \
-    const col = document.createElement('"'"'div'"'"');\
-    col.className = '"'"'col-12 col-md-6 mb-3'"'"';\
-    col.appendChild(createWalletBox(resource, wallet));\
-    row.appendChild(col);\
-  });\
-  container.appendChild(row);\
-}' "$PROJECT_DST/static/js/wallets.js"
-  echo "[sync-iam-proxy] Patched wallets.js with wallet filtering"
-else
-  echo "[sync-iam-proxy] WARNING: Could not patch wallets.js (file not found)"
-fi
+echo "[sync-iam-proxy] Skipping wallets.js patch (use upstream defaults)"
 
 # Set permissions for directories that SATOSA needs to write to
 # SATOSA container runs as user satosa (UID 100, GID 101)
