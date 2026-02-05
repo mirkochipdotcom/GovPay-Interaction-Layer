@@ -62,6 +62,24 @@ echo "[sync-iam-proxy] Copying files from upstream..."
 cp -r "$PROJECT_SRC"/* "$PROJECT_DST/"
 cp -r "$PROJECT_SRC"/.??* "$PROJECT_DST/" 2>/dev/null || true
 
+# Copy override files from iam-proxy directory
+echo "[sync-iam-proxy] Copying override files..."
+if [ -f "/iam-proxy/spid-idps_override.js" ]; then
+  cp "/iam-proxy/spid-idps_override.js" "$PROJECT_DST/static/spid/spid-idps.js"
+  echo "[sync-iam-proxy] Copied spid-idps_override.js -> static/spid/spid-idps.js"
+fi
+if [ -f "/iam-proxy/ita_override.min.js" ]; then
+  cp "/iam-proxy/ita_override.min.js" "$PROJECT_DST/static/js/ita.min.js"
+  echo "[sync-iam-proxy] Copied ita_override.min.js -> static/js/ita.min.js"
+fi
+if [ -f "/iam-proxy/target_based_routing_override.yaml" ]; then
+  # Only copy if file is not intentionally empty
+  if [ -s "/iam-proxy/target_based_routing_override.yaml" ] && ! grep -q "intentionally left blank" "/iam-proxy/target_based_routing_override.yaml"; then
+    cp "/iam-proxy/target_based_routing_override.yaml" "$PROJECT_DST/conf/microservices/target_based_routing.yaml"
+    echo "[sync-iam-proxy] Copied target_based_routing_override.yaml"
+  fi
+fi
+
 # Patch proxy_conf.yaml to disable problematic backends for test environment
 # Set ENABLE_CIE_OIDC=true in environment to skip this patching
 if [ -f "$PROJECT_DST/proxy_conf.yaml" ] && [ "$ENABLE_CIE_OIDC" != "true" ]; then
@@ -150,6 +168,26 @@ if [ "$SATOSA_USE_DEMO_SPID_IDP" = "true" ]; then
   fi
 else
   echo "[sync-iam-proxy] Skipping demo SPID IdP metadata (SATOSA_USE_DEMO_SPID_IDP not set to 'true')"
+fi
+
+# Patch disco.html to include spid-idps.js script
+DISCO_HTML="$PROJECT_DST/static/disco.html"
+if [ -f "$DISCO_HTML" ]; then
+  echo "[sync-iam-proxy] Patching disco.html to include SPID IdPs script..."
+  
+  # Backup original if not exists
+  [ ! -f "$DISCO_HTML.original" ] && cp "$DISCO_HTML" "$DISCO_HTML.original"
+  
+  # Check if script tag already exists
+  if ! grep -q "spid/spid-idps.js" "$DISCO_HTML"; then
+    # Add script tag before </body>
+    sed -i 's|</body>|  <script src="/static/spid/spid-idps.js"></script>\n</body>|' "$DISCO_HTML"
+    echo "[sync-iam-proxy] Added SPID IdPs script to disco.html"
+  else
+    echo "[sync-iam-proxy] SPID IdPs script already present in disco.html"
+  fi
+else
+  echo "[sync-iam-proxy] WARNING: disco.html not found at $DISCO_HTML"
 fi
 
 # Set permissions for directories that SATOSA needs to write to
