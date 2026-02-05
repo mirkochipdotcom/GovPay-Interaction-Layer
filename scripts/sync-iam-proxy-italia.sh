@@ -217,6 +217,15 @@ if [ "$SATOSA_USE_DEMO_SPID_IDP" = "true" ]; then
   else
     echo "[sync-iam-proxy] Demo SPID IdP metadata already exists"
   fi
+  
+  # Apply demo SPID wallets override
+  echo "[sync-iam-proxy] Applying demo SPID wallets override..."
+  if [ -f "$REPO_ROOT/iam-proxy/wallets-spid-demo-override.json.template" ]; then
+    mkdir -p "$PROJECT_DST/static/config"
+    # Generate the override file with environment variables
+    envsubst < "$REPO_ROOT/iam-proxy/wallets-spid-demo-override.json.template" > "$PROJECT_DST/static/config/wallets-spid-demo-override.json"
+    echo "[sync-iam-proxy] Generated wallets-spid-demo-override.json"
+  fi
 else
   echo "[sync-iam-proxy] Skipping demo SPID IdP metadata (SATOSA_USE_DEMO_SPID_IDP not set to 'true')"
 fi
