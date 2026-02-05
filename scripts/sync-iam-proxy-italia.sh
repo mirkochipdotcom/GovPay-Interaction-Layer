@@ -218,6 +218,15 @@ if [ -f "$DISCO_HTML" ]; then
   # Backup original if not exists
   [ ! -f "$DISCO_HTML.original" ] && cp "$DISCO_HTML" "$DISCO_HTML.original"
   
+  # Add config-override.js for organization personalization
+  if ! grep -q "config-override.js" "$DISCO_HTML"; then
+    # Add config-override.js script before </body>
+    sed -i 's|</body>|  <script src="/static/js/config-override.js"></script>\n</body>|' "$DISCO_HTML"
+    echo "[sync-iam-proxy] Added config-override.js to disco.html"
+  else
+    echo "[sync-iam-proxy] config-override.js already present in disco.html"
+  fi
+
   # Check if script tag already exists
   if ! grep -q "spid/spid-idps.js" "$DISCO_HTML"; then
     # Add script tag before </body>
