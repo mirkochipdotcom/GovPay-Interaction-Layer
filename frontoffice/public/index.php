@@ -2169,7 +2169,14 @@ $routes = [
             // RelayState: usa disco page del proxy IAM
             $proxyBase = rtrim($env('IAM_PROXY_PUBLIC_BASE_URL', ''), '/');
             $discoUrl = $proxyBase ? ($proxyBase . '/static/disco.html') : '/static/disco.html';
-            $auth->login($discoUrl);
+
+            // Optional: force IdP selection via idp_hint (useful for demo SPID)
+            $idpHint = trim((string)$env('FRONTOFFICE_SPID_IDP_HINT', ''));
+            if ($idpHint !== '') {
+                $auth->login($discoUrl, ['idp_hint' => $idpHint]);
+            } else {
+                $auth->login($discoUrl);
+            }
             exit;
         }
 
