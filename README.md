@@ -60,19 +60,19 @@ cd GovPay-Interaction-Layer
 
 ### 2) Crea i file di configurazione
 
-Questo repository usa 3 file separati per mantenere la configurazione più leggibile:
+Questo repository usa file separati per rendere la configurazione più chiara:
 
 ```bash
 cp .env.example .env
-cp .env.proxyspid.example .env.proxyspid
-cp .env.metadata.example .env.metadata
+cp .env.iam-proxy.example .env.iam-proxy
+cp .env.frontoffice.example .env.frontoffice
+cp .env.backoffice.example .env.backoffice
 ```
 
 Note:
-- `.env` è sempre necessario.
-- `.env.proxyspid` è richiesto perché viene caricato dal servizio frontoffice (anche se non abiliti SPID).
-- Se non usi SPID/CIE, puoi lasciare `.env.proxyspid` con i valori dell'example (non verranno usati dalle rotte UI quando `COMPOSE_PROFILES=none`).
-- `.env.metadata` è necessario solo se avvii il proxy interno (`COMPOSE_PROFILES=spid-proxy`) o il generator metadata (`--profile spid-proxy-metadata`).
+- `.env` è sempre necessario (compose + valori condivisi).
+- `.env.iam-proxy` è necessario se abiliti SPID/CIE.
+- `.env.frontoffice` e `.env.backoffice` contengono i parametri applicativi dedicati.
 
 #### Dati minimi necessari (GovPay e PagoPA Checkout)
 
@@ -100,10 +100,11 @@ Approfondimenti:
 ### 3) Avvia i container
 
 ```bash
-docker compose up -d
-
-# quando modifichi Dockerfile / composer / asset
+# primo avvio o quando hai cambiato Dockerfile/composer/asset
 docker compose up -d --build
+
+# avvii successivi senza rebuild
+docker compose up -d
 ```
 
 ### 4) Primo accesso
@@ -128,129 +129,52 @@ Il seed è idempotente: viene creato solo se non esiste già un superadmin nel D
 
 ## Configurazione: file .env
 
-### `.env` (compose + app)
+### `.env` (compose + condivisi)
 
 Contiene:
 - porte esposte (`BACKOFFICE_HTTPS_PORT`, `FRONTOFFICE_HTTPS_PORT`, …)
 - profili Docker Compose (`COMPOSE_PROFILES`)
 - configurazione DB (`DB_*`)
 - configurazione GovPay (URL, auth, certificati)
-- base URL pubblico del proxy (quando SPID/CIE è abilitato):
-  - `SPID_PROXY_PUBLIC_BASE_URL`
 
-### `.env.proxyspid` (integrazione frontoffice ↔ proxy)
+### `.env.frontoffice`
 
-Contiene parametri “di integrazione” (client_id, redirect URI, branding, cifratura). I principali:
+Contiene:
+- base URL pubblico del frontoffice (`FRONTOFFICE_PUBLIC_BASE_URL`)
+- parametri SAML SP (certificati, callback)
+- dati DB dedicati ai cittadini
 
-- `SPID_PROXY_CLIENT_ID`
-- `SPID_PROXY_REDIRECT_URIS`
-- `FRONTOFFICE_PUBLIC_BASE_URL`
-- `FRONTOFFICE_SPID_CALLBACK_PATH`
-- (opzionale) `FRONTOFFICE_SPID_REDIRECT_URI`
+### `.env.backoffice`
 
-Response firmata/cifrata:
-- `SPID_PROXY_SIGN_RESPONSE` (default `1`)
-- `SPID_PROXY_ENCRYPT_RESPONSE` (default `0`)
-- `SPID_PROXY_CLIENT_SECRET` (necessaria se `SPID_PROXY_ENCRYPT_RESPONSE=1`)
+Contiene:
+- porta HTTPS
+- dati DB backoffice
 
-Nota su `SPID_PROXY_CLIENT_SECRET`:
-- deve essere **uguale** lato frontoffice (per decifrare) e lato proxy (per cifrare)
+### `.env.iam-proxy`
 
-### `.env.metadata` (dati che determinano i metadata)
-
-Contiene i campi organizzazione/attributi (e in generale ciò che vuoi “freezare” per attestazione) che determinano i metadata SPID/CIE.
-Modificare questi valori cambia il metadata.
+Contiene:
+- URL pubblici e metadata SAML2 del proxy IAM
+- impostazioni SATOSA (UI, metadata, chiavi)
+- abilitazioni UI (SPID/CIE)
+- configurazione MongoDB
 
 ---
 
 ## SPID/CIE
 
-### ⚠️ MIGRAZIONE VERSO IAM PROXY (Febbraio 2026)
+Il sistema di autenticazione usa **IAM Proxy Italia (SATOSA)** come componente standard.
 
-A partire da febbraio 2026, il sistema di autenticazione SPID/CIE è stato **unificato verso il proxy IAM (SATOSA)**.
+### Configurazione IAM Proxy
 
-**Status attuale**:
-- ✅ Vecchio proxy SimpleSAMLphp (`spid-proxy`) è **DEPRECATO**
-- ✅ IAM Proxy (SATOSA) è il nuovo sistema PRIMARY di autenticazione
-- ✅ Il frontoffice supporta già SAML2 SATOSA (zero modifiche necessarie)
-
-**Per nuovi ambienti (consigliato)**:
-- Usare IAM Proxy SATOSA (containers `iam-proxy-italia` + `satosa-nginx`)
-- Vedi documentazione: [MIGRAZIONE-IAM-PROXY.md](./MIGRAZIONE-IAM-PROXY.md) e [TESTING-IAM-PROXY.md](./TESTING-IAM-PROXY.md)
-- **Configurazione semplificata**: imposta solo `IAM_PROXY_PUBLIC_BASE_URL` nel `.env` - tutti gli altri URL sono derivati automaticamente
-
-### Configurazione semplificata IAM Proxy
-
-La configurazione del proxy IAM è stata semplificata (febbraio 2026) per evitare errori dovuti a URL ridondanti o inconsistenti.
-
-**Variabile principale** (unica da modificare):
+**Variabile principale**:
 - `IAM_PROXY_PUBLIC_BASE_URL`: URL pubblico usato dal browser per accedere al proxy SPID/CIE
-  - Esempio DEV: `https://localhost:9445`
-  - Esempio PROD: `https://login.comune.it` (senza porta se è standard 443)
+   - Esempio DEV: `https://127.0.0.1:9445`
+   - Esempio PROD: `https://login.comune.it` (senza porta se è standard 443)
 
-**Variabili derivate automaticamente** (non modificare, lasciale vuote nel `.env`):
-- `IAM_PROXY_SAML2_IDP_METADATA_URL`: derivato da `${IAM_PROXY_PUBLIC_BASE_URL}/Saml2IDP/metadata`
-- `SATOSA_UNKNOW_ERROR_REDIRECT_PAGE`: derivato da `${IAM_PROXY_PUBLIC_BASE_URL}`
-- `SATOSA_BASE`, `SATOSA_BASE_STATIC`, `SATOSA_DISCO_SRV`: derivati automaticamente dal docker-compose
+**Variabili interne** (non modificare a meno di rinominare i servizi docker):
+- `IAM_PROXY_SAML2_IDP_METADATA_URL_INTERNAL`: `https://satosa-nginx:443/Saml2IDP/metadata`
 
-**Variabile interna** (non toccare a meno di rinominare i servizi docker):
-- `IAM_PROXY_SAML2_IDP_METADATA_URL_INTERNAL`: sempre `https://satosa-nginx:443/Saml2IDP/metadata`
-
-Se in precedenza avevi valori hardcodati come `SATOSA_UNKNOW_ERROR_REDIRECT_PAGE=https://satosa-nginx:9445`, **rimuovili** o commentali nel tuo `.env` - il sistema userà automaticamente il valore derivato da `IAM_PROXY_PUBLIC_BASE_URL`.
-
-**Per ambienti legacy (in transizione)**:
-- Il proxy SimpleSAMLphp (`spid-proxy`) rimane disponibile ma disabilitato di default
-- Abilitare manualmente: `COMPOSE_PROFILES=spid-proxy` in `.env` (richiede `.env.proxyspid` e `.env.metadata`)
-- Timeline: dismettere entro giugno 2026
-
-Documentazione completa:
-- [MIGRAZIONE-IAM-PROXY.md](./MIGRAZIONE-IAM-PROXY.md) - Piano dettagliato (7 fasi)
-- [TESTING-IAM-PROXY.md](./TESTING-IAM-PROXY.md) - Guida testing step-by-step
-- [RIEPILOGO-MIGRAZIONE.md](./RIEPILOGO-MIGRAZIONE.md) - Sommario finale
-- [FASE7-CIE-DECISION.md](./FASE7-CIE-DECISION.md) - Decisione CIE (no per fase 1)
-
----
-
-## SPID/CIE (Sistema Legacy - Deprecato)
-
-⚠️ **ATTENZIONE**: Questa sezione descrive il vecchio proxy SimpleSAMLphp. **È DEPRECATO dal febbraio 2026.**
-
-Se stai leggendo questo per la prima volta: non usare il vecchio proxy. Usa il nuovo IAM Proxy (vedi sezione [MIGRAZIONE VERSO IAM PROXY](#migrazione-verso-iam-proxy-febbraio-2026) sopra).
-
-Il supporto SPID/CIE del frontoffice con il vecchio proxy dipende da `COMPOSE_PROFILES` nel `.env`:
-
-- **No SPID**: `COMPOSE_PROFILES=none` (disabilita login SPID nel frontoffice)
-- **Proxy interno**: `COMPOSE_PROFILES=spid-proxy` (avvia anche il servizio `spid-proxy`)
-- **Proxy esterno**: `COMPOSE_PROFILES=external` (non avvia `spid-proxy`, ma il frontoffice punta a un proxy esterno)
-
-In tutti i casi in cui SPID/CIE è abilitato (interno/esterno), devi impostare in `.env`:
-- `SPID_PROXY_PUBLIC_BASE_URL`: base URL pubblico del proxy (usato dal browser)
-
-### Regola d’oro: redirect URI “match esatto”
-
-Se cliccando “Accedi” vieni rimandato a `/metadata.xml`, quasi sempre è un mismatch nella whitelist `redirect_uri` del proxy.
-Verifica (match esatto, stesso schema/host/porta/path):
-- `SPID_PROXY_CLIENT_ID`
-- `SPID_PROXY_REDIRECT_URIS`
-- `SPID_PROXY_CLIENT_SECRET` (se cifratura)
-- `SPID_PROXY_SIGN_RESPONSE` / `SPID_PROXY_ENCRYPT_RESPONSE`
-
-### Rigenerare la configurazione persistita del proxy (interno)
-
-Il proxy salva su volume alcuni file runtime (es. `spid-php-proxy.json`) e **non li riscrive automaticamente** se cambi le env dopo il primo avvio.
-
-Soluzione: rigenera i file persistiti e ricrea il container.
-
-- Windows:
-  - task VS Code: `regenerate-spid-proxy-config`
-  - oppure: `powershell -ExecutionPolicy Bypass -File .\scripts\regenerate-spid-proxy-config.ps1 -Restart`
-- Linux/macOS:
-  - `./scripts/regenerate-spid-proxy-config.sh --restart`
-  - (opzionale) `./scripts/regenerate-spid-proxy-config.sh --reset-setup --restart`
-
-Nota: lo script `.sh` richiede `bash`. Se lo lanci con `sh ...` si ri-esegue automaticamente con bash.
-
----
+**Altri parametri** (UI/metadata/chiavi) sono in [.env.iam-proxy](.env.iam-proxy) e sono già valorizzati negli example.
 
 ### Configurazione IAM Proxy SATOSA
 - `iam-proxy-italia` (SATOSA uWSGI)
@@ -377,58 +301,13 @@ Poi:
 
 ---
 
-## Metadata SPID/CIE (freeze + next)
+## Metadata SPID/CIE
 
-Scenario tipico AgID:
-- dopo attestazione, il metadata **non deve cambiare** fino a scadenza
-- poco prima della scadenza si prepara un nuovo metadata (“next”) senza toccare quello in produzione (“current”)
+I metadata IdP di SATOSA sono esposti da:
 
-Questo repository supporta il pattern “freeze + next generator”:
+- `https://<IAM_PROXY_PUBLIC_BASE_URL>/Saml2IDP/metadata`
 
-### Cartelle usate dal proxy (spid-proxy/)
-
-- `data/`: stato persistente runtime del container `spid-proxy`
-- `metadata-work/`: working copy usata solo dal generator (non tocca `data/`)
-- `metadata/`: output del generator (snapshot + file `*-metadata-next.xml`)
-- `metadata-current/`: unica cartella montata dal runtime per servire i metadata correnti (`*-metadata-current.xml`)
-- `metadata-archive/`: archivio locale
-
-### 1) Congelare il metadata attestato (CURRENT)
-
-- Il runtime serve **solo** i file presenti in `spid-proxy/metadata-current/`.
-- Copia i file attestati in `spid-proxy/metadata-current/` con questi nomi:
-   - `spid-metadata-current.xml`
-   - `cie-metadata-current.xml` (se CIE è abilitato)
-
-### 2) Generare un metadata “NEXT” (senza toccare CURRENT)
-
-Esegui il generator (non modifica `metadata-current/`):
-
-```bash
-docker compose --profile spid-proxy-metadata run --rm spid-proxy-metadata
-```
-
-Nota (ambienti già inizializzati / reverse proxy): se la working dir `spid-proxy/metadata-work/` contiene già una config persistita
-con host vecchio (es. `127.0.0.1`), il generator potrebbe continuare a produrre `entityID`/URL con quel valore.
-In quel caso forza la rigenerazione dei file persistiti nella working dir:
-
-```bash
-docker compose --profile spid-proxy-metadata run --rm \
-   -e SPID_PROXY_PUBLIC_BASE_URL=https://login.ente.it \
-   -e SPID_PROXY_FORCE_REGEN_SETUP=1 \
-   spid-proxy-metadata
-```
-
-Output:
-- `spid-proxy/metadata/spid-metadata-next.xml`
-- `spid-proxy/metadata/cie-metadata-next.xml` (se CIE)
-
-### 3) Cutover (quando AgID attesta NEXT)
-
-- Promuovi `*-metadata-next.xml` a `*-metadata-current.xml`:
-  - Windows: `scripts/promote-spid-metadata.ps1` (o task VS Code `promote-spid-metadata-current`)
-  - Linux/macOS: `scripts/promote-spid-metadata.sh`
-- Ricrea `spid-proxy`.
+Per SPID/CIE ufficiali, questi metadata sono quelli da fornire in fase di attestazione.
 
 ---
 
@@ -445,9 +324,9 @@ Definisci chiaramente gli URL pubblici (quelli che useranno gli utenti e/o AgID)
 - Proxy SPID/CIE (es. `https://login.ente.it`)
 
 Poi imposta:
-- in `.env`:
-   - `SPID_PROXY_PUBLIC_BASE_URL=https://login.ente.it`
-- in `.env.proxyspid`:
+- in `.env.iam-proxy`:
+   - `IAM_PROXY_PUBLIC_BASE_URL=https://login.ente.it`
+- in `.env.frontoffice`:
    - `FRONTOFFICE_PUBLIC_BASE_URL=https://pagamenti.ente.it`
 
 Evita `localhost`/`127.0.0.1` in produzione: finiscono nei redirect e/o nei metadata.
@@ -474,71 +353,8 @@ Obiettivo: far sì che i redirect generati puntino sempre agli URL pubblici corr
 
 ### SPID/CIE: checklist “non rompere il login”
 
-- `SPID_PROXY_REDIRECT_URIS` deve contenere **esattamente** la callback del frontoffice (schema/host/porta/path).
-- Se cambi `client_id`, `redirect_uri`, cifratura o modalità firma, rigenera la config persistita del proxy:
-   - Windows: `powershell -ExecutionPolicy Bypass -File .\scripts\regenerate-spid-proxy-config.ps1 -Restart`
-   - Linux: `./scripts/regenerate-spid-proxy-config.sh --restart`
-- Se abiliti cifratura (`SPID_PROXY_ENCRYPT_RESPONSE=1`), assicurati che `SPID_PROXY_CLIENT_SECRET` sia identica su frontoffice e proxy.
-
-### Proxy esterno (COMPOSE_PROFILES=external)
-
-Con `COMPOSE_PROFILES=external` il servizio `spid-proxy` **non** viene avviato in questo Compose: il frontoffice reindirizza a un proxy pubblicato altrove.
-
-Checklist (frontoffice):
-- in `.env`: `COMPOSE_PROFILES=external`
-- in `.env`: `SPID_PROXY_PUBLIC_BASE_URL=https://login.ente.it` (URL pubblico del proxy)
-- in `.env.proxyspid`:
-   - `FRONTOFFICE_PUBLIC_BASE_URL=https://pagamenti.ente.it`
-   - callback coerente (`FRONTOFFICE_SPID_CALLBACK_PATH` / eventuale `FRONTOFFICE_SPID_REDIRECT_URI`)
-   - `SPID_PROXY_CLIENT_SECRET` valorizzata se usi cifratura
-
-Checklist (istanza proxy esterna):
-- deve essere configurata con gli stessi valori usati dal frontoffice:
-   - `SPID_PROXY_CLIENT_ID`
-   - `SPID_PROXY_REDIRECT_URIS` (includendo la callback del frontoffice, match esatto)
-   - `SPID_PROXY_SIGN_RESPONSE` / `SPID_PROXY_ENCRYPT_RESPONSE`
-   - `SPID_PROXY_CLIENT_SECRET` (se cifratura)
-- se cambi env dopo il primo avvio, anche sul proxy esterno può servire rigenerare la config persistita (stesso problema del volume).
-
-Nota: il workflow metadata (generate/freeze/cutover) va eseguito **sul deploy del proxy** (quello che espone `https://login.ente.it/*`), non sul frontoffice.
-
-### Metadata SPID/CIE: checklist pre-attestazione AgID
-
-- Verifica che `SPID_PROXY_PUBLIC_BASE_URL` sia l’URL pubblico reale.
-- Verifica che questi endpoint rispondano `200` e scarichino un XML valido:
-   - `https://login.ente.it/spid-metadata.xml`
-   - `https://login.ente.it/cie-metadata.xml` (se CIE)
-- Compila correttamente i dati in `.env.metadata` (campi `SPID_PROXY_ORG_*`) e tienili stabili: una variazione cambia il metadata.
-- Se usi branding (`SPID_PROXY_CLIENT_*`), assicurati che `SPID_PROXY_CLIENT_LOGO` sia raggiungibile pubblicamente.
-- Genera e archivia il file “da consegna” (non affidarti solo al metadata dinamico):
-   - puoi scaricare direttamente l’URL pubblico, oppure
-   - eseguire il generator `spid-proxy-metadata` e prelevare `spid-metadata-next.xml`.
-
-### Flusso consigliato (produzione)
-
-1) Prepara “next” senza impattare prod:
-
-```bash
-docker compose --profile spid-proxy-metadata run --rm spid-proxy-metadata
-```
-
-2) Invia `spid-proxy/metadata/spid-metadata-next.xml` (e `cie-metadata-next.xml` se serve) per attestazione.
-
-3) Dopo attestazione, fai freeze del current:
-- copia i file attestati in `spid-proxy/metadata-current/*-metadata-current.xml`
-
-Comando rapido (da `GovPay-Interaction-Layer/`):
-
-- Windows (PowerShell):
-   - `Copy-Item -Force .\spid-proxy\metadata\spid-metadata-next.xml .\spid-proxy\metadata-current\spid-metadata-current.xml; if (Test-Path .\spid-proxy\metadata\cie-metadata-next.xml) { Copy-Item -Force .\spid-proxy\metadata\cie-metadata-next.xml .\spid-proxy\metadata-current\cie-metadata-current.xml }`
-- Linux/macOS (bash):
-   - `cp -f spid-proxy/metadata/spid-metadata-next.xml spid-proxy/metadata-current/spid-metadata-current.xml; [ -f spid-proxy/metadata/cie-metadata-next.xml ] && cp -f spid-proxy/metadata/cie-metadata-next.xml spid-proxy/metadata-current/cie-metadata-current.xml`
-
-- ricrea `spid-proxy`
-
-4) Al rinnovo:
-- genera un nuovo next
-- quando attestato, promuovi next → current e ricrea `spid-proxy`
+- `FRONTOFFICE_PUBLIC_BASE_URL` e `IAM_PROXY_PUBLIC_BASE_URL` devono essere coerenti con gli URL pubblici reali.
+- Se cambi host/porta, rigenera i metadata SP del frontoffice (vedi sezione dedicata).
 
 ## Workflow di sviluppo
 
@@ -568,16 +384,6 @@ docker compose restart govpay-interaction-backoffice
 
 ## Troubleshooting
 
-### "Accedi" → redirect a `/metadata.xml`
-
-Quasi sempre:
-- `redirect_uri` non è in whitelist (`SPID_PROXY_REDIRECT_URIS`), oppure
-- il proxy sta usando una configurazione persistita vecchia (volume `spid-proxy/data/`).
-
-Azioni consigliate:
-- verifica il match esatto della callback del frontoffice
-- rigenera la configurazione proxy con gli script in `scripts/regenerate-spid-proxy-config.*`
-
 ### Variabili “annidate” nei file env
 
 Docker Compose **non espande** variabili del tipo `FOO="${BAR}"` dentro gli `env_file`.
@@ -598,7 +404,7 @@ GovPay-Interaction-Layer/
 ├── Dockerfile
 ├── backoffice/
 ├── frontoffice/
-├── spid-proxy/               # proxy SPID/CIE (opzionale)
+├── iam-proxy/                # proxy SPID/CIE (SATOSA)
 ├── app/                      # codice PHP condiviso
 ├── templates/                # template backoffice/shared
 ├── debug/                    # tool debug (montati solo nel backoffice)
@@ -608,8 +414,9 @@ GovPay-Interaction-Layer/
 ├── ssl/                      # cert HTTPS del server (browser → app)
 ├── certificate/              # cert client GovPay (app → GovPay)
 ├── .env                      # da creare (base)
-├── .env.proxyspid            # da creare (SPID/CIE, integrazione)
-└── .env.metadata             # da creare (SPID/CIE, metadata)
+├── .env.iam-proxy            # da creare (SPID/CIE)
+├── .env.frontoffice          # da creare
+└── .env.backoffice           # da creare
 ```
 
 ---
