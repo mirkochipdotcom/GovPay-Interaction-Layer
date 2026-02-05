@@ -62,6 +62,19 @@ echo "[sync-iam-proxy] Copying files from upstream..."
 cp -r "$PROJECT_SRC"/* "$PROJECT_DST/"
 cp -r "$PROJECT_SRC"/.??* "$PROJECT_DST/" 2>/dev/null || true
 
+# Patch proxy_conf.yaml to disable problematic backends for test environment
+if [ -f "$PROJECT_DST/proxy_conf.yaml" ]; then
+  echo "[sync-iam-proxy] Patching proxy_conf.yaml for test environment..."
+  # Backup original if not exists
+  [ ! -f "$PROJECT_DST/proxy_conf.yaml.original" ] && cp "$PROJECT_DST/proxy_conf.yaml" "$PROJECT_DST/proxy_conf.yaml.original"
+  
+  # Comment out CIE OIDC backend (causes network errors in test)
+  sed -i 's|^  - backends/cieoidc_backend.yaml|  # - backends/cieoidc_backend.yaml  # Disabled for test env|' "$PROJECT_DST/proxy_conf.yaml"
+  
+  # Comment out Saml2 generic backend if present (we only need spidSaml2)
+  sed -i 's|^  - backends/saml2_backend.yaml|  # - backends/saml2_backend.yaml  # Disabled, using spidSaml2 only|' "$PROJECT_DST/proxy_conf.yaml"
+fi
+
 # Restore .gitkeep
 if [ -n "$GITKEEP_TMP" ] && [ -f "$GITKEEP_TMP" ]; then
   cp "$GITKEEP_TMP" "$PROJECT_DST/.gitkeep"
