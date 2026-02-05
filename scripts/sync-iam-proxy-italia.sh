@@ -80,6 +80,24 @@ if [ -f "$PROJECT_DST/proxy_conf.yaml" ] && [ "$ENABLE_CIE_OIDC" != "true" ]; th
   sed -i 's|^  - "conf/backends/saml2_backend.yaml"|  # - "conf/backends/saml2_backend.yaml"  # Disabled, using spidSaml2 only|' "$PROJECT_DST/proxy_conf.yaml"
 fi
 
+# Patch target_based_routing.yaml to add demo.spid.gov.it and fix default backend
+if [ -f "$PROJECT_DST/conf/microservices/target_based_routing.yaml" ] && [ "$ENABLE_CIE_OIDC" != "true" ]; then
+  echo "[sync-iam-proxy] Patching target_based_routing.yaml for test environment..."
+  ROUTING_FILE="$PROJECT_DST/conf/microservices/target_based_routing.yaml"
+  
+  # Backup original if not exists
+  [ ! -f "$ROUTING_FILE.original" ] && cp "$ROUTING_FILE" "$ROUTING_FILE.original"
+  
+  # Change default_backend from Saml2 to spidSaml2
+  sed -i 's|^  default_backend: Saml2$|  default_backend: spidSaml2|' "$ROUTING_FILE"
+  
+  # Add demo.spid.gov.it mapping if not present
+  if ! grep -q "demo.spid.gov.it" "$ROUTING_FILE"; then
+    # Insert after "https://localhost:8443": "spidSaml2" line
+    sed -i '/"https:\/\/localhost:8443": "spidSaml2"/a\    "https://demo.spid.gov.it": "spidSaml2"' "$ROUTING_FILE"
+  fi
+fi
+
 # Restore .gitkeep
 if [ -n "$GITKEEP_TMP" ] && [ -f "$GITKEEP_TMP" ]; then
   cp "$GITKEEP_TMP" "$PROJECT_DST/.gitkeep"
