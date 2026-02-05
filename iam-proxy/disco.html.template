@@ -325,7 +325,7 @@
       if (!list) return;
       if (!entityID || !servicePath) return;
 
-      const demoEnabled = '${SATOSA_USE_DEMO_SPID_IDP}' === 'true';
+      const demoEnabled = '__SATOSA_USE_DEMO_SPID_IDP__' === 'true';
       const idps = [
         { name: 'Aruba ID', entityID: 'https://loginspid.aruba.it', logo: '/static/spid/spid-idp-arubaid.svg' },
         { name: 'Infocert ID', entityID: 'https://identity.infocert.it', logo: '/static/spid/spid-idp-infocertid.svg' },
