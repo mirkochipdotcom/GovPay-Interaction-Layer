@@ -227,19 +227,17 @@
       <p class="login-description" id="wallet-description">Seleziona il metodo di accesso per continuare</p>
       
       <div class="spid-login-wrap">
-        <button class="italia-it-button italia-it-button-size-xl button-spid" type="button" spid-idp-button="#spid-idp-button-xlarge-post" data-horizontal-offset="0" data-vertical-offset="10">
+        <a id="spid-toggle" class="italia-it-button italia-it-button-size-xl button-spid" href="#" aria-expanded="false" aria-controls="wallets-container">
           <span class="italia-it-button-icon">
             <img src="/static/spid/spid-ico-circle-bb.svg" alt="" aria-hidden="true">
           </span>
           <span class="italia-it-button-text" id="spid-login-text">Entra con SPID</span>
-        </button>
+        </a>
         <p class="spid-helper" id="spid-helper-text">Seleziona il tuo Identity Provider SPID dall’elenco.</p>
       </div>
 
-      <div id="spid-idp-button-xlarge-post" class="spid-idp-button spid-idp-button-tip spid-idp-button-relative spid-idp-button-scroll">
-        <ul id="spid-idp-list-xlarge-root-post" class="spid-idp-button-menu">
-          <!-- IdP list will be injected here -->
-        </ul>
+      <div id="wallets-container" style="display:none;">
+        <!-- SPID IdP list will be rendered here by spid-idps.js -->
       </div>
     </div>
   </main>
@@ -316,78 +314,20 @@
     });
   </script>
   <script>
-    (function populateSpidIdps() {
-      const urlParams = new URLSearchParams(window.location.search);
-      const servicePath = urlParams.get('return');
-      const entityID = urlParams.get('entityID');
-      const list = document.getElementById('spid-idp-list-xlarge-root-post');
-
-      if (!list) return;
-      if (!entityID || !servicePath) return;
-
-      const demoEnabled = '__SATOSA_USE_DEMO_SPID_IDP__' === 'true';
-      const idps = [
-        { name: 'Aruba ID', entityID: 'https://loginspid.aruba.it', logo: '/static/spid/spid-idp-arubaid.svg' },
-        { name: 'Infocert ID', entityID: 'https://identity.infocert.it', logo: '/static/spid/spid-idp-infocertid.svg' },
-        { name: 'Intesa ID', entityID: 'https://spid.intesa.it', logo: '/static/spid/spid-idp-intesaid.svg' },
-        { name: 'Lepida ID', entityID: 'https://id.lepida.it/idp/shibboleth', logo: '/static/spid/spid-idp-lepidaid.svg' },
-        { name: 'Namirial ID', entityID: 'https://idp.namirialtsp.com/idp', logo: '/static/spid/spid-idp-namirialid.svg' },
-        { name: 'Poste ID', entityID: 'https://posteid.poste.it', logo: '/static/spid/spid-idp-posteid.svg' },
-        { name: 'Sielte ID', entityID: 'https://identity.sieltecloud.it', logo: '/static/spid/spid-idp-sielteid.svg' },
-        { name: 'SPIDItalia Register.it', entityID: 'https://spid.register.it', logo: '/static/spid/spid-idp-spiditalia.svg' },
-        { name: 'Tim ID', entityID: 'https://login.id.tim.it/affwebservices/public/saml2sso', logo: '/static/spid/spid-idp-timid.svg' },
-        { name: 'TeamSystem ID', entityID: 'https://spid.teamsystem.com/idp', logo: '/static/spid/spid-idp-teamsystemid.svg' }
-      ];
-
-      if (demoEnabled) {
-        idps.unshift({ name: 'SPID Test', entityID: 'https://demo.spid.gov.it', logo: '/static/spid/spid-agid-logo-lb.png' });
-      }
-
-      idps.sort(() => Math.random() - 0.5);
-
-      idps.forEach((idp) => {
-        const li = document.createElement('li');
-        li.className = 'spid-idp-button-link';
-
-        const a = document.createElement('a');
-        a.href = `${servicePath}?entityID=${encodeURIComponent(idp.entityID)}&return=${encodeURIComponent(servicePath)}`;
-        a.className = 'spid-idp-button-ignore';
-
-        if (idp.logo) {
-          const img = document.createElement('img');
-          img.src = idp.logo;
-          img.alt = idp.name;
-          a.appendChild(img);
-        } else {
-          a.textContent = idp.name;
+    const spidToggle = document.getElementById('spid-toggle');
+    const walletsContainer = document.getElementById('wallets-container');
+    if (spidToggle && walletsContainer) {
+      spidToggle.addEventListener('click', (event) => {
+        event.preventDefault();
+        const isOpen = walletsContainer.style.display === 'block';
+        walletsContainer.style.display = isOpen ? 'none' : 'block';
+        spidToggle.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
+        if (!isOpen) {
+          walletsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
-
-        li.appendChild(a);
-        list.appendChild(li);
       });
-
-      const links = [
-        { text: 'Maggiori informazioni', href: 'https://www.spid.gov.it/' },
-        { text: 'Non hai SPID?', href: 'https://www.spid.gov.it/richiedi-spid' },
-        { text: 'Serve aiuto?', href: 'https://www.spid.gov.it/serve-aiuto' }
-      ];
-
-      links.forEach((link) => {
-        const li = document.createElement('li');
-        li.className = 'spid-idp-support-link';
-
-        const a = document.createElement('a');
-        a.href = link.href;
-        a.target = '_blank';
-        a.rel = 'noopener';
-        a.textContent = link.text;
-
-        li.appendChild(a);
-        list.appendChild(li);
-      });
-    })();
+    }
   </script>
-  <script src="/static/spid/spid-sp-access-button.js"></script>
-  <script src="/static/spid/spid_button.js"></script>
+  <script src="/static/spid/spid-idps.js"></script>
 </body>
 </html>
