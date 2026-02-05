@@ -14,7 +14,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/i18next-http-backend@1.3.1/i18nextHttpBackend.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/i18next@25.5.2/i18next.min.js"></script>
-  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
   <script src="js/ita.min.js"></script>
   <script src="js/bootstrap-italia.bundle.min.js"></script>
 
@@ -219,7 +218,7 @@
       <p class="login-description" id="wallet-description">Seleziona il metodo di accesso per continuare</p>
       
       <div id="wallets-container">
-        <!-- Wallets will be rendered here by wallets.js -->
+        <!-- SPID IdP list will be rendered here by spid-idps.js -->
       </div>
     </div>
   </main>
@@ -239,51 +238,51 @@
 
   <!-- Scripts -->
   <script>
-    // Define cleanup function globally BEFORE wallets.js loads
-    function cleanupWallets() {
-      try {
-        // Hide disabled buttons - they have [disabled] attribute
-        document.querySelectorAll('button[disabled]').forEach(btn => {
-          btn.style.display = 'none';
-        });
+    function applyTranslations() {
+      if (!window.i18next) return;
+      const resource = window.i18next.getResourceBundle(window.i18next.language, 'translation');
+      if (!resource) return;
 
-        // Hide empty wallet sections (div.mb-4 that have no visible content)
-        document.querySelectorAll('#wallets-container > div.mb-4').forEach(section => {
-          // Count visible wallet buttons (not disabled)
-          const visibleButtons = section.querySelectorAll('button:not([disabled])');
-          if (visibleButtons.length === 0) {
-            section.style.display = 'none';
-          }
-        });
-      } catch (e) {
-        console.error('[disco] Error in cleanupWallets:', e);
-      }
+      const title = resource.titles?.page_title || 'Accedi';
+      const logoTitle = resource.titles?.login_logo || 'Accedi con SPID';
+      const legal = resource.footer?.legal_notice || 'Note legali';
+      const privacy = resource.footer?.privacy_policy || 'Privacy Policy';
+      const accessibility = resource.footer?.accessibility_statement || 'Dichiarazione Accessibilità';
+
+      const tabTitle = document.getElementById('tab-title');
+      if (tabTitle) tabTitle.textContent = title;
+
+      const walletTitle = document.getElementById('wallet-title');
+      if (walletTitle) walletTitle.textContent = logoTitle;
+
+      const legalEl = document.getElementById('footer-legal');
+      if (legalEl) legalEl.textContent = legal;
+
+      const privacyEl = document.getElementById('footer-privacy');
+      if (privacyEl) privacyEl.textContent = privacy;
+
+      const accessibilityEl = document.getElementById('footer-accessibility');
+      if (accessibilityEl) accessibilityEl.textContent = accessibility;
     }
-  </script>
 
-  <script src="/static/js/wallets.js"></script>
-  
-  <script>
-    console.log('[disco] wallets.js loaded, cleanup will run after wallets render');
-    
-    // Wait for DOM to update after wallets.js renders
-    setTimeout(() => {
-      console.log('[disco] Calling cleanupWallets()...');
-      cleanupWallets();
-      // Then force Italian language
-      if (window.i18next) {
-        console.log('[disco] Changing language to Italian...');
-        window.i18next.changeLanguage('it');
-      }
-    }, 500);
+    if (window.i18next && window.i18nextHttpBackend) {
+      window.i18next
+        .use(window.i18nextHttpBackend)
+        .init({
+          lng: 'it',
+          fallbackLng: 'it',
+          backend: {
+            loadPath: '/static/locales/wallets-{{lng}}.json'
+          }
+        })
+        .then(applyTranslations)
+        .catch((err) => console.error('[disco] i18next init error:', err));
+    }
 
-    // Run cleanup when language changes
     document.getElementById('lang-select')?.addEventListener('change', (e) => {
       const lang = e.target.value;
       if (window.i18next) {
-        window.i18next.changeLanguage(lang).then(() => {
-          setTimeout(cleanupWallets, 100);
-        });
+        window.i18next.changeLanguage(lang).then(applyTranslations);
       }
     });
   </script>
