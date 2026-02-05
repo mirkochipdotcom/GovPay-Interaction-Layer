@@ -1,0 +1,21 @@
+{
+  "organization": {
+    "name": "${SATOSA_ORGANIZATION_DISPLAY_NAME_IT}",
+    "url": "${SATOSA_ORGANIZATION_URL_IT}",
+    "logo": "${SATOSA_UI_LOGO_URL}"
+  },
+  "footer": {
+    "legal": {
+      "text": "Note legali",
+      "url": "${SATOSA_UI_LEGAL_URL_IT}"
+    },
+    "privacy": {
+      "text": "Privacy",
+      "url": "${SATOSA_UI_PRIVACY_URL_IT}"
+    },
+    "accessibility": {
+      "text": "Accessibilità",
+      "url": "${SATOSA_ORGANIZATION_URL_IT}"
+    }
+  }
+}
