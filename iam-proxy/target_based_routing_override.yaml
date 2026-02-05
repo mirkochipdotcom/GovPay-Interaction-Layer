@@ -4,6 +4,9 @@ config:
   default_backend: spidSaml2
 
   target_mapping:
+    # Local/Test IdP (IAM Proxy used as local IdP) - dinamically set at runtime
+    "__IAM_PROXY_DOMAIN_MAPPING__": "Saml2"
+    
     # Frontoffice Service Provider (IAM PROXY SAML2)
     "__FRONTOFFICE_SAML_SP_ENTITY_ID__": "spidSaml2"
     
