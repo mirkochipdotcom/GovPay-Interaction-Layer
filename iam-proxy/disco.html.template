@@ -261,22 +261,21 @@
     }
   </script>
 
-  <script type="module">
-    console.log('[disco] Starting wallets.js import...');
-    import('./js/wallets.js').then(() => {
-      console.log('[disco] wallets.js loaded, checking DOM...');
-      console.log('[disco] wallets-container content:', document.getElementById('wallets-container')?.innerHTML);
-      // After wallets.js loads, cleanup and set language
-      setTimeout(() => {
-        console.log('[disco] Calling cleanupWallets()...');
-        cleanupWallets();
-        // Then force Italian language
-        if (window.i18next) {
-          console.log('[disco] Changing language to Italian...');
-          window.i18next.changeLanguage('it');
-        }
-      }, 100);
-    }).catch(err => console.error('[disco] Error loading wallets.js:', err));
+  <script src="/static/js/wallets.js"></script>
+  
+  <script>
+    console.log('[disco] wallets.js loaded, cleanup will run after wallets render');
+    
+    // Wait for DOM to update after wallets.js renders
+    setTimeout(() => {
+      console.log('[disco] Calling cleanupWallets()...');
+      cleanupWallets();
+      // Then force Italian language
+      if (window.i18next) {
+        console.log('[disco] Changing language to Italian...');
+        window.i18next.changeLanguage('it');
+      }
+    }, 500);
 
     // Run cleanup when language changes
     document.getElementById('lang-select')?.addEventListener('change', (e) => {
