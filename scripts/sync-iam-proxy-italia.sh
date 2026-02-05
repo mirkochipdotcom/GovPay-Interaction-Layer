@@ -72,9 +72,23 @@ fi
 if [ -f "$PROJECT_DST/pki/generate-dev-certs.sh" ]; then
   if [ ! -f "$PROJECT_DST/pki/cert.pem" ] || [ ! -f "$PROJECT_DST/pki/privkey.pem" ]; then
     echo "[sync-iam-proxy] Generating development certificates..."
-    (cd "$PROJECT_DST/pki" && bash generate-dev-certs.sh) || true
+    (cd "$PROJECT_DST/pki" && bash generate-dev-certs.sh) || {
+      echo "[sync-iam-proxy] generate-dev-certs.sh failed, creating minimal self-signed cert..."
+      openssl req -x509 -newkey rsa:2048 -keyout "$PROJECT_DST/pki/privkey.pem" \
+        -out "$PROJECT_DST/pki/cert.pem" -days 365 -nodes \
+        -subj "/CN=satosa-dev/O=Development/C=IT" 2>/dev/null || true
+    }
   else
     echo "[sync-iam-proxy] Development certificates already exist"
+  fi
+else
+  # No script, create minimal certs if missing
+  if [ ! -f "$PROJECT_DST/pki/cert.pem" ] || [ ! -f "$PROJECT_DST/pki/privkey.pem" ]; then
+    echo "[sync-iam-proxy] Creating minimal self-signed certificates..."
+    mkdir -p "$PROJECT_DST/pki"
+    openssl req -x509 -newkey rsa:2048 -keyout "$PROJECT_DST/pki/privkey.pem" \
+      -out "$PROJECT_DST/pki/cert.pem" -days 365 -nodes \
+      -subj "/CN=satosa-dev/O=Development/C=IT" 2>/dev/null || true
   fi
 fi
 
