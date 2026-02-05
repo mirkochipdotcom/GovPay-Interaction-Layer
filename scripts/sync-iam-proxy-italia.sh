@@ -133,6 +133,25 @@ mkdir -p "$PROJECT_DST/logs"
 mkdir -p "$PROJECT_DST/metadata/idp"
 mkdir -p "$PROJECT_DST/metadata/sp"
 
+# Download demo SPID IdP metadata if SATOSA_USE_DEMO_SPID_IDP=true
+if [ "$SATOSA_USE_DEMO_SPID_IDP" = "true" ]; then
+  DEMO_METADATA_URL="https://demo.spid.gov.it/metadata.xml"
+  DEMO_METADATA_FILE="$PROJECT_DST/metadata/idp/demo-spid.xml"
+  
+  if [ ! -f "$DEMO_METADATA_FILE" ] || [ "$FORCE_SYNC" = "true" ]; then
+    echo "[sync-iam-proxy] Downloading demo SPID IdP metadata from $DEMO_METADATA_URL..."
+    curl -sSL --max-time 30 "$DEMO_METADATA_URL" -o "$DEMO_METADATA_FILE" 2>/dev/null && \
+      echo "[sync-iam-proxy] Demo SPID IdP metadata downloaded successfully" || {
+      echo "[sync-iam-proxy] WARNING: Failed to download demo SPID IdP metadata"
+      echo "[sync-iam-proxy] You may need to manually add demo.spid.gov.it metadata to $PROJECT_DST/metadata/idp/"
+    }
+  else
+    echo "[sync-iam-proxy] Demo SPID IdP metadata already exists"
+  fi
+else
+  echo "[sync-iam-proxy] Skipping demo SPID IdP metadata (SATOSA_USE_DEMO_SPID_IDP not set to 'true')"
+fi
+
 # Set permissions for directories that SATOSA needs to write to
 # SATOSA container runs as user satosa (UID 100, GID 101)
 # Make logs writable by all (container user needs write access)
