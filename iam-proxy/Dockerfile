@@ -48,11 +48,13 @@ if [ -f "$TARGET_ROUTING_FILE" ]; then
     sed -i "s|__FRONTOFFICE_SAML_SP_ENTITY_ID__|${SP_ENTITY_ID}|g" "$RUNTIME_ROUTING_FILE"
   fi
   
-  # Replace __IAM_PROXY_DOMAIN__ placeholder with domain extracted from IAM_PROXY_PUBLIC_BASE_URL
+  # Replace __IAM_PROXY_DOMAIN_MAPPING__ placeholder with local IdP mapping
+  # Extract domain from IAM_PROXY_PUBLIC_BASE_URL and create mapping for local test IdP
   IAM_PROXY_BASE_URL="${SATOSA_BASE:-${IAM_PROXY_PUBLIC_BASE_URL:-https://localhost:9445}}"
   IAM_PROXY_DOMAIN=$(echo "$IAM_PROXY_BASE_URL" | sed 's|https://||;s|http://||;s|:[0-9]*||;s|/.*||')
   if [ -n "$IAM_PROXY_DOMAIN" ]; then
-    sed -i "s|__IAM_PROXY_DOMAIN__|https://${IAM_PROXY_DOMAIN}|g" "$RUNTIME_ROUTING_FILE"
+    IAM_PROXY_MAPPING="\"https://${IAM_PROXY_DOMAIN}/Saml2/metadata\": \"Saml2\""
+    sed -i "s|\"__IAM_PROXY_DOMAIN_MAPPING__\": \"Saml2\"|${IAM_PROXY_MAPPING}|g" "$RUNTIME_ROUTING_FILE"
   fi
   
   # Update proxy_conf.yaml to use the runtime version if it was modified
