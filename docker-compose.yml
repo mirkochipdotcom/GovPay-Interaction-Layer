@@ -27,7 +27,6 @@ services:
           --crt-out /certs/sp-signing.crt
     env_file:
       - .env
-      - .env.frontoffice
       - .env.iam-proxy
     profiles:
       - iam-proxy
@@ -42,7 +41,6 @@ services:
       - ./iam-proxy/spid-certs:/var/www/html/spid-certs
     env_file:
       - .env
-      - .env.frontoffice
       - .env.iam-proxy
     depends_on:
       init-spid-cert:
@@ -106,7 +104,6 @@ services:
       - DB_PASSWORD=${DB_PASSWORD_CITTADINI}
     env_file:
       - .env
-      - .env.frontoffice
       - .env.iam-proxy
     depends_on:
       - db

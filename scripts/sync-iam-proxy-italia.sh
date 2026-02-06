@@ -96,6 +96,21 @@ fi
 
 echo "[sync-iam-proxy] Skipping disco config overrides (use upstream defaults)"
 
+# Override CIE OIDC backend config from template (envsubst)
+if [ -f "$REPO_ROOT/iam-proxy/cieoidc_backend.override.yaml.template" ]; then
+  echo "[sync-iam-proxy] Applying CIE OIDC backend override from template..."
+  mkdir -p "$PROJECT_DST/conf/backends"
+  # Default CIE OIDC values from existing env vars (if not explicitly set)
+  : "${CIE_OIDC_CLIENT_NAME:=${APP_ENTITY_NAME}}"
+  : "${CIE_OIDC_ORGANIZATION_NAME:=${APP_ENTITY_NAME}}"
+  : "${CIE_OIDC_HOMEPAGE_URI:=${APP_ENTITY_URL}}"
+  : "${CIE_OIDC_POLICY_URI:=${SATOSA_UI_LEGAL_URL_IT}}"
+  : "${CIE_OIDC_LOGO_URI:=${SATOSA_UI_LOGO_URL}}"
+  : "${CIE_OIDC_CONTACT_EMAIL:=${SATOSA_CONTACT_PERSON_EMAIL_ADDRESS}}"
+  envsubst < "$REPO_ROOT/iam-proxy/cieoidc_backend.override.yaml.template" > "$PROJECT_DST/conf/backends/cieoidc_backend.yaml"
+  echo "[sync-iam-proxy] Generated conf/backends/cieoidc_backend.yaml with environment variables"
+fi
+
 # Build static disco.html based on .env flags
 DISCO_HTML="$PROJECT_DST/static/disco.html"
 DISCO_TEMPLATE="$REPO_ROOT/iam-proxy/disco.static.html.template"
