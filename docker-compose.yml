@@ -72,7 +72,7 @@ services:
       - APP_SUITE=backoffice
     env_file:
       - .env # Assicura il caricamento dei parametri, leggere il readme
-      - .env.backoffice
+      # - .env.backoffice (rimosso: mantenere solo .env locale)
     depends_on:
       - db
     entrypoint: ["/usr/local/bin/docker-setup.sh"] # Esegue script di setup (composer/autoload + cert) poi CMD apache
@@ -160,7 +160,7 @@ services:
       - SATOSA_DISCO_SRV=${SATOSA_DISCO_SRV:-https://127.0.0.1:9445/static/disco.html}
     env_file:
       - .env
-      - .env.frontoffice
+      # - .env.frontoffice (rimosso: usare .env e .env.iam-proxy)
       - .env.iam-proxy
     restart: on-failure:3
     healthcheck:
