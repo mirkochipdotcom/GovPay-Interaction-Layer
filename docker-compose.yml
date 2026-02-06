@@ -220,6 +220,10 @@ services:
       - iam-proxy
     env_file:
       - .env.iam-proxy
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGODB_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGODB_PASSWORD}
+      - MONGO_INITDB_DATABASE=${MONGODB_DB}
     volumes:
       - satosa_mongo_data:/data/db
     restart: unless-stopped
