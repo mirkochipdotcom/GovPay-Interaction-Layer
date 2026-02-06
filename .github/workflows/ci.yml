@@ -26,27 +26,31 @@ jobs:
           DB_PASSWORD=apppass
           EOF
 
-          # In docker-compose.yml frontoffice/proxy caricano `.env.proxyspid`.
-          # Nel CI non usiamo davvero SPID, ma i file devono esistere per non fallire l'up.
-          cat > .env.proxyspid <<'EOF'
-          FRONTOFFICE_PUBLIC_BASE_URL=https://localhost:8444
-          FRONTOFFICE_SPID_CALLBACK_PATH=/spid/callback
-          FRONTOFFICE_SPID_REDIRECT_URI=https://localhost:8444/spid/callback
+          # In docker-compose.yml si usa .env.iam-proxy per SATOSA.
+          # Nel CI non usiamo SPID, ma il file deve esistere per non fallire l'up.
+          cat > .env.iam-proxy <<'EOF'
+          IAM_PROXY_PUBLIC_BASE_URL=https://localhost:9445
+          IAM_PROXY_SAML2_IDP_METADATA_URL=https://satosa-nginx:9445/Saml2IDP/metadata
+          IAM_PROXY_SAML2_IDP_METADATA_URL_INTERNAL=https://satosa-nginx:443/Saml2IDP/metadata
+          IAM_PROXY_HOSTNAME=satosa-nginx
+          IAM_PROXY_HTTPS_PORT=9445
+          IAM_PROXY_DEBUG=false
 
-          SPID_PROXY_PUBLIC_BASE_URL=https://localhost:8445
-          SPID_PROXY_CLIENT_ID=govpay_client
-          SPID_PROXY_REDIRECT_URIS=https://localhost:8444/spid/callback,/proxy-sample.php
-          EOF
+          SATOSA_SALT=CHANGE_THIS_RANDOM_STRING_32_CHARS_LONG
+          SATOSA_STATE_ENCRYPTION_KEY=CHANGE_THIS_RANDOM_STRING_32_CHARS_LONG
+          SATOSA_ENCRYPTION_KEY=CHANGE_THIS_RANDOM_STRING_32_CHARS_LONG
+          SATOSA_USER_ID_HASH_SALT=CHANGE_THIS_RANDOM_STRING_32_CHARS_LONG
+          SATOSA_UNKNOW_ERROR_REDIRECT_PAGE=https://localhost:9445
 
-          cat > .env.metadata <<'EOF'
-          SPID_PROXY_ORG_IS_PUBLIC_ADMIN=1
-          SPID_PROXY_ORG_CODE_TYPE=IPACode
-          SPID_PROXY_ORG_CODE=c_h501
-          SPID_PROXY_ATTRS=spidCode,name,familyName,fiscalNumber,email
-          SPID_PROXY_SIGN_RESPONSE=1
-          SPID_PROXY_ENCRYPT_RESPONSE=0
-          SPID_PROXY_LEVEL=2
-          SPID_PROXY_TOKEN_EXP_TIME=1200
+          ENABLE_SPID=true
+          ENABLE_CIE=false
+          ENABLE_CIE_OIDC=false
+          ENABLE_IT_WALLET=false
+          ENABLE_IDEM=false
+          ENABLE_EIDAS=false
+
+          MONGODB_USERNAME=satosa_user
+          MONGODB_PASSWORD=satosa_password
           EOF
 
       - name: Set up PHP
