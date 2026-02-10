@@ -157,7 +157,6 @@ services:
     environment:
       # Config minima per esecuzione container (valori dettagliati/secret in .env)
       - SATOSA_BY_DOCKER=1
-      - SATOSA_DISCO_SRV=${SATOSA_DISCO_SRV:-https://127.0.0.1:9445/static/disco.html}
     env_file:
       - .env
       # - .env.frontoffice (rimosso: usare .env e .env.iam-proxy)
