@@ -31,8 +31,7 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
         : [];
     $profiles = array_values(array_unique($profiles));
 
-    $spidEnabledByProfile = in_array('spid-proxy', $profiles, true)
-        || in_array('external', $profiles, true)
+    $spidEnabledByProfile = in_array('external', $profiles, true)
         || in_array('iam-proxy', $profiles, true);
     if (in_array('none', $profiles, true) || $profiles === []) {
         $spidEnabledByProfile = false;
@@ -324,9 +323,6 @@ if (!function_exists('frontoffice_spid_mode')) {
         if (in_array('iam-proxy', $profiles, true)) {
             return 'iam-proxy';
         }
-        if (in_array('spid-proxy', $profiles, true)) {
-            return 'internal';
-        }
         if (in_array('external', $profiles, true)) {
             return 'external';
         }
@@ -347,12 +343,12 @@ if (!function_exists('frontoffice_auth_proxy_type')) {
      */
     function frontoffice_auth_proxy_type(): string
     {
-        $raw = frontoffice_env_value('FRONTOFFICE_AUTH_PROXY_TYPE', 'php-proxy');
+        $raw = frontoffice_env_value('FRONTOFFICE_AUTH_PROXY_TYPE', 'iam-proxy-saml2');
         $raw = strtolower(trim($raw));
-        if (in_array($raw, ['iam-proxy-saml2', 'satosa', 'satosa-saml2', 'iam-proxy'], true)) {
+        if (in_array($raw, ['iam-proxy-saml2', 'satosa', 'satosa-saml2', 'iam-proxy', 'php-proxy'], true)) {
             return 'iam-proxy-saml2';
         }
-        return 'php-proxy';
+        return 'iam-proxy-saml2';
     }
 }
 
@@ -523,7 +519,7 @@ if (!function_exists('frontoffice_satosa_saml_auth')) {
         // Se l'SSO URL nei metadata punta a host interni (satosa-nginx/localhost), usa la base pubblica.
         $proxyBase = rtrim((string)frontoffice_env_value('IAM_PROXY_PUBLIC_BASE_URL', ''), '/');
         if ($proxyBase === '') {
-            $proxyBase = rtrim((string)frontoffice_env_value('SPID_PROXY_PUBLIC_BASE_URL', ''), '/');
+            $proxyBase = rtrim((string)frontoffice_env_value('IAM_PROXY_PUBLIC_BASE_URL', ''), '/'); // legacy SPID proxy variable removed
         }
         if ($proxyBase !== '' && isset($idp['ssoUrl']) && is_string($idp['ssoUrl'])) {
             $ssoUrl = $idp['ssoUrl'];
@@ -2180,93 +2176,13 @@ $routes = [
             exit;
         }
 
-        $proxyBase = rtrim($env('SPID_PROXY_PUBLIC_BASE_URL', ''), '/');
-        $clientId = $env('SPID_PROXY_CLIENT_ID', '');
-
-        $signResponse = trim((string)$env('SPID_PROXY_SIGN_RESPONSE', '1')) === '1';
-        $encryptResponse = trim((string)$env('SPID_PROXY_ENCRYPT_RESPONSE', '0')) === '1';
-        $clientSecret = trim((string)$env('SPID_PROXY_CLIENT_SECRET', ''));
-
-        if ($encryptResponse && !$signResponse) {
-            http_response_code(503);
-            return [
-                'template' => 'errors/503.html.twig',
-                'context' => [
-                    'message' => 'Login SPID non configurato: SPID_PROXY_ENCRYPT_RESPONSE=1 richiede anche SPID_PROXY_SIGN_RESPONSE=1.',
-                ],
-            ];
-        }
-        if ($encryptResponse && $clientSecret === '') {
-            http_response_code(503);
-            return [
-                'template' => 'errors/503.html.twig',
-                'context' => [
-                    'message' => 'Login SPID non configurato: SPID_PROXY_ENCRYPT_RESPONSE=1 richiede SPID_PROXY_CLIENT_SECRET (la stessa chiave va configurata anche lato proxy).',
-                ],
-            ];
-        }
-
-        $redirectUri = $env('FRONTOFFICE_SPID_REDIRECT_URI', '');
-        $allowedRedirectsRaw = $env('SPID_PROXY_REDIRECT_URIS', '');
-        $allowedRedirects = array_values(array_filter(array_map('trim', preg_split('/[\s,]+/', $allowedRedirectsRaw))));
-
-        if ($redirectUri === '') {
-            // Default: usa SEMPRE la callback del frontoffice.
-            // Se SPID_PROXY_REDIRECT_URIS è valorizzato, deve includere questo URL (match esatto), altrimenti
-            // il proxy rifiuterà il redirect o finirai su un endpoint "demo" tipo /proxy-sample.php.
-            $redirectUri = $spidCallbackUrl;
-            if ($redirectUri !== '' && $allowedRedirects !== [] && !in_array($redirectUri, $allowedRedirects, true)) {
-                http_response_code(503);
-                return [
-                    'template' => 'errors/503.html.twig',
-                    'context' => [
-                        'message' => 'Login SPID non configurato: SPID_PROXY_REDIRECT_URIS deve includere la callback del frontoffice (' . $redirectUri . ').',
-                    ],
-                ];
-            }
-        }
-
-        // Se l'utente ha impostato un redirect esplicito, verifica comunque che sia autorizzato dal proxy.
-        if ($redirectUri !== '' && $allowedRedirects !== [] && !in_array($redirectUri, $allowedRedirects, true)) {
-            http_response_code(503);
-            return [
-                'template' => 'errors/503.html.twig',
-                'context' => [
-                    'message' => 'Login SPID non configurato: FRONTOFFICE_SPID_REDIRECT_URI non è presente in SPID_PROXY_REDIRECT_URIS (' . $redirectUri . ').',
-                ],
-            ];
-        }
-
-        if ($proxyBase === '' || $clientId === '' || $redirectUri === '') {
-            http_response_code(503);
-            return [
-                'template' => 'errors/503.html.twig',
-                'context' => [
-                    'message' => 'Login SPID non configurato: verifica SPID_PROXY_PUBLIC_BASE_URL, SPID_PROXY_CLIENT_ID e configura un redirect URI valido (FRONTOFFICE_SPID_REDIRECT_URI oppure SPID_PROXY_REDIRECT_URIS).',
-                ],
-            ];
-        }
-
-        try {
-            $state = bin2hex(random_bytes(16));
-        } catch (\Throwable $e) {
-            $state = md5((string)microtime(true));
-        }
-
-        $returnTo = (string)($_GET['return_to'] ?? '/');
-        if ($returnTo === '' || $returnTo[0] !== '/') {
-            $returnTo = '/';
-        }
-        $_SESSION['spid_state'] = $state;
-        $_SESSION['spid_return_to'] = $returnTo;
-
-        $target = $proxyBase . '/proxy-home.php'
-            . '?client_id=' . rawurlencode($clientId)
-            . '&redirect_uri=' . rawurlencode($redirectUri)
-            . '&state=' . rawurlencode($state);
-
-        header('Location: ' . $target, true, 302);
-        exit;
+        http_response_code(503);
+        return [
+            'template' => 'errors/503.html.twig',
+            'context' => [
+                'message' => 'Login SPID legacy (php-proxy) disabilitato. Utilizzare iam-proxy (SATOSA).',
+            ],
+        ];
     },
     '/spid/callback' => static function () use ($method, $env): array {
         // DEBUG: Write entry point
@@ -2419,64 +2335,15 @@ $routes = [
             exit;
         }
 
-        $state = (string)($_POST['state'] ?? '');
-        $expectedState = (string)($_SESSION['spid_state'] ?? '');
-        if ($state === '' || $expectedState === '' || !hash_equals($expectedState, $state)) {
-            http_response_code(400);
-            return [
-                'template' => 'errors/503.html.twig',
-                'context' => [
-                    'message' => 'Callback SPID non valida (state mismatch). Riprovare il login.',
-                ],
-            ];
-        }
-
-        $providerId = (string)($_POST['providerId'] ?? '');
-        $providerName = (string)($_POST['providerName'] ?? '');
-        $responseId = (string)($_POST['responseId'] ?? '');
-
-        $token = isset($_POST['data']) && is_string($_POST['data']) ? trim($_POST['data']) : '';
-        $attrs = null;
-        if ($token !== '') {
-            $proxyBase = rtrim((string)$env('SPID_PROXY_PUBLIC_BASE_URL', ''), '/');
-            $encryptResponse = trim((string)$env('SPID_PROXY_ENCRYPT_RESPONSE', '0')) === '1';
-            $clientSecret = trim((string)$env('SPID_PROXY_CLIENT_SECRET', ''));
-            if ($encryptResponse && $clientSecret === '') {
-                http_response_code(503);
-                return [
-                    'template' => 'errors/503.html.twig',
-                    'context' => [
-                        'message' => 'Callback SPID non valida: response cifrata ma SPID_PROXY_CLIENT_SECRET non è configurato.',
-                    ],
-                ];
-            }
-
-            $service = (stripos($providerId, 'CIE') === 0) ? 'cie' : 'spid';
-            $decoded = frontoffice_spid_decode_proxy_token($proxyBase, $token, $encryptResponse, $clientSecret, $service);
-            if (!is_array($decoded) || !isset($decoded['data']) || !is_array($decoded['data'])) {
-                http_response_code(503);
-                return [
-                    'template' => 'errors/503.html.twig',
-                    'context' => [
-                        'message' => 'Callback SPID non valida: impossibile decodificare la response del proxy. Verifica SPID_PROXY_SIGN_RESPONSE/SPID_PROXY_ENCRYPT_RESPONSE e la chiave SPID_PROXY_CLIENT_SECRET.',
-                    ],
-                ];
-            }
-            $attrs = $decoded['data'];
-        }
-
-        $user = [
-            'first_name' => (string)(($attrs['name'] ?? null) ?? ($_POST['name'] ?? '')),
-            'last_name' => (string)(($attrs['familyName'] ?? null) ?? ($_POST['familyName'] ?? '')),
-            'email' => (string)(($attrs['email'] ?? null) ?? ($_POST['email'] ?? '')),
-            'fiscal_number' => (string)(($attrs['fiscalNumber'] ?? null) ?? ($_POST['fiscalNumber'] ?? '')),
-            'spid_code' => (string)(($attrs['spidCode'] ?? null) ?? ($_POST['spidCode'] ?? '')),
-            'provider_id' => $providerId,
-            'provider_name' => $providerName,
-            'response_id' => $responseId,
+        http_response_code(503);
+        return [
+            'template' => 'errors/503.html.twig',
+            'context' => [
+                'message' => 'Callback SPID legacy (php-proxy) disabilitata.',
+            ],
         ];
 
-        if ($token !== '') {
+        if (false) {
             $user['token'] = $token;
         }
 
@@ -2680,7 +2547,7 @@ $routes = [
 
         // Prova logout remoto solo per il proxy PHP; per SATOSA facciamo logout locale (SLO opzionale e dipende dalla config).
         $proxyBase = rtrim($env('SPID_PROXY_PUBLIC_BASE_URL', ''), '/');
-        $clientId = trim($env('SPID_PROXY_CLIENT_ID', ''));
+        $clientId = trim($env('SPID_PROXY_CLIENT_ID', '')); // legacy SPID proxy variable (ignored)
 
         $returnTo = trim((string)($_GET['return_to'] ?? '/'));
         if ($returnTo === '' || $returnTo[0] !== '/') {
