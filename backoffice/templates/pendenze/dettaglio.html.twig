@@ -558,13 +558,15 @@
           {% if rppCount == 0 %}disabled aria-disabled="true"{% else %}data-bs-toggle="collapse" data-bs-target="#rtCollapse" aria-expanded="false" aria-controls="rtCollapse"{% endif %}>
           Mostra tentativi di pagamento <span class="badge bg-secondary">{{ rppCount }}</span>
         </button>
-        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#historyCollapse" aria-expanded="false" aria-controls="historyCollapse">
+        {% set hasHistory = (r.datiAllegati is defined and (r.datiAllegati.sorgente is defined or r.datiAllegati.operatore is defined or (r.datiAllegati.storico is defined and r.datiAllegati.storico is iterable))) %}
+        <button class="btn btn-sm btn-outline-secondary" type="button" 
+          {% if not hasHistory %}disabled aria-disabled="true"{% else %}data-bs-toggle="collapse" data-bs-target="#historyCollapse" aria-expanded="false" aria-controls="historyCollapse"{% endif %}>
           Sorgente e storico
         </button>
       </div>
       <div class="collapse" id="historyCollapse">
         <div class="card-body border-bottom">
-            <h5 class="card-title h6">Origine e Storico</h5>
+            <h5 class="card-title h6">Sorgente</h5>
             {% if r.datiAllegati is defined and r.datiAllegati.sorgente is defined %}
                 <div><span class="text-muted">Origine:</span> {{ r.datiAllegati.sorgente }}</div>
             {% endif %}
@@ -576,7 +578,7 @@
                 <strong>Storico Modifiche:</strong>
                 <ul class="list-unstyled pl-2 border-left ml-2 mb-0">
                 {% for h in r.datiAllegati.storico|reverse %}
-                    <li><small class="text-muted">{{ h.data|default('') }}</small> - {{ h.operatore|default('') }} ({{ h.operazione|default('Modifica') }})</li>
+                    <li><small class="text-muted">{{ h.data|date('d/m/Y H:i') }}</small> - {{ h.operatore|default('') }} ({{ h.operazione|default('Modifica') }})</li>
                 {% endfor %}
                 </ul>
                 </div>
