@@ -377,9 +377,23 @@
               {% endfor %}
             {% endif %}
             <div><span class="text-muted">Tipo:</span> {{ tipo_descr|default(r.tipoPendenza.descrizione | default(tipo_key | default('—'))) }}</div>
-            <div><span class="text-muted">Numero avviso:</span> {{ r.numeroAvviso|default('—') }}</div>
-            <div><span class="text-muted">Numero Documento:</span> {{ r.documento.identificativo|default('—') }}</div>
             {% if r.idPagamento %}<div><span class="text-muted">ID Pagamento:</span> {{ r.idPagamento }}</div>{% endif %}
+            {% if r.datiAllegati is defined and r.datiAllegati.sorgente is defined %}
+              <div><span class="text-muted">Origine:</span> {{ r.datiAllegati.sorgente }}</div>
+            {% endif %}
+            {% if r.datiAllegati is defined and r.datiAllegati.operatore is defined %}
+              <div><span class="text-muted">Operatore:</span> {{ r.datiAllegati.operatore }}</div>
+            {% endif %}
+            {% if r.datiAllegati is defined and r.datiAllegati.storico is defined and r.datiAllegati.storico is iterable %}
+              <div class="mt-2">
+                <strong>Storico Modifiche:</strong>
+                <ul class="list-unstyled pl-2 border-left ml-2">
+                {% for h in r.datiAllegati.storico|reverse %}
+                  <li><small class="text-muted">{{ h.data|default('') }}</small> - {{ h.operatore|default('') }} ({{ h.operazione|default('Modifica') }})</li>
+                {% endfor %}
+                </ul>
+              </div>
+            {% endif %}
           </div>
         </div>
       </div>

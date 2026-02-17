@@ -1821,11 +1821,12 @@ if (!function_exists('frontoffice_process_spontaneous_request')) {
             'voci' => frontoffice_build_voci($idDominio, $idTipo, $causale, $importo),
             'dataValidita' => date('Y-m-d'),
             'dataScadenza' => $dataScadenza,
+            'datiAllegati' => ['sorgente' => 'Spontaneo'],
         ];
 
         $note = trim((string)($data['noteRichiedente'] ?? ''));
         if ($note !== '') {
-            $payload['datiAllegati'] = ['noteRichiedente' => mb_substr($note, 0, 400)];
+            $payload['datiAllegati']['noteRichiedente'] = mb_substr($note, 0, 400);
         }
 
         $sendResult = frontoffice_send_pendenza_to_backoffice($payload);

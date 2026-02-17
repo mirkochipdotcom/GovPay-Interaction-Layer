@@ -302,6 +302,11 @@ class PendenzeController
             $payload['allegati'] = $params['allegati'];
         }
 
+        // Inject operator and source information
+        $payload['datiAllegati'] = $payload['datiAllegati'] ?? [];
+        $payload['datiAllegati']['operatore'] = $this->getCurrentOperatorString();
+        $payload['datiAllegati']['sorgente'] = 'GIL-Backoffice';
+
         // Costruisce le voci applicando la stessa logica usata anche in fase di modifica
         $accountingParams = $params;
         if (!isset($accountingParams['idDominio'])) {
@@ -995,6 +1000,12 @@ class PendenzeController
         $merged = $orig;
         $merged['documento'] = $doc;
         $merged['proprieta'] = is_array($merged['proprieta'] ?? null) ? $merged['proprieta'] : [];
+        
+        // Inject operator and source information
+        $merged['datiAllegati'] = $merged['datiAllegati'] ?? [];
+        $merged['datiAllegati']['operatore'] = $this->getCurrentOperatorString();
+        $merged['datiAllegati']['sorgente'] = 'GIL-Backoffice';
+
         $merged['proprieta']['numeroRate'] = count($parts);
         $merged['proprieta']['rate'] = $doc['rata'];
 
@@ -2777,6 +2788,15 @@ class PendenzeController
             $responseData['error'] = 'ID pendenza non specificato';
         } else {
             try {
+                // 1) Prima aggiorna lo storico (PUT)
+                // Se facessimo prima il PATCH, il PUT successivo potrebbe resettare lo stato (se il backend lo resetta in assenza di campo stato)
+                $histRes = $this->fallbackFullPutUpdate($idPendenza, [], 'Annullamento');
+                if (!$histRes['success']) {
+                    $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Errore aggiornamento storico: ' . implode('; ', $histRes['errors'] ?? [])];
+                    return $response->withHeader('Location', '/pendenze/dettaglio/' . rawurlencode($idPendenza))->withStatus(302);
+                }
+
+                // 2) Poi aggiorna lo stato (PATCH)
                 $result = $this->updatePendenzaStatus($idPendenza, 'ANNULLATA');
                 if ($result['success']) {
                     $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Pendenza annullata con successo'];
@@ -2807,9 +2827,22 @@ class PendenzeController
             $responseData['error'] = 'ID pendenza non specificato';
         } else {
             try {
+                // 1) Prima aggiorna lo stato (PATCH)
+                // Questo sblocca la pendenza dallo stato ANNULLATA a NON_ESEGUITA
                 $result = $this->updatePendenzaStatus($idPendenza, 'NON_ESEGUITA');
+                
                 if ($result['success']) {
-                    $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Pendenza riattivata con successo'];
+                    // 2) Poi aggiorna lo storico (PUT)
+                    // Ora la pendenza è NON_ESEGUITA, quindi il PUT (che implica NON_ESEGUITA) è valido.
+                    $histRes = $this->fallbackFullPutUpdate($idPendenza, [], 'Riattivazione');
+                    
+                    // Nota: se il PUT fallisce, la pendenza è comunque riattivata.
+                    // Potremmo gestire l'errore ma per ora diamo priorità al successo dell'azione principale.
+                    if (!$histRes['success']) {
+                        $_SESSION['flash'][] = ['type' => 'warning', 'text' => 'Pendenza riattivata, ma errore aggiornamento storico: ' . implode('; ', $histRes['errors'] ?? [])];
+                    } else {
+                        $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Pendenza riattivata con successo'];
+                    }
                     return $response->withHeader('Location', '/pendenze/dettaglio/' . rawurlencode($idPendenza))->withStatus(302);
                 } else {
                     $_SESSION['flash'][] = ['type' => 'error', 'text' => $result['error']];
@@ -2824,6 +2857,30 @@ class PendenzeController
         // Fallback error
         $_SESSION['flash'][] = ['type' => 'error', 'text' => $responseData['error'] ?: 'Errore sconosciuto'];
         return $response->withHeader('Location', '/pendenze/dettaglio/' . rawurlencode($idPendenza))->withStatus(302);
+    }
+
+    private function getCurrentOperatorString(): string
+    {
+        $user = $_SESSION['user'] ?? null;
+        if (!is_array($user)) {
+            return 'backoffice';
+        }
+        $parts = [];
+        if (!empty($user['last_name'])) $parts[] = $user['last_name'];
+        if (!empty($user['first_name'])) $parts[] = $user['first_name'];
+        $fullName = implode(' ', $parts);
+        $email = $user['email'] ?? '';
+        
+        if ($fullName !== '' && $email !== '') {
+            return $fullName . ' - ' . $email;
+        }
+        if ($email !== '') {
+            return $email;
+        }
+        if ($fullName !== '') {
+            return $fullName;
+        }
+        return 'backoffice';
     }
 
     public function aggiornaPendenza(Request $request, Response $response, array $args): Response
@@ -2931,7 +2988,7 @@ class PendenzeController
     /**
      * Fallback: recupera la pendenza corrente, fonde i campi modificati dal form e invia un PUT completo.
      */
-    private function fallbackFullPutUpdate(string $idPendenza, array $params): array
+    private function fallbackFullPutUpdate(string $idPendenza, array $params, string $operationName = 'Modifica'): array
     {
         $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
         $idA2A = getenv('ID_A2A') ?: '';
@@ -3004,59 +3061,79 @@ class PendenzeController
                 $put['soggettoPagatore'] = $normalized;
             }
 
-            // 3b) Ricostruisce le voci utilizzando la stessa logica di creazione
-            $baseVoci = [];
-            $existingNormalizedVoci = [];
-            if (!empty($cur['voci']) && is_array($cur['voci'])) {
-                $existingNormalizedVoci = $this->normalizeVociInput($cur['voci'], (string)($put['causale'] ?? ''), (float)($put['importo'] ?? 0.0));
-            }
+            // 3b) Ricostruisce le voci SOLO SE necessario (se parametri voci o importo sono cambiati)
+            // Se non ci sono modifiche a voci/importo, manteniamo le voci originali per evitare di alterare campi immutabili (es. tipoTributo)
+            // che buildVociWithAccounting potrebbe sovrascrivere con i default.
+            $shouldRebuildVoci = (isset($params['voci']) && is_array($params['voci'])) || 
+                                 isset($params['importo']) || 
+                                 isset($params['causale']); // La causale potrebbe riflettersi sulla descrizione
 
-            if (!empty($params['voci']) && is_array($params['voci'])) {
-                $baseVoci = $this->normalizeVociInput($params['voci'], (string)($put['causale'] ?? ''), (float)($put['importo'] ?? 0.0));
-            }
-
-            if (!empty($baseVoci) && !empty($existingNormalizedVoci)) {
-                $submittedIds = array_values(array_filter(
-                    array_map(static fn(array $voce) => (string)($voce['idVocePendenza'] ?? ''), $baseVoci),
-                    static fn(string $id) => $id !== ''
-                ));
-
-                $preservedIds = [];
-                foreach ($existingNormalizedVoci as $existingVoce) {
-                    $existingId = (string)($existingVoce['idVocePendenza'] ?? '');
-                    if ($existingId !== '' && in_array($existingId, $submittedIds, true)) {
-                        continue;
-                    }
-                    if ($existingId !== '') {
-                        $preservedIds[] = $existingId;
-                    }
-                    $baseVoci[] = $existingVoce;
+            if ($shouldRebuildVoci) {
+                $baseVoci = [];
+                $existingNormalizedVoci = [];
+                if (!empty($cur['voci']) && is_array($cur['voci'])) {
+                    $existingNormalizedVoci = $this->normalizeVociInput($cur['voci'], (string)($put['causale'] ?? ''), (float)($put['importo'] ?? 0.0));
                 }
 
-                if (!empty($preservedIds)) {
-                    $warnings[] = 'Le voci esistenti non modificate sono state mantenute automaticamente (' . implode(', ', $preservedIds) . ').';
+                if (!empty($params['voci']) && is_array($params['voci'])) {
+                    $baseVoci = $this->normalizeVociInput($params['voci'], (string)($put['causale'] ?? ''), (float)($put['importo'] ?? 0.0));
                 }
-            } elseif (empty($baseVoci) && !empty($existingNormalizedVoci)) {
-                $baseVoci = $existingNormalizedVoci;
-            }
 
-            if (empty($baseVoci)) {
-                $baseVoci[] = [
-                    'idVocePendenza' => '1',
-                    'descrizione' => (string)($put['causale'] ?? ''),
-                    'importo' => (float)($put['importo'] ?? 0.0),
-                ];
-            }
+                if (!empty($baseVoci) && !empty($existingNormalizedVoci)) {
+                    $submittedIds = array_values(array_filter(
+                        array_map(static fn(array $voce) => (string)($voce['idVocePendenza'] ?? ''), $baseVoci),
+                        static fn(string $id) => $id !== ''
+                    ));
 
-            $accountingParams = $params;
-            if (!isset($accountingParams['idDominio'])) {
-                $accountingParams['idDominio'] = $put['idDominio'] ?? ($cur['idDominio'] ?? (getenv('ID_DOMINIO') ?: ''));
-            }
-            if (!isset($accountingParams['idTipoPendenza']) && $idTipoEffective !== '') {
-                $accountingParams['idTipoPendenza'] = $idTipoEffective;
-            }
+                    $preservedIds = [];
+                    foreach ($existingNormalizedVoci as $existingVoce) {
+                        $existingId = (string)($existingVoce['idVocePendenza'] ?? '');
+                        if ($existingId !== '' && in_array($existingId, $submittedIds, true)) {
+                            continue;
+                        }
+                        if ($existingId !== '') {
+                            $preservedIds[] = $existingId;
+                        }
+                        $baseVoci[] = $existingVoce;
+                    }
 
-            $put['voci'] = $this->buildVociWithAccounting($baseVoci, $accountingParams, $cur, $errors, $warnings);
+                    if (!empty($preservedIds)) {
+                        $warnings[] = 'Le voci esistenti non modificate sono state mantenute automaticamente (' . implode(', ', $preservedIds) . ').';
+                    }
+                } elseif (empty($baseVoci) && !empty($existingNormalizedVoci)) {
+                    $baseVoci = $existingNormalizedVoci;
+                }
+
+                if (empty($baseVoci)) {
+                    $baseVoci[] = [
+                        'idVocePendenza' => '1',
+                        'descrizione' => (string)($put['causale'] ?? ''),
+                        'importo' => (float)($put['importo'] ?? 0.0),
+                    ];
+                }
+
+                $accountingParams = $params;
+                if (!isset($accountingParams['idDominio'])) {
+                    $accountingParams['idDominio'] = $put['idDominio'] ?? ($cur['idDominio'] ?? (getenv('ID_DOMINIO') ?: ''));
+                }
+                if (!isset($accountingParams['idTipoPendenza']) && $idTipoEffective !== '') {
+                    $accountingParams['idTipoPendenza'] = $idTipoEffective;
+                }
+
+                $put['voci'] = $this->buildVociWithAccounting($baseVoci, $accountingParams, $cur, $errors, $warnings);
+            }
+            // else: $put['voci'] rimane quello copiato da $cur all'inizio (array_intersect_key)
+
+            // Aggiungi storico modifiche
+            $put['datiAllegati'] = $put['datiAllegati'] ?? [];
+            if (!isset($put['datiAllegati']['storico']) || !is_array($put['datiAllegati']['storico'])) {
+                $put['datiAllegati']['storico'] = [];
+            }
+            $put['datiAllegati']['storico'][] = [
+                'data' => date('Y-m-d H:i:s'),
+                'operatore' => $this->getCurrentOperatorString(),
+                'operazione' => $operationName,
+            ];
 
             if ($errors) {
                 return ['success' => false, 'errors' => $errors];
