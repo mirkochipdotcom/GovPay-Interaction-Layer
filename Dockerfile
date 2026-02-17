@@ -15,10 +15,10 @@ WORKDIR /app
 # ----------------------------------------------------------------------
 
 # Variabile per il tag di Bootstrap Italia
-ARG BOOTSTRAP_TAG="v2.17.2"
+ARG BOOTSTRAP_TAG="v2.17.3"
 
 # Variabili per Font Awesome
-ARG FA_VERSION="7.1.0"
+ARG FA_VERSION="7.2.0"
 ENV FA_URL=https://github.com/FortAwesome/Font-Awesome/releases/download/${FA_VERSION}/fontawesome-free-${FA_VERSION}-web.zip
 ENV FA_DIR="fontawesome-free-${FA_VERSION}-web"
 
