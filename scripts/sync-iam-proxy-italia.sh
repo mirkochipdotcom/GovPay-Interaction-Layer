@@ -175,6 +175,33 @@ if [ -f "$PROJECT_DST/proxy_conf.yaml" ] && [ "$ENABLE_CIE_OIDC" != "true" ]; th
   sed -i 's|^  - "conf/backends/saml2_backend.yaml"|  # - "conf/backends/saml2_backend.yaml"  # Disabled, using spidSaml2 only|' "$PROJECT_DST/proxy_conf.yaml"
 fi
 
+# Explicitly disable Pyeudiw backend if requested (useful when ENABLE_CIE_OIDC is true but Pyeudiw is not wanted)
+if [ -f "$PROJECT_DST/proxy_conf.yaml" ] && is_true "$SATOSA_DISABLE_PYEUDIW_BACKEND"; then
+   echo "[sync-iam-proxy] Disabling Pyeudiw backend (SATOSA_DISABLE_PYEUDIW_BACKEND=true)..."
+   # Backup original if not exists
+   [ ! -f "$PROJECT_DST/proxy_conf.yaml.original" ] && cp "$PROJECT_DST/proxy_conf.yaml" "$PROJECT_DST/proxy_conf.yaml.original"
+   
+   sed -i 's|^  - "conf/backends/pyeudiw_backend.yaml"|  # - "conf/backends/pyeudiw_backend.yaml"  # Disabled by SATOSA_DISABLE_PYEUDIW_BACKEND|' "$PROJECT_DST/proxy_conf.yaml"
+fi
+
+# Explicitly disable CieOidc backend if requested
+if [ -f "$PROJECT_DST/proxy_conf.yaml" ] && is_true "$SATOSA_DISABLE_CIEOIDC_BACKEND"; then
+   echo "[sync-iam-proxy] Disabling CieOidc backend (SATOSA_DISABLE_CIEOIDC_BACKEND=true)..."
+   # Backup original if not exists
+   [ ! -f "$PROJECT_DST/proxy_conf.yaml.original" ] && cp "$PROJECT_DST/proxy_conf.yaml" "$PROJECT_DST/proxy_conf.yaml.original"
+
+   sed -i 's|^  - "conf/backends/cieoidc_backend.yaml"|  # - "conf/backends/cieoidc_backend.yaml"  # Disabled by SATOSA_DISABLE_CIEOIDC_BACKEND|' "$PROJECT_DST/proxy_conf.yaml"
+fi
+
+# Explicitly disable OpenID4VCI frontend if IT Wallet is disabled (requires MONGO_FRONTEND_HOST)
+if [ -f "$PROJECT_DST/proxy_conf.yaml" ] && [ "$ENABLE_IT_WALLET" != "true" ]; then
+   echo "[sync-iam-proxy] Disabling OpenID4VCI frontend (ENABLE_IT_WALLET!=true)..."
+   # Backup original if not exists
+   [ ! -f "$PROJECT_DST/proxy_conf.yaml.original" ] && cp "$PROJECT_DST/proxy_conf.yaml" "$PROJECT_DST/proxy_conf.yaml.original"
+
+   sed -i 's|^  - "conf/frontends/openid4vci_frontend.yaml"|  # - "conf/frontends/openid4vci_frontend.yaml"  # Disabled (ENABLE_IT_WALLET!=true)|' "$PROJECT_DST/proxy_conf.yaml"
+fi
+
 # Patch target_based_routing.yaml to add demo.spid.gov.it and fix default backend
 if [ -f "$PROJECT_DST/conf/microservices/target_based_routing.yaml" ] && [ "$ENABLE_CIE_OIDC" != "true" ]; then
   echo "[sync-iam-proxy] Patching target_based_routing.yaml for test environment..."
