@@ -378,22 +378,7 @@
             {% endif %}
             <div><span class="text-muted">Tipo:</span> {{ tipo_descr|default(r.tipoPendenza.descrizione | default(tipo_key | default('—'))) }}</div>
             {% if r.idPagamento %}<div><span class="text-muted">ID Pagamento:</span> {{ r.idPagamento }}</div>{% endif %}
-            {% if r.datiAllegati is defined and r.datiAllegati.sorgente is defined %}
-              <div><span class="text-muted">Origine:</span> {{ r.datiAllegati.sorgente }}</div>
-            {% endif %}
-            {% if r.datiAllegati is defined and r.datiAllegati.operatore is defined %}
-              <div><span class="text-muted">Operatore:</span> {{ r.datiAllegati.operatore }}</div>
-            {% endif %}
-            {% if r.datiAllegati is defined and r.datiAllegati.storico is defined and r.datiAllegati.storico is iterable %}
-              <div class="mt-2">
-                <strong>Storico Modifiche:</strong>
-                <ul class="list-unstyled pl-2 border-left ml-2">
-                {% for h in r.datiAllegati.storico|reverse %}
-                  <li><small class="text-muted">{{ h.data|default('') }}</small> - {{ h.operatore|default('') }} ({{ h.operazione|default('Modifica') }})</li>
-                {% endfor %}
-                </ul>
-              </div>
-            {% endif %}
+
           </div>
         </div>
       </div>
@@ -568,11 +553,35 @@
     {% set rpp = r.rpp|default([]) %}
     {% set rppCount = (rpp is iterable) ? (rpp|length) : 0 %}
     <div class="card mt-3">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <button class="btn btn-sm btn-outline-secondary" type="button"
+      <div class="card-header d-flex justify-content-start align-items-center">
+        <button class="btn btn-sm btn-outline-secondary me-2 mr-2" type="button"
           {% if rppCount == 0 %}disabled aria-disabled="true"{% else %}data-bs-toggle="collapse" data-bs-target="#rtCollapse" aria-expanded="false" aria-controls="rtCollapse"{% endif %}>
           Mostra tentativi di pagamento <span class="badge bg-secondary">{{ rppCount }}</span>
         </button>
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#historyCollapse" aria-expanded="false" aria-controls="historyCollapse">
+          Sorgente e storico
+        </button>
+      </div>
+      <div class="collapse" id="historyCollapse">
+        <div class="card-body border-bottom">
+            <h5 class="card-title h6">Origine e Storico</h5>
+            {% if r.datiAllegati is defined and r.datiAllegati.sorgente is defined %}
+                <div><span class="text-muted">Origine:</span> {{ r.datiAllegati.sorgente }}</div>
+            {% endif %}
+            {% if r.datiAllegati is defined and r.datiAllegati.operatore is defined %}
+                <div><span class="text-muted">Operatore:</span> {{ r.datiAllegati.operatore }}</div>
+            {% endif %}
+            {% if r.datiAllegati is defined and r.datiAllegati.storico is defined and r.datiAllegati.storico is iterable %}
+                <div class="mt-2">
+                <strong>Storico Modifiche:</strong>
+                <ul class="list-unstyled pl-2 border-left ml-2 mb-0">
+                {% for h in r.datiAllegati.storico|reverse %}
+                    <li><small class="text-muted">{{ h.data|default('') }}</small> - {{ h.operatore|default('') }} ({{ h.operazione|default('Modifica') }})</li>
+                {% endfor %}
+                </ul>
+                </div>
+            {% endif %}
+        </div>
       </div>
       {% if rppCount > 0 %}
       <div class="collapse" id="rtCollapse">
