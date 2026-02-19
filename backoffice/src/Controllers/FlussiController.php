@@ -277,6 +277,28 @@ class FlussiController
                     }
 
                     $flow = $dataArr;
+
+                    // Mark orphan payments (no local voce data) so the template
+                    // can offer an on-demand "load receipt" button via AJAX.
+                    $paymentsKey = isset($flow['rendicontazioni']) ? 'rendicontazioni' : (isset($flow['pagamenti']) ? 'pagamenti' : null);
+                    if ($paymentsKey && is_array($flow[$paymentsKey])) {
+                        $fiscalCode = $flow['idDominio']
+                            ?? ($flow['dominio']['idDominio'] ?? null)
+                            ?? ($flow['dominio']['id'] ?? null)
+                            ?? '';
+                        foreach ($flow[$paymentsKey] as $index => $payment) {
+                            $risc = $payment['riscossione'] ?? null;
+                            $hasVoce = !empty($payment['voce'])
+                                || !empty($payment['vocePendenza'])
+                                || (!empty($risc) && !empty($risc['vocePendenza']));
+                            $iuv = $payment['iuv'] ?? ($risc['iuv'] ?? '');
+                            $iur = $payment['iur'] ?? ($risc['iur'] ?? '');
+                            if (!$hasVoce && $iuv !== '' && $iur !== '') {
+                                $flow[$paymentsKey][$index]['is_orphan'] = true;
+                                $flow[$paymentsKey][$index]['_fc'] = $fiscalCode;
+                            }
+                        }
+                    }
                 } catch (ClientException $ce) {
                     $errors[] = 'Errore recupero dettaglio flusso: ' . $ce->getMessage();
                     $detailBody = $ce->getResponse() ? (string)$ce->getResponse()->getBody() : '';
@@ -321,6 +343,122 @@ class FlussiController
             'id_flusso' => $idFlusso,
             'return_url' => $return,
         ]);
+    }
+
+    /**
+     * AJAX endpoint: fetch a single receipt from Biz Events API on-demand.
+     * GET /api/biz-event?fc={fiscalCode}&iur={iur}&iuv={iuv}
+     */
+    public function fetchBizEvent(Request $request, Response $response): Response
+    {
+        $params = $request->getQueryParams();
+        $fc  = $params['fc']  ?? '';
+        $iur = $params['iur'] ?? '';
+        $iuv = $params['iuv'] ?? '';
+
+        if ($fc === '' || $iur === '' || $iuv === '') {
+            return $this->jsonResponse($response, ['error' => 'Parametri mancanti (fc, iur, iuv)'], 400);
+        }
+
+        $bizHost = rtrim(getenv('BIZ_EVENTS_HOST') ?: '', '/');
+        $bizApiKey = getenv('BIZ_EVENTS_API_KEY') ?: '';
+
+        if (!$bizHost || !$bizApiKey) {
+            return $this->jsonResponse($response, ['error' => 'BIZ_EVENTS_HOST o BIZ_EVENTS_API_KEY non configurati'], 500);
+        }
+
+        try {
+            $url = sprintf(
+                '%s/organizations/%s/receipts/%s/paymentoptions/%s',
+                $bizHost,
+                rawurlencode($fc),
+                rawurlencode($iur),
+                rawurlencode($iuv)
+            );
+
+            $httpClient = new \GuzzleHttp\Client(['connect_timeout' => 5, 'timeout' => 15]);
+            $bizResp = $httpClient->get($url, [
+                'headers' => [
+                    'Accept' => 'application/json',
+                    'Ocp-Apim-Subscription-Key' => $bizApiKey,
+                ],
+                'http_errors' => false,
+            ]);
+
+            $statusCode = $bizResp->getStatusCode();
+            $rawBody = $bizResp->getBody()->getContents();
+
+            if ($statusCode === 429) {
+                return $this->jsonResponse($response, ['error' => 'Rate limit superato. Riprova tra qualche secondo.', 'retry' => true], 429);
+            }
+            if ($statusCode === 404) {
+                return $this->jsonResponse($response, ['error' => 'Ricevuta non trovata per questo IUV/IUR.'], 404);
+            }
+            if ($statusCode !== 200 || empty($rawBody)) {
+                return $this->jsonResponse($response, ['error' => "Errore API: HTTP $statusCode", 'body' => substr($rawBody, 0, 500)], $statusCode ?: 500);
+            }
+
+            $receipt = json_decode($rawBody, true);
+            if (!is_array($receipt)) {
+                return $this->jsonResponse($response, ['error' => 'Risposta API non valida'], 500);
+            }
+
+            $debtor = $receipt['debtor'] ?? [];
+            $payer = $receipt['payer'] ?? [];
+
+            // Extract transfer list and compute total
+            $transfers = [];
+            $totalAmount = 0;
+            foreach (($receipt['transferList'] ?? []) as $tr) {
+                $trAmount = (float)($tr['transferAmount'] ?? 0);
+                $totalAmount += $trAmount;
+                $transfers[] = [
+                    'amount'      => $trAmount,
+                    'fiscal_code' => $tr['fiscalCodePA'] ?? '',
+                    'iban'        => $tr['IBAN'] ?? '',
+                    'description' => $tr['remittanceInformation'] ?? '',
+                    'category'    => $tr['transferCategory'] ?? '',
+                    'company'     => $tr['companyName'] ?? '',
+                ];
+            }
+            // Fallback: if no transfers, use paymentAmount
+            if ($totalAmount == 0) {
+                $totalAmount = (float)($receipt['paymentAmount'] ?? 0);
+            }
+
+            $result = [
+                'description'        => $receipt['description'] ?? '',
+                'amount'             => $receipt['paymentAmount'] ?? 0,
+                'total_amount'       => $totalAmount,
+                'company_name'       => $receipt['companyName'] ?? '',
+                'office_name'        => $receipt['officeName'] ?? '',
+                'debtor_name'        => $debtor['fullName'] ?? '',
+                'debtor_fiscal_code' => $debtor['entityUniqueIdentifierValue'] ?? '',
+                'debtor_type'        => $debtor['entityUniqueIdentifierType'] ?? '',
+                'payer_name'         => $payer['fullName'] ?? '',
+                'payer_fiscal_code'  => $payer['entityUniqueIdentifierValue'] ?? '',
+                'psp_id'             => $receipt['idPSP'] ?? '',
+                'psp_name'           => $receipt['pspCompanyName'] ?? '',
+                'channel'            => $receipt['channelDescription'] ?? ($receipt['idChannel'] ?? ''),
+                'payment_method'     => $receipt['paymentMethod'] ?? '',
+                'payment_date'       => $receipt['paymentDateTime'] ?? '',
+                'outcome'            => $receipt['outcome'] ?? '',
+                'receipt_id'         => $receipt['receiptId'] ?? '',
+                'notice_number'      => $receipt['noticeNumber'] ?? '',
+                'transfers'          => $transfers,
+            ];
+
+            return $this->jsonResponse($response, $result);
+        } catch (\Throwable $e) {
+            return $this->jsonResponse($response, ['error' => 'Errore: ' . $e->getMessage()], 500);
+        }
+    }
+
+    private function jsonResponse(Response $response, array $data, int $status = 200): Response
+    {
+        $response = $response->withStatus($status)->withHeader('Content-Type', 'application/json');
+        $response->getBody()->write(json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+        return $response;
     }
 
     private function exposeCurrentUser(): void

@@ -182,8 +182,7 @@
                         <div class="dropdown-menu" role="region" aria-labelledby="pagamentiDropdown">
                           <div class="link-list-wrapper">
                             <ul class="link-list">
-                              <li><a class="dropdown-item list-item {{ current_path == '/pagamenti/ricerca-incassi' ? 'active' : '' }}" href="/pagamenti/ricerca-incassi"><span>Ricerca Incassi</span></a></li>
-                              <li><a class="dropdown-item list-item {{ current_path == '/pagamenti/ricerca-flussi' ? 'active' : '' }}" href="/pagamenti/ricerca-flussi"><span>Ricerca Flussi</span></a></li>
+                              <li><a class="dropdown-item list-item {{ current_path starts with '/pagamenti/ricerca-flussi' ? 'active' : '' }}" href="/pagamenti/ricerca-flussi"><span>Ricerca Flussi</span></a></li>
                             </ul>
                           </div>
                         </div>

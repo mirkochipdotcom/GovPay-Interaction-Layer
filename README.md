@@ -2,7 +2,7 @@
 
 Piattaforma containerizzata (PHP/Apache + UI) per migliorare il flusso di lavoro degli enti che usano GovPay come soluzione PagoPA.
 Include:
-- **Backoffice** per operatori (gestione pendenze, incassi, rendicontazioni)
+- **Backoffice** per operatori (gestione pendenze, flussi di rendicontazione, ricevute pagoPA on-demand)
 - **Frontoffice** cittadini/sportello
 - (Opzionale) **proxy SPID/CIE** integrabile via profilo Docker Compose
 
@@ -22,6 +22,7 @@ SPDX-License-Identifier: EUPL-1.2
 - [IAM Proxy Italia (SATOSA)](#iam-proxy-italia-satosa)
 - [Metadata SPID/CIE (freeze + next)](#metadata-spidcie-freeze--next)
 - [Setup produzione](#setup-produzione)
+- [Funzionalità Backoffice](#funzionalità-backoffice)
 - [Workflow di sviluppo](#workflow-di-sviluppo)
 - [Troubleshooting](#troubleshooting)
 - [Struttura del progetto](#struttura-del-progetto)
@@ -33,8 +34,9 @@ SPDX-License-Identifier: EUPL-1.2
 GovPay Interaction Layer (GIL) funge da livello intermedio tra GovPay e gli operatori dell’ente, fornendo un portale più “operativo” rispetto alla GUI standard.
 In pratica offre:
 
-- **Backoffice unificato** per creare/modificare pendenze, consultare lo stato degli incassi e gestire rendicontazioni.
-- **Strumenti di controllo** (ricerche/filtri/vista dedicate) per individuare rapidamente flussi in errore, stand‑in o pagamenti non riconciliati.
+- **Backoffice unificato** per creare/modificare pendenze, consultare flussi di rendicontazione e recuperare ricevute pagoPA on-demand.
+- **Strumenti di controllo** (ricerche/filtri/viste dedicate) per individuare rapidamente flussi in errore, stand‑in o pagamenti non riconciliati.
+- **Integrazione Biz Events** per il recupero on-demand delle ricevute di pagamento pagoPA (debitore, pagatore, PSP, trasferimenti) direttamente dal dettaglio flusso.
 - **Frontoffice semplificato** per cittadini o sportelli, con possibilità di reindirizzare alcune tipologie verso portali esterni.
 - **Gestione integrazione** (certificati e configurazione) per isolare la complessità di GovPay.
 
@@ -93,9 +95,18 @@ PagoPA Checkout (EC API):
 - `PAGOPA_CHECKOUT_COMPANY_NAME` (nome ente mostrato nel checkout).
 - (Opzionale) `PAGOPA_CHECKOUT_RETURN_OK_URL`, `PAGOPA_CHECKOUT_RETURN_CANCEL_URL`, `PAGOPA_CHECKOUT_RETURN_ERROR_URL`.
 
+pagoPA Biz Events (Ricevute EC):
+
+- `BIZ_EVENTS_HOST`: Base URL dell'API Biz Events Service.
+  - DEV: `https://api.dev.platform.pagopa.it/bizevents/service/v1`
+  - PROD: `https://api.platform.pagopa.it/bizevents/service/v1`
+- `BIZ_EVENTS_API_KEY`: Subscription key per il servizio Biz Events (header `Ocp-Apim-Subscription-Key`).
+
+Queste variabili sono necessarie per la funzionalità di recupero ricevute on-demand nel dettaglio flusso del Backoffice.
+
 Approfondimenti:
 - certificati GovPay: `certificate/README.md`
-- configurazione Checkout: `pagopa-clients/README.md`
+- configurazione Checkout e Biz Events: `pagopa-clients/README.md`
 
 ### 3) Avvia i container
 
@@ -355,6 +366,32 @@ Obiettivo: far sì che i redirect generati puntino sempre agli URL pubblici corr
 
 - `FRONTOFFICE_PUBLIC_BASE_URL` e `IAM_PROXY_PUBLIC_BASE_URL` devono essere coerenti con gli URL pubblici reali.
 - Se cambi host/porta, rigenera i metadata SP del frontoffice (vedi sezione dedicata).
+
+## Funzionalità Backoffice
+
+### Gestione Pendenze
+
+- Ricerca, inserimento singolo e massivo di pendenze.
+- Dettaglio pendenza con azioni (annullamento, stralcio, riattivazione).
+- Storico modifiche registrato in `datiAllegati`.
+- Origine (Spontaneo / GIL-Backoffice) e operatore tracciati.
+
+### Flussi di Rendicontazione
+
+- **Ricerca flussi**: ricerca per data, PSP, stato, con paginazione e filtri.
+- **Dettaglio flusso**: mostra i pagamenti rendicontati con informazioni IUV, causale, importo, esito.
+- **Ricevute on-demand (Biz Events)**: per i pagamenti "orfani" (privi di dati GovPay locali), un pulsante 🔍 permette di caricare la ricevuta pagoPA tramite AJAX. Si apre un modale con:
+  - Dati debitore e pagatore (nome, codice fiscale, tipo).
+  - Intermediario PSP (nome, canale, metodo di pagamento).
+  - Dettagli del pagamento (descrizione, importo totale, data, esito, numero avviso, ID ricevuta).
+  - Tabella **trasferimenti** con l'elenco delle singole voci (importo, beneficiario, IBAN).
+- Gestione errori: rate limit (429), ricevuta non trovata (404), errori di rete.
+
+### Statistiche
+
+- Dashboard con grafici e indicatori.
+
+---
 
 ## Workflow di sviluppo
 

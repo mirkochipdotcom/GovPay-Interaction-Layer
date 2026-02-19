@@ -558,13 +558,7 @@ return function (App $app, Twig $twig): void {
         });
     }
 
-    // Pagamenti - viste base per Ricerca Incassi e Ricerca Flussi (utenti autenticati)
-    $app->get('/pagamenti/ricerca-incassi', function($request, $response) use ($twig) {
-        if (isset($_SESSION['user'])) {
-            $twig->getEnvironment()->addGlobal('current_user', $_SESSION['user']);
-        }
-        return $twig->render($response, 'pagamenti/ricerca_incassi.html.twig');
-    });
+    // Pagamenti - Ricerca Flussi (utenti autenticati)
 
     $app->get('/pagamenti/ricerca-flussi', function($request, $response) use ($twig) {
         $controller = new FlussiController($twig);
@@ -574,5 +568,11 @@ return function (App $app, Twig $twig): void {
     $app->get('/pagamenti/ricerca-flussi/dettaglio/{idFlusso}', function($request, $response, $args) use ($twig) {
         $controller = new FlussiController($twig);
         return $controller->detail($request, $response, $args);
+    });
+
+    // AJAX: fetch single Biz Events receipt on-demand
+    $app->get('/api/biz-event', function($request, $response) use ($twig) {
+        $controller = new FlussiController($twig);
+        return $controller->fetchBizEvent($request, $response);
     });
 };
