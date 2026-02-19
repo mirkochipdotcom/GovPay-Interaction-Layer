@@ -368,87 +368,82 @@ class FlussiController
         }
 
         try {
-            $url = sprintf(
-                '%s/organizations/%s/receipts/%s/paymentoptions/%s',
-                $bizHost,
-                rawurlencode($fc),
-                rawurlencode($iur),
-                rawurlencode($iuv)
+            // Configuration
+            $config = \PagoPA\BizEvents\Configuration::getDefaultConfiguration()
+                ->setHost($bizHost)
+                ->setApiKey('Ocp-Apim-Subscription-Key', $bizApiKey);
+
+            // Instantiate API Client
+            $apiInstance = new \PagoPA\BizEvents\Api\PaymentReceiptsRESTAPIsApi(
+                new \GuzzleHttp\Client(['connect_timeout' => 5, 'timeout' => 15]),
+                $config
             );
 
-            $httpClient = new \GuzzleHttp\Client(['connect_timeout' => 5, 'timeout' => 15]);
-            $bizResp = $httpClient->get($url, [
-                'headers' => [
-                    'Accept' => 'application/json',
-                    'Ocp-Apim-Subscription-Key' => $bizApiKey,
-                ],
-                'http_errors' => false,
-            ]);
-
-            $statusCode = $bizResp->getStatusCode();
-            $rawBody = $bizResp->getBody()->getContents();
-
-            if ($statusCode === 429) {
-                return $this->jsonResponse($response, ['error' => 'Rate limit superato. Riprova tra qualche secondo.', 'retry' => true], 429);
-            }
-            if ($statusCode === 404) {
-                return $this->jsonResponse($response, ['error' => 'Ricevuta non trovata per questo IUV/IUR.'], 404);
-            }
-            if ($statusCode !== 200 || empty($rawBody)) {
-                return $this->jsonResponse($response, ['error' => "Errore API: HTTP $statusCode", 'body' => substr($rawBody, 0, 500)], $statusCode ?: 500);
+            // Call API
+            try {
+                $receipt = $apiInstance->getOrganizationReceiptIuvIur($fc, $iur, $iuv);
+            } catch (\PagoPA\BizEvents\ApiException $e) {
+                $statusCode = $e->getCode();
+                if ($statusCode === 404) {
+                    return $this->jsonResponse($response, ['error' => 'Ricevuta non trovata per questo IUV/IUR.'], 404);
+                }
+                if ($statusCode === 429) {
+                    return $this->jsonResponse($response, ['error' => 'Rate limit superato. Riprova tra qualche secondo.', 'retry' => true], 429);
+                }
+                return $this->jsonResponse($response, ['error' => "Errore API: HTTP $statusCode", 'body' => $e->getResponseBody()], $statusCode ?: 500);
             }
 
-            $receipt = json_decode($rawBody, true);
-            if (!is_array($receipt)) {
-                return $this->jsonResponse($response, ['error' => 'Risposta API non valida'], 500);
-            }
+            // Extract data from model
+            $debtor = $receipt->getDebtor();
+            $payer = $receipt->getPayer();
+            $transferList = $receipt->getTransferList() ?? [];
 
-            $debtor = $receipt['debtor'] ?? [];
-            $payer = $receipt['payer'] ?? [];
-
-            // Extract transfer list and compute total
+            // Process transfers
             $transfers = [];
             $totalAmount = 0;
-            foreach (($receipt['transferList'] ?? []) as $tr) {
-                $trAmount = (float)($tr['transferAmount'] ?? 0);
+            foreach ($transferList as $tr) {
+                /** @var \PagoPA\BizEvents\Model\TransferPA $tr */
+                $trAmount = $tr->getTransferAmount() ?? 0.0;
                 $totalAmount += $trAmount;
                 $transfers[] = [
                     'amount'      => $trAmount,
-                    'fiscal_code' => $tr['fiscalCodePA'] ?? '',
-                    'iban'        => $tr['IBAN'] ?? '',
-                    'description' => $tr['remittanceInformation'] ?? '',
-                    'category'    => $tr['transferCategory'] ?? '',
-                    'company'     => $tr['companyName'] ?? '',
+                    'fiscal_code' => $tr->getFiscalCodePa() ?? '',
+                    'iban'        => $tr->getIban() ?? '',
+                    'description' => $tr->getRemittanceInformation() ?? '',
+                    'category'    => $tr->getTransferCategory() ?? '',
+                    'company'     => '', // companyName not directly in TransferPA, usually extracted from other sources or mapped
                 ];
             }
-            // Fallback: if no transfers, use paymentAmount
+
+            // Fallback total amount
             if ($totalAmount == 0) {
-                $totalAmount = (float)($receipt['paymentAmount'] ?? 0);
+                $totalAmount = $receipt->getPaymentAmount() ?? 0.0;
             }
 
             $result = [
-                'description'        => $receipt['description'] ?? '',
-                'amount'             => $receipt['paymentAmount'] ?? 0,
+                'description'        => $receipt->getDescription() ?? '',
+                'amount'             => $receipt->getPaymentAmount() ?? 0.0,
                 'total_amount'       => $totalAmount,
-                'company_name'       => $receipt['companyName'] ?? '',
-                'office_name'        => $receipt['officeName'] ?? '',
-                'debtor_name'        => $debtor['fullName'] ?? '',
-                'debtor_fiscal_code' => $debtor['entityUniqueIdentifierValue'] ?? '',
-                'debtor_type'        => $debtor['entityUniqueIdentifierType'] ?? '',
-                'payer_name'         => $payer['fullName'] ?? '',
-                'payer_fiscal_code'  => $payer['entityUniqueIdentifierValue'] ?? '',
-                'psp_id'             => $receipt['idPSP'] ?? '',
-                'psp_name'           => $receipt['pspCompanyName'] ?? '',
-                'channel'            => $receipt['channelDescription'] ?? ($receipt['idChannel'] ?? ''),
-                'payment_method'     => $receipt['paymentMethod'] ?? '',
-                'payment_date'       => $receipt['paymentDateTime'] ?? '',
-                'outcome'            => $receipt['outcome'] ?? '',
-                'receipt_id'         => $receipt['receiptId'] ?? '',
-                'notice_number'      => $receipt['noticeNumber'] ?? '',
+                'company_name'       => $receipt->getCompanyName() ?? '',
+                'office_name'        => $receipt->getOfficeName() ?? '',
+                'debtor_name'        => $debtor ? $debtor->getFullName() : '',
+                'debtor_fiscal_code' => $debtor ? $debtor->getEntityUniqueIdentifierValue() : '',
+                'debtor_type'        => $debtor ? $debtor->getEntityUniqueIdentifierType() : '',
+                'payer_name'         => $payer ? $payer->getFullName() : '',
+                'payer_fiscal_code'  => $payer ? $payer->getEntityUniqueIdentifierValue() : '',
+                'psp_id'             => $receipt->getIdPsp() ?? '',
+                'psp_name'           => $receipt->getPspCompanyName() ?? '',
+                'channel'            => $receipt->getChannelDescription() ?? $receipt->getIdChannel() ?? '',
+                'payment_method'     => $receipt->getPaymentMethod() ?? '',
+                'payment_date'       => $receipt->getPaymentDateTime() ? $receipt->getPaymentDateTime()->format('Y-m-d H:i:s') : '',
+                'outcome'            => $receipt->getOutcome() ?? '',
+                'receipt_id'         => $receipt->getReceiptId() ?? '',
+                'notice_number'      => $receipt->getNoticeNumber() ?? '',
                 'transfers'          => $transfers,
             ];
 
             return $this->jsonResponse($response, $result);
+
         } catch (\Throwable $e) {
             return $this->jsonResponse($response, ['error' => 'Errore: ' . $e->getMessage()], 500);
         }

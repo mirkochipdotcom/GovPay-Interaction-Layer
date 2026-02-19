@@ -51,7 +51,7 @@ Opzionalmente include un **proxy SPID/CIE** (interno o esterno) per gestire logi
 - Porte libere sul tuo host (default):
   - Backoffice: `8443`
   - Frontoffice: `8444`
-  - Proxy SPID (se abilitato): `8445`
+  - Proxy SPID (se abilitato): `9445`
 
 ### 1) Clona il repository
 

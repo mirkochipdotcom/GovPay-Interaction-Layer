@@ -12,7 +12,9 @@
         "govpay/ragioneria-client": "dev-main",
         "nyholm/psr7": "^1.5",
         "onelogin/php-saml": "^4.2",
+        "pagopa/gpd-client": "dev-main",
         "pagopa/checkout-ec-client": "dev-main",
+        "pagopa/biz-events-client": "dev-main",
         "slim/psr7": "^1.6",
         "slim/slim": "^4.13",
         "slim/twig-view": "^3.3",
@@ -21,28 +23,52 @@
     "repositories": [
         {
             "type": "path",
+            "url": "pagopa-clients/generated-clients/gpd-v1/gpd-client",
+            "options": {
+                "symlink": false
+            }
+        },
+        {
+            "type": "path",
             "url": "pagopa-clients/generated-clients/checkout-ec-v1/checkout-ec-client",
-            "options": { "symlink": false }
+            "options": {
+                "symlink": false
+            }
+        },
+        {
+            "type": "path",
+            "url": "pagopa-clients/generated-clients/biz-events-v1/biz-events-client",
+            "options": {
+                "symlink": false
+            }
         },
         {
             "type": "path",
             "url": "govpay-clients/generated-clients/pagamenti-v3/pagamenti-client",
-            "options": { "symlink": false }
+            "options": {
+                "symlink": false
+            }
         },
         {
             "type": "path",
             "url": "govpay-clients/generated-clients/ragioneria-v3/ragioneria-client",
-            "options": { "symlink": false }
+            "options": {
+                "symlink": false
+            }
         },
         {
             "type": "path",
             "url": "govpay-clients/generated-clients/pendenze-v2/pendenze-client",
-            "options": { "symlink": false }
+            "options": {
+                "symlink": false
+            }
         },
         {
             "type": "path",
             "url": "govpay-clients/generated-clients/backoffice-v1/backoffice-client",
-            "options": { "symlink": false }
+            "options": {
+                "symlink": false
+            }
         }
     ],
     "config": {
@@ -70,7 +96,11 @@
     },
     "scripts": {
         "start": "php -S 0.0.0.0:8080 -t backoffice/src/public",
-        "post-install-cmd": ["@dump-autoload"],
-        "post-update-cmd": ["@dump-autoload"]
+        "post-install-cmd": [
+            "@dump-autoload"
+        ],
+        "post-update-cmd": [
+            "@dump-autoload"
+        ]
     }
 }

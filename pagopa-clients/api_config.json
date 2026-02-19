@@ -3,10 +3,32 @@
     "name": "checkout-ec",
     "version": "v1",
     "package_name": "pagopa/checkout-ec-client",
-    "base_url": "https://raw.githubusercontent.com/pagopa/pagopa-api/SANP3.10.0/openapi",
+    "base_url": "https://raw.githubusercontent.com/pagopa/pagopa-api/master/openapi",
     "main_file": "checkout.json",
     "client_dir": "checkout-ec-client",
     "client_namespace": "PagoPA\\CheckoutEc",
+    "support_files": [],
+    "corrections": []
+  },
+  {
+    "name": "gpd",
+    "version": "v1",
+    "package_name": "pagopa/gpd-client",
+    "base_url": "https://raw.githubusercontent.com/pagopa/pagopa-api/master/openapi",
+    "main_file": "gpd.json",
+    "client_dir": "gpd-client",
+    "client_namespace": "PagoPA\\GPD",
+    "support_files": [],
+    "corrections": []
+  },
+  {
+    "name": "biz-events",
+    "version": "v1",
+    "package_name": "pagopa/biz-events-client",
+    "base_url": "https://raw.githubusercontent.com/pagopa/pagopa-biz-events-service/main/openapi",
+    "main_file": "openapi.json",
+    "client_dir": "biz-events-client",
+    "client_namespace": "PagoPA\\BizEvents",
     "support_files": [],
     "corrections": []
   }
