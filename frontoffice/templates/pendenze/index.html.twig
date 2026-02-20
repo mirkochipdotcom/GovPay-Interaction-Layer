@@ -39,6 +39,41 @@
       white-space: nowrap !important;
       border: 0 !important;
     }
+    /* Cart sticky bar */
+    #carrello-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 1050;
+      background: #05193d;
+      color: #fff;
+      padding: 14px 24px;
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      box-shadow: 0 -4px 24px rgba(0,0,0,.25);
+    }
+    #carrello-bar.visible { display: flex; }
+    #carrello-bar .bar-info { font-size: .95rem; }
+    #carrello-bar .bar-info strong { font-size: 1.1rem; }
+    #carrello-bar .btn-paga {
+      background: #f5a623;
+      color: #05193d;
+      font-weight: 700;
+      border: none;
+      border-radius: 999px;
+      padding: 10px 28px;
+      font-size: 1rem;
+    }
+    #carrello-bar .btn-paga:disabled { opacity: .5; cursor: not-allowed; }
+    /* Checkbox column */
+    .col-sel { width: 44px; }
+    .row-payable:hover { background: rgba(9, 26, 62, 0.03); }
+    .pendenza-checkbox { width: 18px; height: 18px; cursor: pointer; accent-color: #0062b8; }
+    .pendenza-checkbox:disabled { opacity: .4; cursor: not-allowed; }
   </style>
 {% endblock %}
 
@@ -108,6 +143,9 @@
     <div class="card shadow-sm">
       <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
         <span class="fw-semibold">Elenco</span>
+        <span class="text-muted small" id="carrello-hint" style="display:none">
+          <i class="fa-solid fa-cart-shopping me-1"></i>Seleziona fino a 5 pendenze pagabili e clicca "Paga selezionate"
+        </span>
       </div>
       <div class="card-body p-0">
         {% if items is empty %}
@@ -115,10 +153,18 @@
             <div class="alert alert-info mb-0" role="status">Nessuna pendenza trovata.</div>
           </div>
         {% else %}
+          {# Hidden form for cart POST #}
+          <form id="carrello-form" method="post" action="/carrello/checkout" style="display:none">
+            <input type="hidden" name="csrf_token" id="csrf_token_field" value="">
+          </form>
+
           <div class="table-responsive">
             <table class="table table-striped mb-0 align-middle">
               <thead>
                 <tr>
+                  <th class="col-sel">
+                    <span class="sr-only">Seleziona</span>
+                  </th>
                   <th>Numero avviso</th>
                   <th>Causale</th>
                   <th class="text-end">Importo</th>
@@ -129,7 +175,21 @@
               </thead>
               <tbody>
                 {% for p in items %}
-                  <tr>
+                  {% set is_payable = p.stato.code in ['NON_ESEGUITA', 'ESEGUITA_PARZIALE'] %}
+                  <tr class="{{ is_payable ? 'row-payable' : '' }}">
+                    <td class="col-sel text-center">
+                      {% if is_payable and p.id_pendenza %}
+                        <input
+                          class="pendenza-checkbox"
+                          type="checkbox"
+                          name="pendenze[]"
+                          value="{{ p.id_pendenza }}"
+                          data-importo="{{ p.importo is not null ? (p.importo * 100)|round(0, 'floor') : 0 }}"
+                          aria-label="Seleziona pendenza {{ p.numero_avviso|default(p.id_pendenza) }}"
+                          form="carrello-form"
+                        >
+                      {% endif %}
+                    </td>
                     <td>
                       {% if p.numero_avviso %}
                         <span class="font-monospace">{{ p.numero_avviso }}</span>
@@ -196,4 +256,78 @@
       </div>
     </div>
   </div>
+
+  {# ── Sticky Cart Bar ── #}
+  <div id="carrello-bar" role="status" aria-live="polite">
+    <div class="bar-info">
+      <i class="fa-solid fa-cart-shopping me-2"></i>
+      <strong id="bar-count">0</strong> pendenz<span id="bar-plural">a</span> selezionata<span id="bar-plural-e"></span>
+      &nbsp;·&nbsp;
+      Totale: <strong id="bar-total">€ 0,00</strong>
+    </div>
+    <div class="d-flex align-items-center gap-3">
+      <button type="button" class="btn btn-outline-light btn-sm" id="deseleziona-btn">Deseleziona tutto</button>
+      <button type="submit" form="carrello-form" class="btn-paga" id="paga-btn">
+        <i class="fa-solid fa-lock me-1"></i>Paga selezionate
+      </button>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    const MAX_SEL = 5;
+    const bar = document.getElementById('carrello-bar');
+    const hint = document.getElementById('carrello-hint');
+    const countEl = document.getElementById('bar-count');
+    const totalEl = document.getElementById('bar-total');
+    const pluralEl = document.getElementById('bar-plural');
+    const pluralEEl = document.getElementById('bar-plural-e');
+    const deselBtn = document.getElementById('deseleziona-btn');
+    const checkboxes = Array.from(document.querySelectorAll('.pendenza-checkbox'));
+
+    function formatEuro(cents) {
+      const euros = cents / 100;
+      return '€\u00a0' + euros.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    }
+
+    function update() {
+      const selected = checkboxes.filter(cb => cb.checked);
+      const count = selected.length;
+      const totalCents = selected.reduce((s, cb) => s + parseInt(cb.dataset.importo || '0', 10), 0);
+
+      countEl.textContent = count;
+      totalEl.textContent = formatEuro(totalCents);
+      pluralEl.textContent = count === 1 ? 'a' : 'e';
+      pluralEEl.textContent = count === 1 ? '' : '';
+
+      if (count > 0) {
+        bar.classList.add('visible');
+        if (hint) hint.style.display = '';
+        document.body.style.paddingBottom = '80px';
+      } else {
+        bar.classList.remove('visible');
+        document.body.style.paddingBottom = '';
+      }
+
+      // Disable unchecked boxes if limit reached
+      checkboxes.forEach(cb => {
+        if (!cb.checked) {
+          cb.disabled = count >= MAX_SEL;
+        }
+      });
+    }
+
+    checkboxes.forEach(cb => cb.addEventListener('change', update));
+
+    deselBtn?.addEventListener('click', () => {
+      checkboxes.forEach(cb => { cb.checked = false; cb.disabled = false; });
+      update();
+    });
+
+    // Show hint if any payable pendenze exist
+    if (checkboxes.length > 0 && hint) hint.style.display = '';
+
+    update();
+  })();
+  </script>
 {% endblock %}

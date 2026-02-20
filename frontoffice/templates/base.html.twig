@@ -18,6 +18,55 @@
     {% include 'partials/footer.html.twig' %}
     <script src="/assets/bootstrap-italia/js/bootstrap-italia.bundle.min.js"></script>
     <script src="/assets/js/app.js"></script>
+    <script>
+    /* ── Global Cart AJAX ── */
+    (function () {
+      function updateCartBadges(count) {
+        document.querySelectorAll('.cart-badge').forEach(function (el) {
+          el.textContent = count;
+          el.style.display = count > 0 ? '' : 'none';
+        });
+      }
+
+      var btn = document.getElementById('btn-cart-add');
+      if (btn) {
+        if (btn.dataset.added === '1') {
+          var lbl = document.getElementById('btn-cart-label');
+          if (lbl) lbl.textContent = 'Nel carrello ✓';
+          btn.disabled = true;
+        }
+
+        btn.addEventListener('click', function () {
+          var id = btn.dataset.id;
+          if (!id || btn.disabled) return;
+          btn.disabled = true;
+          var lbl = document.getElementById('btn-cart-label');
+
+          var body = new URLSearchParams({ idPendenza: id });
+          fetch('/carrello/aggiungi', {
+            method: 'POST',
+            body: body,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+          })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            if (data.error) {
+              btn.disabled = false;
+              alert(data.error);
+              return;
+            }
+            if (lbl) lbl.textContent = 'Nel carrello ✓';
+            updateCartBadges(data.count || 0);
+          })
+          .catch(function () {
+            btn.disabled = false;
+            if (lbl) lbl.textContent = 'Errore, riprova';
+          });
+        });
+      }
+    })();
+    </script>
     {% block scripts %}{% endblock %}
   </body>
 </html>
+

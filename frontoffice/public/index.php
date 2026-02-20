@@ -1479,6 +1479,153 @@ if (!function_exists('frontoffice_amount_to_cents')) {
     }
 }
 
+// ─── Session Cart Helpers ─────────────────────────────────────────────────────
+
+if (!function_exists('frontoffice_cart_items')) {
+    /**
+     * Returns the current cart items from session.
+     * Each item: ['idPendenza', 'causale', 'importo', 'numeroAvviso', 'data_scadenza', 'added_at']
+     * @return array<string, array>
+     */
+    function frontoffice_cart_items(): array
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            return [];
+        }
+        $cart = $_SESSION['frontoffice_cart'] ?? [];
+        return is_array($cart) ? $cart : [];
+    }
+}
+
+if (!function_exists('frontoffice_cart_count')) {
+    function frontoffice_cart_count(): int
+    {
+        return count(frontoffice_cart_items());
+    }
+}
+
+if (!function_exists('frontoffice_cart_add')) {
+    /**
+     * Adds a pendenza to the session cart (max 5 items).
+     * Also adds idPendenza to all relevant session whitelists.
+     * @return string|null Error message on failure, null on success.
+     */
+    function frontoffice_cart_add(string $idPendenza, array $meta): ?string
+    {
+        if ($idPendenza === '') {
+            return 'ID pendenza mancante.';
+        }
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            return 'Sessione non disponibile.';
+        }
+        if (!isset($_SESSION['frontoffice_cart']) || !is_array($_SESSION['frontoffice_cart'])) {
+            $_SESSION['frontoffice_cart'] = [];
+        }
+        // Already in cart
+        if (isset($_SESSION['frontoffice_cart'][$idPendenza])) {
+            return null; // idempotent
+        }
+        if (count($_SESSION['frontoffice_cart']) >= 5) {
+            return 'Puoi aggiungere al massimo 5 avvisi al carrello.';
+        }
+        $_SESSION['frontoffice_cart'][$idPendenza] = [
+            'idPendenza'   => $idPendenza,
+            'causale'      => mb_substr(trim((string)($meta['causale'] ?? '')), 0, 140),
+            'importo'      => is_numeric($meta['importo'] ?? null) ? (float)$meta['importo'] : null,
+            'numeroAvviso' => preg_replace('/\D+/', '', trim((string)($meta['numeroAvviso'] ?? ''))),
+            'data_scadenza'=> $meta['dataScadenza'] ?? $meta['data_scadenza'] ?? null,
+            'added_at'     => time(),
+        ];
+        // Sync to whitelist keys so /carrello/checkout can authorize
+        foreach (['frontoffice_pendenze_whitelist', 'frontoffice_avviso_pendenze', 'frontoffice_spontaneo_pendenze'] as $key) {
+            $list = isset($_SESSION[$key]) && is_array($_SESSION[$key]) ? $_SESSION[$key] : [];
+            if (!in_array($idPendenza, $list, true)) {
+                $list[] = $idPendenza;
+                $_SESSION[$key] = array_slice($list, -100);
+            }
+        }
+        return null;
+    }
+}
+
+if (!function_exists('frontoffice_cart_remove')) {
+    function frontoffice_cart_remove(string $idPendenza): void
+    {
+        if (session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['frontoffice_cart'][$idPendenza])) {
+            unset($_SESSION['frontoffice_cart'][$idPendenza]);
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+
+
+if (!function_exists('frontoffice_build_cart_request')) {
+    /**
+     * Builds a CartRequest for the PagoPA Checkout EC API from an array of resolved pendenza details.
+     *
+     * @param array[] $pendenzaDetails Array of pendenza detail arrays (already fetched from GovPay).
+     * @param string  $idDominio       The organisation fiscal code used as PaymentNotice.fiscalCode.
+     * @param string  $returnOkUrl
+     * @param string  $returnCancelUrl
+     * @param string  $returnErrorUrl
+     * @param string  $emailNotice     Optional payer email.
+     * @return \PagoPA\CheckoutEc\Model\CartRequest
+     */
+    function frontoffice_build_cart_request(
+        array $pendenzaDetails,
+        string $idDominio,
+        string $returnOkUrl,
+        string $returnCancelUrl,
+        string $returnErrorUrl,
+        string $emailNotice = ''
+    ): \PagoPA\CheckoutEc\Model\CartRequest {
+        $companyName = trim(frontoffice_env_value('PAGOPA_CHECKOUT_COMPANY_NAME', frontoffice_env_value('APP_ENTITY_NAME', 'Ente')));
+        if ($companyName === '') {
+            $companyName = 'Ente';
+        }
+
+        $notices = [];
+        foreach (array_slice($pendenzaDetails, 0, 5) as $detail) {
+            $numeroAvviso = preg_replace('/\D+/', '', trim((string)($detail['numeroAvviso'] ?? '')));
+            $importo = $detail['importo'] ?? null;
+            $amountCents = frontoffice_amount_to_cents(is_numeric($importo) ? (float)$importo : 0.0);
+            $description = trim((string)($detail['causale'] ?? ''));
+
+            if ($numeroAvviso === '' || $amountCents <= 0) {
+                continue;
+            }
+
+            $notice = new \PagoPA\CheckoutEc\Model\PaymentNotice();
+            $notice->setNoticeNumber($numeroAvviso);
+            $notice->setFiscalCode($idDominio);
+            $notice->setAmount($amountCents);
+            $notice->setCompanyName($companyName);
+            if ($description !== '') {
+                $notice->setDescription(mb_substr($description, 0, 140));
+            }
+            $notices[] = $notice;
+        }
+
+        $returnUrls = new \PagoPA\CheckoutEc\Model\CartRequestReturnUrls();
+        $returnUrls->setReturnOkUrl($returnOkUrl);
+        $returnUrls->setReturnCancelUrl($returnCancelUrl);
+        $returnUrls->setReturnErrorUrl($returnErrorUrl);
+
+        $cart = new \PagoPA\CheckoutEc\Model\CartRequest();
+        $cart->setPaymentNotices($notices);
+        $cart->setReturnUrls($returnUrls);
+
+        if ($emailNotice !== '' && filter_var($emailNotice, FILTER_VALIDATE_EMAIL) !== false) {
+            $cart->setEmailNotice($emailNotice);
+        }
+
+        return $cart;
+    }
+}
+
+
 if (!function_exists('frontoffice_pagopa_checkout_api_client')) {
     function frontoffice_pagopa_checkout_api_client(): ?\PagoPA\CheckoutEc\Api\DefaultApi
     {
@@ -2010,7 +2157,29 @@ $routes = [
         ];
     },
     '/checkout/ok' => static function (): array {
+        // Support both single-pendenza (idPendenza) and multi-notice cart (idCart) flows.
+        $idCart = trim((string)($_GET['idCart'] ?? ''));
         $idPendenza = trim((string)($_GET['idPendenza'] ?? $_GET['id_pendenza'] ?? ''));
+
+        // Multi-notice cart path
+        if ($idCart !== '') {
+            $cartIds = (isset($_SESSION['frontoffice_carrello'][$idCart]) && is_array($_SESSION['frontoffice_carrello'][$idCart]))
+                ? $_SESSION['frontoffice_carrello'][$idCart]
+                : [];
+            $numeroAvvisi = max(count($cartIds), 1);
+
+            return [
+                'template' => 'checkout/ok.html.twig',
+                'context' => [
+                    'numero_avvisi' => $numeroAvvisi,
+                    'detail_path' => '/pendenze',
+                    'login_path' => '/login?return_to=%2Fpendenze',
+                    'is_logged_in' => frontoffice_get_logged_user() !== null,
+                ],
+            ];
+        }
+
+        // Single-pendenza path (original behavior)
         $detailPath = $idPendenza !== '' ? ('/pendenze/' . rawurlencode($idPendenza)) : '/pendenze';
 
         $numeroAvviso = null;
@@ -2035,6 +2204,7 @@ $routes = [
             ],
         ];
     },
+
     '/checkout/cancel' => static function (): array {
         $idPendenza = trim((string)($_GET['idPendenza'] ?? $_GET['id_pendenza'] ?? ''));
         $detailPath = $idPendenza !== '' ? ('/pendenze/' . rawurlencode($idPendenza)) : '/pendenze';
@@ -3046,6 +3216,18 @@ $routes = [
             ];
         }
 
+        // Populate session whitelist so /carrello/checkout can authorize these pendenze.
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            $fetchedIds = array_values(array_filter(array_map(static fn ($r) => $r['id_pendenza'] ?? '', $rows), static fn ($v) => $v !== ''));
+            $key = 'frontoffice_pendenze_whitelist';
+            $existing = isset($_SESSION[$key]) && is_array($_SESSION[$key]) ? $_SESSION[$key] : [];
+            $merged = array_values(array_unique(array_merge($existing, $fetchedIds)));
+            if (count($merged) > 100) {
+                $merged = array_slice($merged, -100);
+            }
+            $_SESSION[$key] = $merged;
+        }
+
         return [
             'template' => 'pendenze/index.html.twig',
             'context' => [
@@ -3065,6 +3247,7 @@ $routes = [
         ];
     },
 ];
+
 
 $routeDefinition = null;
 
@@ -3612,12 +3795,193 @@ if ($method === 'GET' && preg_match('#^/pendenze/([^/]+)/checkout$#', $normalize
     }
 }
 
+// ─── POST /carrello/checkout ─────────────────────────────────────────────────
+// Multi-pendenza cart checkout via PagoPA Checkout EC API (POST /carts).
+// Disponibile anche per utenti non loggati (guest); l'autorizzazione si basa
+// sulla whitelist di sessione. Se l'utente è loggato si verifica anche il CF.
+if ($method === 'POST' && $normalizedPath === '/carrello/checkout') {
+    $idDominio = frontoffice_env_value('ID_DOMINIO', '');
+    if ($idDominio === '') {
+        http_response_code(503);
+        echo 'Configurazione mancante: ID_DOMINIO non impostato.';
+        return;
+    }
+
+    $loggedUser = frontoffice_get_logged_user();
+    $loggedCf   = $loggedUser !== null ? frontoffice_get_logged_user_fiscal_number() : '';
+
+    // Parse selected idPendenza[] from POST body
+    $rawIds = $_POST['pendenze'] ?? [];
+    if (!is_array($rawIds)) {
+        $rawIds = [$rawIds];
+    }
+    $rawIds = array_values(array_unique(array_filter(array_map('strval', $rawIds), static fn ($v) => trim($v) !== '')));
+
+    if (count($rawIds) === 0) {
+        http_response_code(400);
+        echo 'Seleziona almeno una pendenza da pagare.';
+        return;
+    }
+    if (count($rawIds) > 5) {
+        http_response_code(400);
+        echo 'Puoi pagare al massimo 5 pendenze contemporaneamente.';
+        return;
+    }
+
+    // Whitelist di sessione: aggrega tutte le sorgenti note (pendenze login, avviso guest, spontaneo guest).
+    $whitelistKeys = ['frontoffice_pendenze_whitelist', 'frontoffice_avviso_pendenze', 'frontoffice_spontaneo_pendenze'];
+    $whitelist = [];
+    foreach ($whitelistKeys as $k) {
+        if (isset($_SESSION[$k]) && is_array($_SESSION[$k])) {
+            $whitelist = array_merge($whitelist, $_SESSION[$k]);
+        }
+    }
+    $whitelist = array_values(array_unique(array_map('strval', $whitelist)));
+
+    foreach ($rawIds as $pid) {
+        if (!in_array($pid, $whitelist, true)) {
+            Logger::getInstance()->warning('Cart checkout: idPendenza non in whitelist', ['idPendenza' => $pid]);
+            http_response_code(403);
+            echo 'Le pendenze selezionate non sono autorizzate per il pagamento. Torna alla lista e riprova.';
+            return;
+        }
+    }
+
+    // Resolve each pendenza detail
+    $pendenzaDetails = [];
+    foreach ($rawIds as $pid) {
+        $detail = frontoffice_fetch_pagamenti_detail($pid);
+        if (!$detail) {
+            http_response_code(404);
+            echo 'Una delle pendenze selezionate non è stata trovata. Aggiorna la pagina e riprova.';
+            return;
+        }
+
+        // Se l'utente è loggato verifica che la pendenza appartenga al suo CF.
+        if ($loggedCf !== '' && !frontoffice_pendenza_belongs_to_cf($detail, $loggedCf)) {
+            http_response_code(403);
+            echo 'Una delle pendenze selezionate non appartiene al tuo account.';
+            return;
+        }
+
+        // Must be payable
+        $state = strtoupper((string)($detail['stato'] ?? ''));
+        if (!frontoffice_is_pendenza_payable($state)) {
+            http_response_code(422);
+            echo 'Una delle pendenze selezionate non è più pagabile. Aggiorna la pagina e riprova.';
+            return;
+        }
+
+        // Must have a valid numero avviso and positive amount
+        $numeroAvviso = preg_replace('/\D+/', '', trim((string)($detail['numeroAvviso'] ?? '')));
+        $importo = $detail['importo'] ?? null;
+        $amountCents = frontoffice_amount_to_cents(is_numeric($importo) ? (float)$importo : 0.0);
+        if ($numeroAvviso === '' || $amountCents <= 0) {
+            http_response_code(422);
+            echo 'Una delle pendenze non ha un numero avviso o importo valido.';
+            return;
+        }
+
+        $pendenzaDetails[] = $detail;
+    }
+
+    // Check checkout client availability
+    if (!class_exists(\PagoPA\CheckoutEc\Api\DefaultApi::class) ||
+        trim(frontoffice_env_value('PAGOPA_CHECKOUT_SUBSCRIPTION_KEY', '')) === '') {
+        http_response_code(503);
+        echo 'Checkout pagoPA non configurato.';
+        Logger::getInstance()->warning('Carrello: checkout pagoPA non configurato');
+        return;
+    }
+
+    $api = frontoffice_pagopa_checkout_api_client();
+    if ($api === null) {
+        http_response_code(503);
+        echo 'Checkout pagoPA non disponibile.';
+        return;
+    }
+
+    // Generate a cart ID and store mapping in session for the OK page
+    try {
+        $idCart = bin2hex(random_bytes(8));
+    } catch (\Throwable $e) {
+        $idCart = md5(implode('-', $rawIds) . microtime(true));
+    }
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        $_SESSION['frontoffice_carrello'][$idCart] = $rawIds;
+    }
+
+    // Build return URLs (pass idCart so /checkout/ok can show a multi-notice summary)
+    $okUrl     = $frontofficeBaseUrl . '/checkout/ok?idCart=' . rawurlencode($idCart);
+    $cancelUrl = $frontofficeBaseUrl . '/checkout/cancel?idCart=' . rawurlencode($idCart);
+    $errorUrl  = $frontofficeBaseUrl . '/checkout/error?idCart=' . rawurlencode($idCart);
+
+    // Get email from logged-in user for notice (empty string if guest)
+    $emailNotice = $loggedUser !== null ? trim((string)($loggedUser['email'] ?? '')) : '';
+
+
+    try {
+        $cart = frontoffice_build_cart_request(
+            $pendenzaDetails,
+            $idDominio,
+            $okUrl,
+            $cancelUrl,
+            $errorUrl,
+            $emailNotice
+        );
+
+        [, $statusCode, $headers] = $api->postCartsWithHttpInfo($cart);
+
+        $location = '';
+        if (is_array($headers)) {
+            foreach ($headers as $name => $values) {
+                if (strtolower((string)$name) !== 'location') {
+                    continue;
+                }
+                $location = is_array($values) && isset($values[0]) ? trim($values[0]) : '';
+                break;
+            }
+        }
+
+        if ($location === '' || $statusCode < 300 || $statusCode >= 400) {
+            Logger::getInstance()->warning('Carrello: risposta inattesa da POST /carts', [
+                'idCart'   => $idCart,
+                'status'   => $statusCode,
+                'location' => $location,
+            ]);
+            http_response_code(503);
+            echo 'Al momento non riusciamo ad avviare il pagamento. Riprova più tardi.';
+            return;
+        }
+
+        Logger::getInstance()->info('Carrello pagoPA avviato', [
+            'idCart'   => $idCart,
+            'count'    => count($pendenzaDetails),
+            'pendenze' => $rawIds,
+        ]);
+
+        header('Location: ' . $location, true, 302);
+        exit;
+    } catch (\Throwable $e) {
+        Logger::getInstance()->warning('Errore durante la creazione del carrello pagoPA', [
+            'idCart' => $idCart,
+            'error'  => Logger::sanitizeErrorForDisplay($e->getMessage()),
+        ]);
+        http_response_code(503);
+        echo 'Al momento non riusciamo ad avviare il pagamento. Riprova più tardi.';
+        return;
+    }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+
 if ($method === 'GET' && preg_match('#^/pendenze/([^/]+)/ricevuta$#', $normalizedPath, $match)) {
     if (!frontoffice_spid_enabled()) {
         http_response_code(404);
         echo 'Not found';
         return;
     }
+
 
     $user = frontoffice_get_logged_user();
     if ($user === null) {
@@ -3787,9 +4151,118 @@ if ($method === 'GET' && preg_match('#^/pendenze/([^/]+)$#', $normalizedPath, $m
     }
 }
 
+// ─── POST /carrello/aggiungi (AJAX) ──────────────────────────────────────────
+if ($method === 'POST' && $normalizedPath === '/carrello/aggiungi') {
+    header('Content-Type: application/json; charset=utf-8');
+    $idPendenza = trim((string)($_POST['idPendenza'] ?? ''));
+    if ($idPendenza === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'idPendenza mancante.'], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+
+    // Whitelist check: idPendenza must have been served to this session
+    $whitelistKeys = ['frontoffice_pendenze_whitelist', 'frontoffice_avviso_pendenze', 'frontoffice_spontaneo_pendenze'];
+    $whitelist = [];
+    foreach ($whitelistKeys as $k) {
+        if (isset($_SESSION[$k]) && is_array($_SESSION[$k])) {
+            $whitelist = array_merge($whitelist, $_SESSION[$k]);
+        }
+    }
+    if (!in_array($idPendenza, array_map('strval', $whitelist), true)) {
+        http_response_code(403);
+        echo json_encode(['error' => 'Pendenza non autorizzata.'], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+
+    // Resolve detail to populate cart metadata
+    $detail = frontoffice_fetch_pagamenti_detail($idPendenza);
+    if (!$detail) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Pendenza non trovata.'], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+
+    $state = strtoupper((string)($detail['stato'] ?? ''));
+    if (!frontoffice_is_pendenza_payable($state)) {
+        http_response_code(422);
+        echo json_encode(['error' => 'La pendenza non è pagabile.'], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+
+    $err = frontoffice_cart_add($idPendenza, $detail);
+    if ($err !== null) {
+        http_response_code(422);
+        echo json_encode(['error' => $err], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+
+    $items = frontoffice_cart_items();
+    $totalCents = 0;
+    foreach ($items as $item) {
+        $totalCents += frontoffice_amount_to_cents((float)($item['importo'] ?? 0.0));
+    }
+    echo json_encode([
+        'count'       => count($items),
+        'total_cents' => $totalCents,
+    ], JSON_UNESCAPED_UNICODE);
+    return;
+}
+
+// ─── POST /carrello/rimuovi (AJAX) ───────────────────────────────────────────
+if ($method === 'POST' && $normalizedPath === '/carrello/rimuovi') {
+    header('Content-Type: application/json; charset=utf-8');
+    $idPendenza = trim((string)($_POST['idPendenza'] ?? ''));
+    if ($idPendenza !== '') {
+        frontoffice_cart_remove($idPendenza);
+    }
+    $items = frontoffice_cart_items();
+    $totalCents = 0;
+    foreach ($items as $item) {
+        $totalCents += frontoffice_amount_to_cents((float)($item['importo'] ?? 0.0));
+    }
+    echo json_encode([
+        'count'       => count($items),
+        'total_cents' => $totalCents,
+    ], JSON_UNESCAPED_UNICODE);
+    return;
+}
+
+// ─── GET /carrello ────────────────────────────────────────────────────────────
+if ($method === 'GET' && $normalizedPath === '/carrello') {
+    $items = frontoffice_cart_items();
+    // Build display rows enriching with up-to-date amounts
+    $rows = [];
+    $totalCents = 0;
+    foreach ($items as $pid => $item) {
+        $cents = frontoffice_amount_to_cents((float)($item['importo'] ?? 0.0));
+        $totalCents += $cents;
+        $rows[] = [
+            'id_pendenza'   => $pid,
+            'causale'       => $item['causale'] ?? '',
+            'importo'       => $item['importo'],
+            'importo_cents' => $cents,
+            'numero_avviso' => $item['numeroAvviso'] ?? '',
+            'data_scadenza' => $item['data_scadenza'] ?? null,
+        ];
+    }
+    $routeDefinition = [
+        'template' => 'carrello/index.html.twig',
+        'context'  => [
+            'cart_items'   => $rows,
+            'total_cents'  => $totalCents,
+            'total_euro'   => $totalCents / 100,
+            'can_checkout' => count($rows) > 0 && class_exists(\PagoPA\CheckoutEc\Api\DefaultApi::class) &&
+                              trim(frontoffice_env_value('PAGOPA_CHECKOUT_SUBSCRIPTION_KEY', '')) !== '',
+        ],
+    ];
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 if ($routeDefinition === null) {
     $routeDefinition = $routes[$normalizedPath] ?? null;
 }
+
 if ($routeDefinition === null) {
     http_response_code(404);
     $route = [
@@ -3841,6 +4314,7 @@ $baseContext = [
     'support_phone' => $env('FRONTOFFICE_SUPPORT_PHONE', '800.000.000'),
     'support_hours' => $env('FRONTOFFICE_SUPPORT_HOURS', 'Lun-Ven 8:30-17:30'),
     'support_location' => $env('FRONTOFFICE_SUPPORT_LOCATION', 'Palazzo Municipale, piano terra<br>Martedì e Giovedì 9:00-12:30 / 15:00-17:00'),
+    'cart_count' => frontoffice_cart_count(),
 ];
 
 $context = array_merge(

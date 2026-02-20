@@ -147,6 +147,20 @@
                         <a class="nav-link {{ in_pendenze ? 'active' : '' }}" href="/pendenze"><span>Le mie pendenze</span></a>
                       </li>
                     {% endif %}
+                    {% set in_carrello = current_path starts with '/carrello' %}
+                    <li class="nav-item">
+                      <a class="nav-link {{ in_carrello ? 'active' : '' }}" href="/carrello" aria-label="Carrello ({{ cart_count|default(0) }} avvisi)">
+                        <span>
+                          Carrello
+                          {% if cart_count|default(0) > 0 %}
+                            <span class="badge bg-warning text-dark ms-1 cart-badge">{{ cart_count }}</span>
+                          {% else %}
+                            <span class="badge bg-warning text-dark ms-1 cart-badge" style="display:none">0</span>
+                          {% endif %}
+                        </span>
+                      </a>
+                    </li>
+
                   </ul>
                 </div>
               </div>

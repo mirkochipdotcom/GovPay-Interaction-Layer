@@ -2,81 +2,36 @@
 
 {% block head %}
   <style>
-    body {
-      background: #f4f6fb;
-    }
+    body { background: #f4f6fb; }
     .hero-banner {
       background: linear-gradient(135deg, #05193d 0%, #003a6d 50%, #0062b8 100%);
       color: #fff;
     }
-    .hero-banner .btn {
-      font-weight: 600;
-      border-radius: 999px;
-    }
-    .service-section {
-      padding: 4rem 0;
-    }
+    .hero-banner .btn { font-weight: 600; border-radius: 999px; }
+    .service-section { padding: 4rem 0; }
     .action-card {
-      display: block;
-      height: 100%;
-      padding: 2rem;
-      border-radius: 24px;
-      border: 1px solid rgba(255,255,255,0.2);
-      background: rgba(255,255,255,0.1);
-      color: #fff;
-      text-decoration: none;
+      display: block; height: 100%; padding: 2rem; border-radius: 24px;
+      border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.1);
+      color: #fff; text-decoration: none;
       transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
     }
-    .action-card:hover {
-      transform: translateY(-6px);
-      box-shadow: 0 20px 50px rgba(5,25,61,0.2);
-      background: rgba(255,255,255,0.18);
-    }
-    .action-card h3 {
-      color: #fff;
-      margin-bottom: 0.75rem;
-    }
-    .action-card p {
-      color: rgba(255,255,255,0.85);
-      margin-bottom: 1.25rem;
-    }
-    .service-card {
-      border-radius: 24px;
-      border: none;
-      box-shadow: 0 25px 60px rgba(9, 26, 62, 0.08);
-      padding: 2.5rem;
-      height: 100%;
-    }
+    .action-card:hover { transform: translateY(-6px); box-shadow: 0 20px 50px rgba(5,25,61,0.2); background: rgba(255,255,255,0.18); }
+    .action-card h3 { color: #fff; margin-bottom: 0.75rem; }
+    .action-card p { color: rgba(255,255,255,0.85); margin-bottom: 1.25rem; }
+    .service-card { border-radius: 24px; border: none; box-shadow: 0 25px 60px rgba(9,26,62,0.08); padding: 2.5rem; height: 100%; }
     .service-card .icon-wrapper {
-      width: 60px;
-      height: 60px;
-      border-radius: 16px;
-      background: rgba(0, 95, 204, 0.1);
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      margin-bottom: 1.5rem;
+      width: 60px; height: 60px; border-radius: 16px; background: rgba(0,95,204,0.1);
+      display: inline-flex; align-items: center; justify-content: center; margin-bottom: 1.5rem;
     }
-    .service-card .icon-wrapper svg {
-      width: 28px;
-      height: 28px;
-      fill: #005fcc;
+    .service-card .icon-wrapper svg { width: 28px; height: 28px; fill: #005fcc; }
+    .cta-list li { margin-bottom: 0.5rem; padding-left: 1.25rem; position: relative; }
+    .cta-list li::before { content: '\2022'; position: absolute; left: 0; color: #005fcc; font-weight: bold; }
+    .cart-card {
+      border-radius: 24px; border: 2px solid #f5a623;
+      background: linear-gradient(135deg, #05193d, #004a96);
+      color: #fff; padding: 2.5rem; height: 100%;
     }
-    .cta-list li {
-      margin-bottom: 0.5rem;
-      padding-left: 1.25rem;
-      position: relative;
-    }
-    .cta-list li::before {
-      content: '\2022';
-      position: absolute;
-      left: 0;
-      color: #005fcc;
-      font-weight: bold;
-    }
-    footer.it-footer {
-      background: #05193d;
-    }
+    footer.it-footer { background: #05193d; }
   </style>
 {% endblock %}
 
@@ -87,10 +42,16 @@
         <div class="col-lg-7">
           <p class="text-uppercase small mb-2 text-white-50">Sportello digitale</p>
           <h1 class="display-5 fw-semibold mb-3">Gestisci i pagamenti PagoPA con pochi clic</h1>
-          <p class="lead mb-4">Paga un avviso, genera un pagamento spontaneo oppure consulta le tue pendenze e scarica le ricevute dei pagamenti effettuati.</p>
+          <p class="lead mb-4">Cerca un avviso, generalo spontaneamente, aggiungilo al carrello e paga fino a 5 pendenze insieme — tutto senza fare code.</p>
           <div class="d-flex flex-wrap gap-3">
             <a class="btn btn-warning btn-lg text-dark" href="/pagamento-avviso">Paga un avviso</a>
             <a class="btn btn-outline-light btn-lg" href="/pagamento-spontaneo">Pagamento spontaneo</a>
+            <a class="btn btn-outline-light btn-lg" href="/carrello">
+              <i class="fa-solid fa-cart-shopping me-1"></i>Carrello
+              {% if cart_count|default(0) > 0 %}
+                <span class="badge bg-warning text-dark ms-1">{{ cart_count }}</span>
+              {% endif %}
+            </a>
             {% if spid_enabled %}
               <a class="btn btn-outline-light btn-lg" href="/pendenze">Le mie pendenze</a>
             {% endif %}
@@ -101,11 +62,9 @@
             <h2 class="h5 text-uppercase text-muted">Cosa ti serve</h2>
             <ul class="cta-list list-unstyled mb-0">
               <li>Codice avviso o IUV riportato sulla comunicazione ricevuta</li>
-              <li>Codice fiscale o partita IVA del soggetto a cui e' intestato l'avviso</li>
-              <li>Metodo di pagamento PagoPA (carta, conto, app o home banking)</li>
-              {% if spid_enabled %}
-                <li>SPID o CIE per accedere alle tue pendenze e alle ricevute</li>
-              {% endif %}
+              <li>Codice fiscale o partita IVA del soggetto intestatario</li>
+              <li>Metodo di pagamento PagoPA (carta, conto, app, home banking)</li>
+              {{ spid_enabled ? '<li>SPID o CIE per accedere alle tue pendenze e ricevute</li>' }}
             </ul>
           </div>
         </div>
@@ -122,10 +81,10 @@
               <svg aria-hidden="true"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-card"></use></svg>
             </div>
             <h2 class="h3 mb-3">Paga un avviso ricevuto</h2>
-            <p class="mb-4">Inserisci il codice avviso/IUV e il codice fiscale o la partita IVA per procedere subito con il pagamento di una posizione debitoria gia' emessa dall'ente.</p>
+            <p class="mb-4">Inserisci il codice avviso/IUV e il codice fiscale. Puoi pagarlo subito, scaricarlo come PDF o aggiungerlo al carrello per pagare più avvisi insieme.</p>
             <ul class="cta-list list-unstyled mb-4">
               <li>Verifica importo e scadenza direttamente online</li>
-              <li>Scegli il canale PagoPA preferito</li>
+              <li>Scegli: <strong>Paga subito</strong>, <strong>Aggiungi al carrello</strong> o <strong>Stampa PDF</strong></li>
               <li>Ricevi ricevuta digitale immediata</li>
             </ul>
             <div class="d-flex gap-3 flex-wrap">
@@ -138,9 +97,9 @@
           <div class="p-4 p-lg-5 rounded-4 bg-primary text-white h-100 d-flex flex-column justify-content-center">
             <h3 class="h4 mb-3">Paghi da smartphone o computer</h3>
             {% if spid_enabled %}
-              <p class="mb-0">Accedi con SPID/CIE sui canali abilitati PagoPA oppure completa il pagamento con carta e wallet digitali. Lo stato dell'avviso sara' aggiornato automaticamente senza dover presentare ricevute agli sportelli.</p>
+              <p class="mb-0">Accedi con SPID/CIE oppure procedi senza login. Completa il pagamento con carta e wallet digitali: lo stato dell'avviso si aggiorna automaticamente.</p>
             {% else %}
-              <p class="mb-0">Completa il pagamento con carta e wallet digitali. Lo stato dell'avviso sara' aggiornato automaticamente senza dover presentare ricevute agli sportelli.</p>
+              <p class="mb-0">Completa il pagamento con carta e wallet digitali. Lo stato dell'avviso sarà aggiornato automaticamente senza dover presentare ricevute agli sportelli.</p>
             {% endif %}
           </div>
         </div>
@@ -157,11 +116,11 @@
               <svg aria-hidden="true"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-pencil"></use></svg>
             </div>
             <h2 class="h3 mb-3">Genera un pagamento spontaneo</h2>
-            <p class="mb-4">Non hai ricevuto un avviso ma devi corrispondere un importo all'ente? Compila il modulo guidato e ottieni immediatamente un codice avviso PagoPA.</p>
+            <p class="mb-4">Non hai ricevuto un avviso ma devi pagare un importo all'ente? Compila il modulo e ottieni subito un codice avviso PagoPA — poi puoi pagarlo o aggiungerlo al carrello.</p>
             <ul class="cta-list list-unstyled mb-4">
               <li>Seleziona servizio o causale</li>
               <li>Compila i dati anagrafici e l'importo</li>
-              <li>Scarica l'avviso o paga subito online</li>
+              <li>Scegli: <strong>Paga subito</strong>, <strong>Aggiungi al carrello</strong> o <strong>Stampa PDF</strong></li>
             </ul>
             <div class="d-flex gap-3 flex-wrap">
               <a class="btn btn-primary" href="/pagamento-spontaneo" role="button">Genera avviso</a>
@@ -171,8 +130,47 @@
         </div>
         <div class="col-lg-6 order-lg-1">
           <div class="p-4 p-lg-5 rounded-4 bg-dark text-white h-100 d-flex flex-column justify-content-center">
-            <h3 class="h4 mb-3">Servizi piu' richiesti</h3>
-            <p class="mb-0">Mensa scolastica, retta degli asili, concessioni, diritti di segreteria, multe: raccogliamo tutto in un'unica procedura guidata per ridurre code e tempi allo sportello.</p>
+            <h3 class="h4 mb-3">Servizi più richiesti</h3>
+            <p class="mb-0">Mensa scolastica, retta degli asili, concessioni, diritti di segreteria, multe: tutto in un'unica procedura guidata per ridurre code e tempi allo sportello.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {# ── Sezione Carrello ── #}
+  <section id="carrello" class="service-section">
+    <div class="container-xxl">
+      <div class="row align-items-center g-4">
+        <div class="col-lg-6">
+          <div class="cart-card">
+            <p class="text-uppercase small mb-2" style="color:#f5a623">Novità</p>
+            <h2 class="h3 mb-3">
+              <i class="fa-solid fa-cart-shopping me-2"></i>Carrello multi-pagamento
+            </h2>
+            <p class="mb-4" style="color:rgba(255,255,255,0.85)">Aggiungi fino a <strong>5 avvisi</strong> al carrello — trovati dalla ricerca o generati spontaneamente — e pagali tutti in un'unica sessione PagoPA.</p>
+            <ul class="cta-list list-unstyled mb-4" style="color:rgba(255,255,255,0.85)">
+              <li>nessun login obbligatorio per pagamenti semplici</li>
+              <li>badge nella barra di navigazione sempre aggiornato</li>
+              <li>un solo redirect a PagoPA per tutti gli avvisi</li>
+            </ul>
+            <a class="btn btn-warning text-dark fw-bold" href="/carrello">
+              Vai al carrello
+              {% if cart_count|default(0) > 0 %}
+                <span class="badge bg-dark text-white ms-1">{{ cart_count }}</span>
+              {% endif %}
+            </a>
+          </div>
+        </div>
+        <div class="col-lg-6">
+          <div class="p-4 p-lg-5 rounded-4 bg-white border h-100 d-flex flex-column justify-content-center">
+            <h3 class="h4 mb-3">Come funziona il carrello</h3>
+            <ol class="ps-3 mb-0">
+              <li class="mb-2">Cerca un avviso o genera un pagamento spontaneo.</li>
+              <li class="mb-2">Clicca <strong>Aggiungi al carrello</strong> sul risultato trovato.</li>
+              <li class="mb-2">Ripeti per ogni avviso che vuoi pagare (fino a 5).</li>
+              <li>Apri il <a href="/carrello">Carrello</a> e clicca <strong>Procedi al pagamento</strong>.</li>
+            </ol>
           </div>
         </div>
       </div>

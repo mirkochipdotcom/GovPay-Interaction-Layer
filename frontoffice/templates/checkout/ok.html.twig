@@ -7,8 +7,12 @@
     <div class="row justify-content-center">
       <div class="col-lg-8">
         <div class="alert alert-success" role="alert">
-          <h1 class="h4 mb-2">Operazione completata</h1>
-          <p class="mb-0">Il pagamento è stato confermato dal Checkout pagoPA. Lo stato potrebbe aggiornarsi entro qualche minuto.</p>
+          <h1 class="h4 mb-2">Pagamento completato</h1>
+          {% if numero_avvisi is defined and numero_avvisi > 1 %}
+            <p class="mb-0">Hai pagato <strong>{{ numero_avvisi }} avvisi</strong> tramite il Checkout pagoPA. Lo stato potrebbe aggiornarsi entro qualche minuto.</p>
+          {% else %}
+            <p class="mb-0">Il pagamento è stato confermato dal Checkout pagoPA. Lo stato potrebbe aggiornarsi entro qualche minuto.</p>
+          {% endif %}
         </div>
 
         {% if numero_avviso %}
@@ -16,12 +20,16 @@
         {% endif %}
 
         <div class="d-flex flex-wrap gap-3 mt-4">
-          {% if spid_enabled and (not is_logged_in) %}
-            <a class="btn btn-primary" href="{{ login_path }}">Accedi per vedere lo stato</a>
+          {% if numero_avvisi is defined and numero_avvisi > 1 %}
+            <a class="btn btn-primary" href="/pendenze">Le mie pendenze</a>
           {% else %}
-            <a class="btn btn-primary" href="{{ detail_path }}">Vai alla pendenza</a>
+            {% if spid_enabled and (not is_logged_in) %}
+              <a class="btn btn-primary" href="{{ login_path }}">Accedi per vedere lo stato</a>
+            {% else %}
+              <a class="btn btn-primary" href="{{ detail_path }}">Vai alla pendenza</a>
+            {% endif %}
+            <a class="btn btn-outline-primary" href="/pendenze">Le mie pendenze</a>
           {% endif %}
-          <a class="btn btn-outline-primary" href="/pendenze">Le mie pendenze</a>
           <a class="btn btn-outline-secondary" href="/">Torna alla home</a>
         </div>
 

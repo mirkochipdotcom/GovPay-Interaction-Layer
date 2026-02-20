@@ -1,0 +1,202 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Il mio carrello – {{ app_entity.name }}{% endblock %}
+
+{% block head %}
+<style>
+  body { background: #f4f6fb; }
+  .cart-hero {
+    background: linear-gradient(135deg, #05193d 0%, #003a6d 50%, #0062b8 100%);
+    color: #fff;
+    border-radius: 24px;
+    box-shadow: 0 25px 60px rgba(9,26,62,.12);
+  }
+  .cart-card {
+    border-radius: 20px;
+    border: none;
+    box-shadow: 0 20px 50px rgba(9,26,62,.08);
+  }
+  .total-bar {
+    border-radius: 16px;
+    background: linear-gradient(90deg, #05193d, #0062b8);
+    color: #fff;
+  }
+  .btn-checkout {
+    background: #f5a623;
+    color: #05193d;
+    font-weight: 700;
+    border: none;
+    border-radius: 999px;
+    padding: 0.75rem 2rem;
+    font-size: 1.05rem;
+  }
+  .btn-remove { color: #dc3545; border: none; background: transparent; }
+  .btn-remove:hover { color: #a71c2a; }
+</style>
+{% endblock %}
+
+{% set items = cart_items|default([]) %}
+
+{% block content %}
+<div class="container-xxl py-4">
+  <nav aria-label="Percorso" class="mb-3">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="/">Home</a></li>
+      <li class="breadcrumb-item active" aria-current="page">Carrello</li>
+    </ol>
+  </nav>
+
+  <div class="cart-hero p-4 p-lg-5 mb-4">
+    <p class="text-uppercase small mb-2 text-white-50">Pagamento multiplo</p>
+    <h1 class="h3 mb-1">
+      <i class="fa-solid fa-cart-shopping me-2"></i>
+      Il mio carrello
+    </h1>
+    <p class="text-white-50 mb-0">Qui trovi gli avvisi che hai aggiunto. Puoi rimuoverli o procedere al pagamento in un'unica sessione PagoPA.</p>
+  </div>
+
+  {% if items is empty %}
+    <div class="card cart-card p-4 text-center py-5">
+      <div class="mb-3 fs-1 text-muted"><i class="fa-solid fa-cart-shopping"></i></div>
+      <h2 class="h5 mb-2">Il carrello è vuoto</h2>
+      <p class="text-muted">Cerca un avviso o genera un pagamento spontaneo per aggiungere avvisi al carrello.</p>
+      <div class="d-flex gap-2 justify-content-center">
+        <a class="btn btn-primary" href="/pagamento-avviso">Paga un avviso</a>
+        <a class="btn btn-outline-secondary" href="/pagamento-spontaneo">Pagamento spontaneo</a>
+      </div>
+    </div>
+  {% else %}
+    <div class="card cart-card">
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table align-middle mb-0" id="cart-table">
+            <thead class="table-light">
+              <tr>
+                <th>Causale</th>
+                <th>N. Avviso</th>
+                <th>Scadenza</th>
+                <th class="text-end">Importo</th>
+                <th class="text-end">Rimuovi</th>
+              </tr>
+            </thead>
+            <tbody id="cart-tbody">
+              {% for item in items %}
+              <tr id="row-{{ item.id_pendenza }}" data-importo="{{ item.importo_cents }}">
+                <td class="fw-semibold">{{ item.causale|default('—') }}</td>
+                <td><span class="font-monospace text-muted small">{{ item.numero_avviso|default('—') }}</span></td>
+                <td>
+                  {% if item.data_scadenza %}
+                    {{ item.data_scadenza|date('d/m/Y') }}
+                  {% else %}
+                    <span class="text-muted">—</span>
+                  {% endif %}
+                </td>
+                <td class="text-end fw-semibold">
+                  {% if item.importo is not null %}
+                    € {{ item.importo|number_format(2, ',', '.') }}
+                  {% else %}—{% endif %}
+                </td>
+                <td class="text-end">
+                  <button type="button" class="btn-remove btn" aria-label="Rimuovi dal carrello"
+                          data-id="{{ item.id_pendenza }}">
+                    <i class="fa-solid fa-trash" aria-hidden="true"></i>
+                  </button>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="total-bar p-4 mt-3 d-flex flex-wrap align-items-center justify-content-between gap-3">
+      <div>
+        <div class="text-white-50 small text-uppercase mb-1">Totale da pagare</div>
+        <div class="fs-3 fw-bold" id="cart-total">€ {{ total_euro|number_format(2, ',', '.') }}</div>
+        <div class="text-white-50 small" id="cart-items-count">{{ items|length }} avvis{{ items|length == 1 ? 'o' : 'i' }}</div>
+      </div>
+      <div class="d-flex gap-3 align-items-center">
+        {% if can_checkout %}
+          <form method="post" action="/carrello/checkout" id="cart-checkout-form">
+            {% for item in items %}
+              <input type="hidden" name="pendenze[]" value="{{ item.id_pendenza }}" class="cart-hidden-input">
+            {% endfor %}
+          </form>
+          <button type="submit" form="cart-checkout-form" class="btn-checkout btn" id="btn-checkout">
+            <i class="fa-solid fa-lock me-1"></i>Procedi al pagamento
+          </button>
+        {% else %}
+          <button class="btn-checkout btn" disabled title="Configurazione checkout non disponibile">
+            <i class="fa-solid fa-lock me-1"></i>Procedi al pagamento
+          </button>
+        {% endif %}
+        <a class="btn btn-outline-light btn-sm" href="/pagamento-avviso">Aggiungi avviso</a>
+      </div>
+    </div>
+  {% endif %}
+</div>
+
+<script>
+(function () {
+  function formatEuro(cents) {
+    const euros = cents / 100;
+    return '€\u00a0' + euros.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  }
+
+  function recalcTotal() {
+    const rows = document.querySelectorAll('#cart-tbody tr[data-importo]');
+    let total = 0;
+    rows.forEach(r => { total += parseInt(r.dataset.importo || '0', 10); });
+    const totalEl = document.getElementById('cart-total');
+    const countEl = document.getElementById('cart-items-count');
+    if (totalEl) totalEl.textContent = formatEuro(total);
+    if (countEl) { const n = rows.length; countEl.textContent = n + ' avvis' + (n === 1 ? 'o' : 'i'); }
+
+    // Update hidden inputs of checkout form
+    const form = document.getElementById('cart-checkout-form');
+    if (form) {
+      form.querySelectorAll('.cart-hidden-input').forEach(el => el.remove());
+      rows.forEach(row => {
+        const rowId = row.id.replace('row-', '');
+        const inp = document.createElement('input');
+        inp.type = 'hidden';
+        inp.name = 'pendenze[]';
+        inp.value = rowId;
+        inp.className = 'cart-hidden-input';
+        form.appendChild(inp);
+      });
+    }
+
+    // Disable checkout if empty
+    const btn = document.getElementById('btn-checkout');
+    if (btn) btn.disabled = rows.length === 0;
+  }
+
+  function updateNavBadge(count) {
+    const badges = document.querySelectorAll('.cart-badge');
+    badges.forEach(b => {
+      b.textContent = count;
+      b.style.display = count > 0 ? '' : 'none';
+    });
+  }
+
+  document.querySelectorAll('.btn-remove').forEach(btn => {
+    btn.addEventListener('click', function () {
+      const id = this.dataset.id;
+      if (!id) return;
+      const body = new URLSearchParams({ idPendenza: id });
+      fetch('/carrello/rimuovi', { method: 'POST', body, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(r => r.json())
+        .then(data => {
+          const row = document.getElementById('row-' + id);
+          if (row) row.remove();
+          recalcTotal();
+          updateNavBadge(data.count || 0);
+        })
+        .catch(() => { window.location.reload(); });
+    });
+  });
+})();
+</script>
+{% endblock %}
