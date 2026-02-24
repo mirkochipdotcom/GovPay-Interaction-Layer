@@ -6,7 +6,11 @@
         <div class="col-12">
           <div class="it-header-slim-wrapper-content">
             <a class="d-none d-lg-block navbar-brand text-white" href="#">{{ app_entity.name }}</a>
-            <div class="it-header-slim-right-zone">
+            <div class="it-header-slim-right-zone pe-0">
+              <a class="btn {{ current_path starts with '/carrello' ? 'btn-light text-primary' : 'btn-primary' }} btn-sm me-3 d-flex align-items-center py-1 px-2" href="/carrello" aria-label="Carrello ({{ cart_count|default(0) }} avvisi)" title="Carrello">
+                <i class="fa-solid fa-cart-shopping"></i>
+                <span class="badge rounded-pill {{ current_path starts with '/carrello' ? 'bg-primary text-white' : 'bg-light text-dark' }} ms-2 cart-badge" {% if cart_count|default(0) == 0 %}style="display:none;"{% endif %}>{{ cart_count|default(0) }}</span>
+              </a>
               <div class="nav-item dropdown">
                 <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                   <span class="visually-hidden">Selezione lingua: lingua selezionata</span>
@@ -98,9 +102,6 @@
                   </div>
                 </a>
               </div>
-              <div class="it-right-zone">
-                <span class="text-white-50 small">Piattaforma PagoPA</span>
-              </div>
             </div>
           </div>
         </div>
@@ -147,19 +148,6 @@
                         <a class="nav-link {{ in_pendenze ? 'active' : '' }}" href="/pendenze"><span>Le mie pendenze</span></a>
                       </li>
                     {% endif %}
-                    {% set in_carrello = current_path starts with '/carrello' %}
-                    <li class="nav-item">
-                      <a class="nav-link {{ in_carrello ? 'active' : '' }}" href="/carrello" aria-label="Carrello ({{ cart_count|default(0) }} avvisi)">
-                        <span>
-                          Carrello
-                          {% if cart_count|default(0) > 0 %}
-                            <span class="badge bg-warning text-dark ms-1 cart-badge">{{ cart_count }}</span>
-                          {% else %}
-                            <span class="badge bg-warning text-dark ms-1 cart-badge" style="display:none">0</span>
-                          {% endif %}
-                        </span>
-                      </a>
-                    </li>
 
                   </ul>
                 </div>
