@@ -13,18 +13,22 @@
               </a>
               <div class="d-flex align-items-center">
                 <div class="nav-item dropdown">
-                  <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                    <span class="visually-hidden">Selezione lingua: lingua selezionata</span>
-                    <span>ITA</span>
-                    <svg class="icon d-none d-lg-block"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-expand"></use></svg>
-                  </a>
-                  <div class="dropdown-menu">
-                    <div class="row">
-                      <div class="col-12">
-                        <div class="link-list-wrapper">
-                          <ul class="link-list">
-                            <li><a class="dropdown-item list-item" href="#"><span>ITA <span class="visually-hidden">selezionata</span></span></a></li>
-                          </ul>
+                <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                  <span class="visually-hidden">Selezione lingua: lingua selezionata</span>
+                  <span>{{ current_locale|upper }}</span>
+                  <svg class="icon d-none d-lg-block"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-expand"></use></svg>
+                </a>
+                <div class="dropdown-menu">
+                  <div class="row">
+                    <div class="col-12">
+                      <div class="link-list-wrapper">
+                        <ul class="link-list">
+                          <li><a class="dropdown-item list-item {{ current_locale == 'it' ? 'active' : '' }}" href="?lang=it"><span>ITA {% if current_locale == 'it' %}<span class="visually-hidden">selezionata</span>{% endif %}</span></a></li>
+                          <li><a class="dropdown-item list-item {{ current_locale == 'en' ? 'active' : '' }}" href="?lang=en"><span>ENG {% if current_locale == 'en' %}<span class="visually-hidden">selezionata</span>{% endif %}</span></a></li>
+                          <li><a class="dropdown-item list-item {{ current_locale == 'es' ? 'active' : '' }}" href="?lang=es"><span>ESP {% if current_locale == 'es' %}<span class="visually-hidden">selezionata</span>{% endif %}</span></a></li>
+                          <li><a class="dropdown-item list-item {{ current_locale == 'fr' ? 'active' : '' }}" href="?lang=fr"><span>FRA {% if current_locale == 'fr' %}<span class="visually-hidden">selezionata</span>{% endif %}</span></a></li>
+                          <li><a class="dropdown-item list-item {{ current_locale == 'de' ? 'active' : '' }}" href="?lang=de"><span>DEU {% if current_locale == 'de' %}<span class="visually-hidden">selezionata</span>{% endif %}</span></a></li>
+                        </ul>
                         </div>
                       </div>
                     </div>
@@ -56,13 +60,13 @@
                         <div class="link-list-wrapper px-3 py-2">
                           <ul class="link-list list-unstyled mb-0">
                             <li>
-                              <a class="list-item d-block text-dark py-1 {{ current_path == '/profile' ? 'active' : '' }}" href="/profile">Profilo</a>
+                              <a class="list-item d-block text-dark py-1 {{ current_path == '/profile' ? 'active' : '' }}" href="/profile">{{ 'Profilo'|trans }}</a>
                             </li>
                             <li>
-                              <a class="list-item d-block text-dark py-1 {{ current_path == '/pendenze' ? 'active' : '' }}" href="/pendenze">Le mie pendenze</a>
+                              <a class="list-item d-block text-dark py-1 {{ current_path == '/pendenze' ? 'active' : '' }}" href="/pendenze">{{ 'Le mie pendenze'|trans }}</a>
                             </li>
                             <li>
-                              <a class="list-item d-block text-danger py-1" href="/logout">Logout</a>
+                              <a class="list-item d-block text-danger py-1" href="/logout">{{ 'Logout'|trans }}</a>
                             </li>
                           </ul>
                         </div>
@@ -72,7 +76,7 @@
                 </div>
                 {% else %}
                   {% if spid_enabled %}
-                    <a class="btn btn-primary btn-sm" href="/login">Accedi</a>
+                    <a class="btn btn-primary btn-sm" href="/login">{{ 'Accedi'|trans }}</a>
                   {% endif %}
                 {% endif %}
                 </div>
@@ -99,7 +103,7 @@
                     </svg>
                   {% endif %}
                   <div class="it-brand-text">
-                    <div class="it-brand-title">{{ app_entity.name }} - Portale PagoPA</div>
+                    <div class="it-brand-title">{{ app_entity.name }} - {{ 'Portale PagoPA'|trans }}</div>
                     <div class="it-brand-tagline d-none d-md-block">{{ app_entity.suffix }}</div>
                   </div>
                 </a>
@@ -131,23 +135,23 @@
                 <div class="menu-wrapper">
                   <ul class="navbar-nav">
                     <li class="nav-item">
-                      <a class="nav-link {{ current_path == '/' ? 'active' : '' }}" href="/"><span>Home</span></a>
+                      <a class="nav-link {{ current_path == '/' ? 'active' : '' }}" href="/"><span>{{ 'Home'|trans }}</span></a>
                     </li>
                     {% set in_pagamento_avviso = current_path starts with '/pagamento-avviso' %}
                     <li class="nav-item">
-                      <a class="nav-link {{ in_pagamento_avviso ? 'active' : '' }}" href="/pagamento-avviso"><span>Paga un avviso</span></a>
+                      <a class="nav-link {{ in_pagamento_avviso ? 'active' : '' }}" href="/pagamento-avviso"><span>{{ 'Paga un avviso'|trans }}</span></a>
                     </li>
                     {% set in_pagamento_spontaneo = current_path starts with '/pagamento-spontaneo' %}
                     <li class="nav-item">
-                      <a class="nav-link {{ in_pagamento_spontaneo ? 'active' : '' }}" href="/pagamento-spontaneo"><span>Pagamento spontaneo</span></a>
+                      <a class="nav-link {{ in_pagamento_spontaneo ? 'active' : '' }}" href="/pagamento-spontaneo"><span>{{ 'Pagamento spontaneo'|trans }}</span></a>
                     </li>
                     <li class="nav-item">
-                      <a class="nav-link {{ current_path == '/guida' ? 'active' : '' }}" href="/guida"><span>Guida</span></a>
+                      <a class="nav-link {{ current_path == '/guida' ? 'active' : '' }}" href="/guida"><span>{{ 'Guida'|trans }}</span></a>
                     </li>
                     {% if spid_enabled and current_user %}
                       {% set in_pendenze = current_path starts with '/pendenze' %}
                       <li class="nav-item">
-                        <a class="nav-link {{ in_pendenze ? 'active' : '' }}" href="/pendenze"><span>Le mie pendenze</span></a>
+                        <a class="nav-link {{ in_pendenze ? 'active' : '' }}" href="/pendenze"><span>{{ 'Le mie pendenze'|trans }}</span></a>
                       </li>
                     {% endif %}
 

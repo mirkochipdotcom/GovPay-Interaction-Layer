@@ -70,15 +70,15 @@
         <div class="col-lg-8">
           <nav aria-label="Percorso" class="mb-2">
             <ol class="breadcrumb mb-0">
-              <li class="breadcrumb-item"><a href="/">Home</a></li>
-              <li class="breadcrumb-item active" aria-current="page">Pagamento spontaneo</li>
+              <li class="breadcrumb-item"><a href="/">{{ 'Home'|trans }}</a></li>
+              <li class="breadcrumb-item active" aria-current="page">{{ 'Pagamento spontaneo'|trans }}</li>
             </ol>
           </nav>
-          <p class="text-uppercase small mb-2 text-white-50">Servizi PagoPA</p>
-          <h1 class="display-6 fw-semibold mb-3">Genera un avviso PagoPA per un pagamento spontaneo</h1>
-          <p class="mb-0 lead text-white-75">Compila il modulo con i dati del servizio e del soggetto pagatore. Al termine verra' creato subito l'avviso PagoPA e potrai scaricarlo in PDF.</p>
+          <p class="text-uppercase small mb-2 text-white-50">{{ 'Servizi PagoPA'|trans }}</p>
+          <h1 class="display-6 fw-semibold mb-3">{{ 'Genera un avviso PagoPA per un pagamento spontaneo'|trans }}</h1>
+          <p class="mb-0 lead text-white-75">{{ 'Compila il modulo con i dati del servizio e del soggetto pagatore. Al termine verrà creato subito l\'avviso PagoPA e potrai scaricarlo in PDF.'|trans }}</p>
           {% if selected %}
-            <p class="mt-3 mb-0 text-white-75">Servizio selezionato: <span class="fw-semibold text-white">{{ selected.label }}</span></p>
+            <p class="mt-3 mb-0 text-white-75">{{ 'Servizio selezionato'|trans }}: <span class="fw-semibold text-white">{{ selected.label }}</span></p>
           {% endif %}
         </div>
       </div>
@@ -93,20 +93,20 @@
             <div class="card-body p-4 p-lg-5">
               <div class="d-flex flex-column flex-md-row justify-content-between gap-2 mb-4">
                 <div>
-                  <p class="section-title mb-1">Modulo di generazione</p>
-                  <h2 class="h3 mb-0">Dati del pagamento</h2>
+                  <p class="section-title mb-1">{{ 'Modulo di generazione'|trans }}</p>
+                  <h2 class="h3 mb-0">{{ 'Dati del pagamento'|trans }}</h2>
                 </div>
                 <div class="text-md-end text-muted small">
-                  <span>Campi contrassegnati da * sono obbligatori</span>
+                  <span>{{ 'Campi contrassegnati da * sono obbligatori'|trans }}</span>
                 </div>
               </div>
 
               {% if form_errors is defined and form_errors %}
                 <div class="alert alert-danger" role="status">
-                  <h3 class="h6 mb-2">Controlla i dati inseriti</h3>
+                  <h3 class="h6 mb-2">{{ 'Controlla i dati inseriti'|trans }}</h3>
                   <ul class="mb-0 ps-3">
                     {% for error in form_errors %}
-                      <li>{{ error }}</li>
+                      <li>{{ error|trans }}</li>
                     {% endfor %}
                   </ul>
                 </div>
@@ -114,8 +114,8 @@
 
               {% if form_feedback %}
                 <div class="alert alert-{{ form_feedback.type|default('info') }}" role="status">
-                  <h3 class="h6 mb-1">{{ form_feedback.title }}</h3>
-                  <p class="mb-0">{{ form_feedback.message }}</p>
+                  <h3 class="h6 mb-1">{{ form_feedback.title|trans }}</h3>
+                  <p class="mb-0">{{ form_feedback.message|trans }}</p>
                 </div>
               {% endif %}
 
@@ -125,25 +125,25 @@
                   <div class="card-body">
                     <div class="row g-3 align-items-start mb-3">
                       <div class="col-12 col-md-4">
-                        <div class="text-muted text-uppercase small">Codice avviso / IUV</div>
+                        <div class="text-muted text-uppercase small">{{ 'Codice avviso / IUV'|trans }}</div>
                         <div class="fs-5 fw-semibold text-break">{{ codice_avviso }}</div>
                       </div>
                       <div class="col-12 col-md-4">
-                        <div class="text-muted text-uppercase small">Importo</div>
+                        <div class="text-muted text-uppercase small">{{ 'Importo'|trans }}</div>
                         <div class="fs-5 fw-semibold">€ {{ pendenza_result.importo|number_format(2, ',', '.') }}</div>
                       </div>
                       <div class="col-12 col-md-4">
-                        <div class="text-muted text-uppercase small">Causale</div>
+                        <div class="text-muted text-uppercase small">{{ 'Causale'|trans }}</div>
                         <div class="fw-semibold text-break">{{ pendenza_result.causale|default('—') }}</div>
                       </div>
                       {% if pendenza_result.data_scadenza %}
                         <div class="col-12 col-md-4">
-                          <div class="text-muted text-uppercase small">Scadenza</div>
+                          <div class="text-muted text-uppercase small">{{ 'Scadenza'|trans }}</div>
                           <div class="fw-semibold">{{ pendenza_result.data_scadenza|date('d/m/Y') }}</div>
                         </div>
                       {% endif %}
                     </div>
-                    <div class="text-muted small mb-3">Per pagare online usa il pulsante dedicato e inserisci il codice avviso quando richiesto.</div>
+                    <div class="text-muted small mb-3">{{ 'Per pagare online usa il pulsante dedicato e inserisci il codice avviso quando richiesto.'|trans }}</div>
                     <div class="d-flex flex-wrap gap-3">
                       {# — Aggiungi al carrello — #}
                       {% if pendenza_result.checkout_url %}
@@ -152,28 +152,28 @@
                           class="btn btn-secondary"
                           id="btn-cart-add"
                           data-id="{{ pendenza_result.idPendenza|default('') }}"
-                          aria-label="Aggiungi al carrello"
+                          aria-label="{{ 'Aggiungi al carrello'|trans }}"
                         >
                           <i class="fa-solid fa-cart-shopping me-1"></i>
-                          <span id="btn-cart-label">Aggiungi al carrello</span>
+                          <span id="btn-cart-label">{{ 'Aggiungi al carrello'|trans }}</span>
                         </button>
                       {% endif %}
 
                       {# — Paga subito — #}
                       <a class="btn btn-primary" href="{{ pendenza_result.checkout_url|default(pay_portal_url|default('https://checkout.pagopa.it/')) }}" target="_blank" rel="noopener">
-                        <i class="fa-solid fa-bolt me-1"></i>Paga subito
+                        <i class="fa-solid fa-bolt me-1"></i>{{ 'Paga subito'|trans }}
                       </a>
 
                       {# — Stampa / Scarica PDF — #}
                       {% if pendenza_result.download_url %}
                         <a class="btn btn-outline-primary" href="{{ pendenza_result.download_url }}" target="_blank" rel="noopener">
-                          <i class="fa-solid fa-print me-1"></i>Stampa / Scarica PDF
+                          <i class="fa-solid fa-print me-1"></i>{{ 'Stampa / Scarica PDF'|trans }}
                         </a>
                       {% else %}
-                        <button class="btn btn-outline-primary" type="button" disabled>PDF disponibile a breve</button>
+                        <button class="btn btn-outline-primary" type="button" disabled>{{ 'PDF disponibile a breve'|trans }}</button>
                       {% endif %}
 
-                      <a class="btn btn-outline-secondary" href="/pagamento-spontaneo">Genera un altro avviso</a>
+                      <a class="btn btn-outline-secondary" href="/pagamento-spontaneo">{{ 'Genera un altro avviso'|trans }}</a>
                     </div>
 
                   </div>
@@ -184,33 +184,33 @@
               <div class="row g-3">
                 {% if selected %}
                   <div class="col-12">
-                    <label class="form-label">Servizio da pagare *</label>
+                    <label class="form-label">{{ 'Servizio da pagare *'|trans }}</label>
                     <div class="service-pill">
                       <div>
-                        <div class="text-muted text-uppercase small">Tipologia selezionata</div>
+                        <div class="text-muted text-uppercase small">{{ 'Tipologia selezionata'|trans }}</div>
                         <div class="fw-semibold">{{ selected.label }}</div>
                       </div>
-                      <a class="btn btn-outline-secondary btn-sm" href="/pagamento-spontaneo">Cambia servizio</a>
+                      <a class="btn btn-outline-secondary btn-sm" href="/pagamento-spontaneo">{{ 'Cambia servizio'|trans }}</a>
                     </div>
                     <input type="hidden" id="idTipoPendenza" name="idTipoPendenza" value="{{ selected.id }}">
                   </div>
                 {% else %}
                   <div class="col-md-6">
-                    <label for="idTipoPendenza" class="form-label">Servizio da pagare *</label>
+                    <label for="idTipoPendenza" class="form-label">{{ 'Servizio da pagare *'|trans }}</label>
                     <select class="form-select" id="idTipoPendenza" name="idTipoPendenza" required>
-                      <option value="">Seleziona</option>
+                      <option value="">{{ 'Seleziona'|trans }}</option>
                       {% for option in service_options %}
                         <option value="{{ option.id }}" {% if old.idTipoPendenza|default('') == option.id %}selected{% endif %}>{{ option.label }}</option>
                       {% endfor %}
                     </select>
-                    <div class="form-text">Scegli la voce corrispondente al pagamento che vuoi generare.</div>
+                    <div class="form-text">{{ 'Scegli la voce corrispondente al pagamento che vuoi generare.'|trans }}</div>
                   </div>
                 {% endif %}
                 <div class="col-md-3">
                   {% set selected_year = old.annoRiferimento|default(default_year|default('now'|date('Y'))) %}
                   {% set start_year = (default_year|default('now'|date('Y'))) + 1 %}
                   {% set end_year = (default_year|default('now'|date('Y'))) - 5 %}
-                  <label for="annoRiferimento" class="form-label">Anno di riferimento *</label>
+                  <label for="annoRiferimento" class="form-label">{{ 'Anno di riferimento *'|trans }}</label>
                   <select id="annoRiferimento" name="annoRiferimento" class="form-select" required>
                     {% if selected_year is defined and selected_year not in range(start_year, end_year) %}
                       <option value="{{ selected_year }}" selected>{{ selected_year }}</option>
@@ -221,88 +221,88 @@
                   </select>
                 </div>
                 <div class="col-md-3">
-                  <label for="importo" class="form-label">Importo (&euro;) *</label>
+                  <label for="importo" class="form-label">{{ 'Importo (&euro;) *'|trans|raw }}</label>
                   <div class="input-group">
                     <span class="input-group-text">&euro;</span>
                     <input type="number" step="0.01" min="0.01" class="form-control" id="importo" name="importo" value="{{ old.importo|default('') }}" required placeholder="0.00">
                   </div>
-                  <div class="form-text">Inserisci l'importo in euro (esempio 125,50).</div>
+                  <div class="form-text">{{ 'Inserisci l\'importo in euro (esempio 125,50).'|trans }}</div>
                 </div>
               </div>
 
               <div class="row g-3 mt-1">
                 <div class="col-12">
-                  <label for="causale" class="form-label">Causale / descrizione *</label>
-                  <input type="text" class="form-control" id="causale" name="causale" value="{{ old.causale|default('') }}" maxlength="140" required placeholder="Descrivi il motivo del pagamento">
+                  <label for="causale" class="form-label">{{ 'Causale / descrizione *'|trans }}</label>
+                  <input type="text" class="form-control" id="causale" name="causale" value="{{ old.causale|default('') }}" maxlength="140" required placeholder="{{ 'Descrivi il motivo del pagamento'|trans }}">
                   <div class="d-flex justify-content-between small text-muted mt-1">
-                    <span>Max 140 caratteri.</span>
+                    <span>{{ 'Max 140 caratteri.'|trans }}</span>
                     <span id="causaleCounter">0/140</span>
                   </div>
                 </div>
                 <div class="col-12">
-                  <label for="noteRichiedente" class="form-label">Note (opzionale)</label>
-                  <textarea class="form-control" id="noteRichiedente" name="noteRichiedente" rows="3" maxlength="400" placeholder="Inserisci eventuali dettagli utili">{{ old.noteRichiedente|default('') }}</textarea>
+                  <label for="noteRichiedente" class="form-label">{{ 'Note (opzionale)'|trans }}</label>
+                  <textarea class="form-control" id="noteRichiedente" name="noteRichiedente" rows="3" maxlength="400" placeholder="{{ 'Inserisci eventuali dettagli utili'|trans }}">{{ old.noteRichiedente|default('') }}</textarea>
                 </div>
               </div>
 
               <hr class="field-divider">
-              <p class="section-title mb-2">Soggetto pagatore</p>
+              <p class="section-title mb-2">{{ 'Soggetto pagatore'|trans }}</p>
 
               <div class="row g-3 align-items-end">
                 <div class="col-12">
                   {% set tipo = payer.tipo|default('F') %}
                   <div class="form-check form-check-inline">
                     <input class="form-check-input" type="radio" name="soggettoPagatore[tipo]" id="soggettoPF" value="F" {% if tipo != 'G' %}checked{% endif %}>
-                    <label class="form-check-label" for="soggettoPF">Persona fisica</label>
+                    <label class="form-check-label" for="soggettoPF">{{ 'Persona fisica'|trans }}</label>
                   </div>
                   <div class="form-check form-check-inline">
                     <input class="form-check-input" type="radio" name="soggettoPagatore[tipo]" id="soggettoPJ" value="G" {% if tipo == 'G' %}checked{% endif %}>
-                    <label class="form-check-label" for="soggettoPJ">Persona giuridica</label>
+                    <label class="form-check-label" for="soggettoPJ">{{ 'Persona giuridica'|trans }}</label>
                   </div>
                 </div>
                 <div class="col-md-4">
-                  <label for="identificativo" class="form-label" id="identificativoLabel">{{ tipo == 'G' ? 'Partita IVA *' : 'Codice fiscale *' }}</label>
+                  <label for="identificativo" class="form-label" id="identificativoLabel">{{ tipo == 'G' ? 'Partita IVA *'|trans : 'Codice fiscale *'|trans }}</label>
                   <input type="text" class="form-control" id="identificativo" name="soggettoPagatore[identificativo]" value="{{ payer.identificativo|default('') }}" required placeholder="{{ tipo == 'G' ? 'IT00000000000' : 'RSSMRA00A01H501Z' }}" autocomplete="off">
                 </div>
                 <div class="col-md-4">
-                  <label for="anagrafica" class="form-label" id="anagraficaLabel">{{ tipo == 'G' ? 'Ragione sociale *' : 'Cognome *' }}</label>
+                  <label for="anagrafica" class="form-label" id="anagraficaLabel">{{ tipo == 'G' ? 'Ragione sociale *'|trans : 'Cognome *'|trans }}</label>
                   <input type="text" class="form-control" id="anagrafica" name="soggettoPagatore[anagrafica]" value="{{ payer.anagrafica|default('') }}" required autocomplete="off">
                 </div>
                 <div class="col-md-4" id="nomeWrapper" style="{{ tipo == 'G' ? 'display:none;' : '' }}">
-                  <label for="nome" class="form-label">Nome</label>
+                  <label for="nome" class="form-label">{{ 'Nome'|trans }}</label>
                   <input type="text" class="form-control" id="nome" name="soggettoPagatore[nome]" value="{{ payer.nome|default('') }}" autocomplete="off">
                 </div>
               </div>
 
               <div class="row g-3 mt-1">
                 <div class="col-md-6">
-                  <label for="email" class="form-label">Email di contatto *</label>
+                  <label for="email" class="form-label">{{ 'Email di contatto *'|trans }}</label>
                   <input type="email" class="form-control" id="email" name="soggettoPagatore[email]" value="{{ payer.email|default('') }}" required placeholder="esempio@dominio.it">
                 </div>
                 <div class="col-md-6">
-                  <label for="telefono" class="form-label">Telefono (opzionale)</label>
+                  <label for="telefono" class="form-label">{{ 'Telefono (opzionale)'|trans }}</label>
                   <input type="tel" class="form-control" id="telefono" name="soggettoPagatore[telefono]" value="{{ payer.telefono|default('') }}" placeholder="333 1234567">
                 </div>
               </div>
 
               <div class="alert alert-info mt-4" role="note">
-                <p class="mb-1 fw-semibold">Come funziona</p>
+                <p class="mb-1 fw-semibold">{{ 'Come funziona'|trans }}</p>
                 <ul class="mb-0 ps-3">
-                  <li>compila i dati e genera subito l'avviso PagoPA;</li>
-                  <li>scarica il PDF oppure paga online con il codice avviso.</li>
+                  <li>{{ 'compila i dati e genera subito l\'avviso PagoPA;'|trans }}</li>
+                  <li>{{ 'scarica il PDF oppure paga online con il codice avviso.'|trans }}</li>
                 </ul>
               </div>
 
               <div class="form-check mt-4">
                 <input class="form-check-input" type="checkbox" value="1" id="privacy" required name="privacy">
                 <label class="form-check-label" for="privacy">
-                  Dichiaro di aver letto l'informativa privacy dell'Ente e autorizzo il trattamento dei dati per finalita' connesse al presente pagamento.
+                  {{ 'Dichiaro di aver letto l\'informativa privacy dell\'Ente e autorizzo il trattamento dei dati per finalita\' connesse al presente pagamento.'|trans }}
                 </label>
               </div>
 
               <div class="d-flex gap-3 flex-wrap mt-4">
-                <button type="submit" class="btn btn-primary btn-lg px-4">Genera avviso</button>
-                <a class="btn btn-outline-secondary btn-lg" href="/">Annulla</a>
+                <button type="submit" class="btn btn-primary btn-lg px-4">{{ 'Genera avviso'|trans }}</button>
+                <a class="btn btn-outline-secondary btn-lg" href="/">{{ 'Annulla'|trans }}</a>
               </div>
               {% endif %}
             </div>
@@ -313,19 +313,19 @@
             <div class="icon-wrapper">
               <svg class="icon"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-info-circle"></use></svg>
             </div>
-            <h3 class="fw-semibold">Documenti utili</h3>
-            <p class="text-muted mb-2">Tienili a portata di mano per velocizzare la compilazione:</p>
+            <h3 class="fw-semibold">{{ 'Documenti utili'|trans }}</h3>
+            <p class="text-muted mb-2">{{ 'Tienili a portata di mano per velocizzare la compilazione:'|trans }}</p>
             <ul class="ps-3 mb-0 text-muted">
-              <li>Codice fiscale o partita IVA del pagatore</li>
-              <li>Dettagli del servizio (numero pratica, periodo, ecc.)</li>
-              <li>Indirizzo email per ricevere l'avviso PagoPA</li>
+              <li>{{ 'Codice fiscale o partita IVA del pagatore'|trans }}</li>
+              <li>{{ 'Dettagli del servizio (numero pratica, periodo, ecc.)'|trans }}</li>
+              <li>{{ 'Indirizzo email per ricevere l\'avviso PagoPA'|trans }}</li>
             </ul>
           </div>
           <div class="summary-card p-4">
-            <h3 class="fw-semibold mb-2">Serve supporto?</h3>
-            <p class="mb-1">Scrivi a <a href="mailto:{{ support_email }}">{{ support_email }}</a></p>
-            <p class="mb-1">Telefono: {{ support_phone }} ({{ support_hours }})</p>
-            <p class="mb-0 text-muted small">Sportello fisico: {{ support_location|raw }}</p>
+            <h3 class="fw-semibold mb-2">{{ 'Serve supporto?'|trans }}</h3>
+            <p class="mb-1">{{ 'Scrivi a'|trans }} <a href="mailto:{{ support_email }}">{{ support_email }}</a></p>
+            <p class="mb-1">{{ 'Telefono'|trans }}: {{ support_phone }} ({{ support_hours }})</p>
+            <p class="mb-0 text-muted small">{{ 'Sportello fisico'|trans }}: {{ support_location|raw }}</p>
           </div>
         </div>
       </div>
@@ -356,14 +356,14 @@
       function updatePersona(type){
         if(!identificativoLabel || !anagraficaLabel) return;
         if(type === 'G'){
-          identificativoLabel.textContent = 'Partita IVA *';
+          identificativoLabel.textContent = '{{ "Partita IVA *"|trans|escape("js") }}';
           identificativoInput.placeholder = 'IT00000000000';
-          anagraficaLabel.textContent = 'Ragione sociale *';
+          anagraficaLabel.textContent = '{{ "Ragione sociale *"|trans|escape("js") }}';
           if(nomeWrapper) nomeWrapper.style.display = 'none';
         } else {
-          identificativoLabel.textContent = 'Codice fiscale *';
+          identificativoLabel.textContent = '{{ "Codice fiscale *"|trans|escape("js") }}';
           identificativoInput.placeholder = 'RSSMRA00A01H501Z';
-          anagraficaLabel.textContent = 'Cognome *';
+          anagraficaLabel.textContent = '{{ "Cognome *"|trans|escape("js") }}';
           if(nomeWrapper) nomeWrapper.style.display = '';
         }
       }

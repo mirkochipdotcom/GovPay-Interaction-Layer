@@ -40,31 +40,33 @@
     <div class="container-xxl">
       <div class="row align-items-center g-4">
         <div class="col-lg-7">
-          <p class="text-uppercase small mb-2 text-white-50">Sportello digitale</p>
-          <h1 class="display-5 fw-semibold mb-3">Gestisci i pagamenti PagoPA con pochi clic</h1>
-          <p class="lead mb-4">Cerca un avviso, generalo spontaneamente, aggiungilo al carrello e paga fino a 5 pendenze insieme — tutto senza fare code.</p>
+          <p class="text-uppercase small mb-2 text-white-50">{{ 'Sportello digitale'|trans }}</p>
+          <h1 class="display-5 fw-semibold mb-3">{{ 'Gestisci i pagamenti PagoPA con pochi clic'|trans }}</h1>
+          <p class="lead mb-4">{{ 'Cerca un avviso, generalo spontaneamente, aggiungilo al carrello e paga fino a 5 pendenze insieme — tutto senza fare code.'|trans }}</p>
           <div class="d-flex flex-wrap gap-3">
-            <a class="btn btn-warning btn-lg text-dark" href="/pagamento-avviso">Paga un avviso</a>
-            <a class="btn btn-outline-light btn-lg" href="/pagamento-spontaneo">Pagamento spontaneo</a>
+            <a class="btn btn-warning btn-lg text-dark" href="/pagamento-avviso">{{ 'Paga un avviso'|trans }}</a>
+            <a class="btn btn-outline-light btn-lg" href="/pagamento-spontaneo">{{ 'Pagamento spontaneo'|trans }}</a>
             <a class="btn btn-outline-light btn-lg" href="/carrello">
-              <i class="fa-solid fa-cart-shopping me-1"></i>Carrello
+              <i class="fa-solid fa-cart-shopping me-1"></i>{{ 'Carrello'|trans }}
               {% if cart_count|default(0) > 0 %}
                 <span class="badge bg-warning text-dark ms-1">{{ cart_count }}</span>
               {% endif %}
             </a>
             {% if spid_enabled %}
-              <a class="btn btn-outline-light btn-lg" href="/pendenze">Le mie pendenze</a>
+              <a class="btn btn-outline-light btn-lg" href="/pendenze">{{ 'Le mie pendenze'|trans }}</a>
             {% endif %}
           </div>
         </div>
         <div class="col-lg-5">
           <div class="p-4 rounded-4 bg-white text-dark">
-            <h2 class="h5 text-uppercase text-muted">Cosa ti serve</h2>
+            <h2 class="h5 text-uppercase text-muted">{{ 'Cosa ti serve'|trans }}</h2>
             <ul class="cta-list list-unstyled mb-0">
-              <li>Codice avviso o IUV riportato sulla comunicazione ricevuta</li>
-              <li>Codice fiscale o partita IVA del soggetto intestatario</li>
-              <li>Metodo di pagamento PagoPA (carta, conto, app, home banking)</li>
-              {{ spid_enabled ? '<li>SPID o CIE per accedere alle tue pendenze e ricevute</li>' }}
+              <li>{{ 'Codice avviso o IUV riportato sulla comunicazione ricevuta'|trans }}</li>
+              <li>{{ 'Codice fiscale o partita IVA del soggetto intestatario'|trans }}</li>
+              <li>{{ 'Metodo di pagamento PagoPA (carta, conto, app, home banking)'|trans }}</li>
+              {% if spid_enabled %}
+                <li>{{ 'SPID o CIE per accedere alle tue pendenze e ricevute'|trans }}</li>
+              {% endif %}
             </ul>
           </div>
         </div>
@@ -80,26 +82,26 @@
             <div class="icon-wrapper">
               <svg aria-hidden="true"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-card"></use></svg>
             </div>
-            <h2 class="h3 mb-3">Paga un avviso ricevuto</h2>
-            <p class="mb-4">Inserisci il codice avviso/IUV e il codice fiscale. Puoi pagarlo subito, scaricarlo come PDF o aggiungerlo al carrello per pagare più avvisi insieme.</p>
+            <h2 class="h3 mb-3">{{ 'Paga un avviso ricevuto'|trans }}</h2>
+            <p class="mb-4">{{ 'Inserisci il codice avviso/IUV e il codice fiscale. Puoi pagarlo subito, scaricarlo come PDF o aggiungerlo al carrello per pagare più avvisi insieme.'|trans }}</p>
             <ul class="cta-list list-unstyled mb-4">
-              <li>Verifica importo e scadenza direttamente online</li>
-              <li>Scegli: <strong>Paga subito</strong>, <strong>Aggiungi al carrello</strong> o <strong>Stampa PDF</strong></li>
-              <li>Ricevi ricevuta digitale immediata</li>
+              <li>{{ 'Verifica importo e scadenza direttamente online'|trans }}</li>
+              <li>{{ 'Scegli: <strong>Paga subito</strong>, <strong>Aggiungi al carrello</strong> o <strong>Stampa PDF</strong>'|trans|raw }}</li>
+              <li>{{ 'Ricevi ricevuta digitale immediata'|trans }}</li>
             </ul>
             <div class="d-flex gap-3 flex-wrap">
-              <a class="btn btn-primary" href="/pagamento-avviso" role="button">Inserisci codice avviso</a>
-              <a class="btn btn-outline-primary" href="#supporto">Serve aiuto?</a>
+              <a class="btn btn-primary" href="/pagamento-avviso" role="button">{{ 'Inserisci codice avviso'|trans }}</a>
+              <a class="btn btn-outline-primary" href="#supporto">{{ 'Serve aiuto?'|trans }}</a>
             </div>
           </div>
         </div>
         <div class="col-lg-6">
           <div class="p-4 p-lg-5 rounded-4 bg-primary text-white h-100 d-flex flex-column justify-content-center">
-            <h3 class="h4 mb-3">Paghi da smartphone o computer</h3>
+            <h3 class="h4 mb-3">{{ 'Paghi da smartphone o computer'|trans }}</h3>
             {% if spid_enabled %}
-              <p class="mb-0">Accedi con SPID/CIE oppure procedi senza login. Completa il pagamento con carta e wallet digitali: lo stato dell'avviso si aggiorna automaticamente.</p>
+              <p class="mb-0">{{ 'Accedi con SPID/CIE oppure procedi senza login. Completa il pagamento con carta e wallet digitali: lo stato dell\'avviso si aggiorna automaticamente.'|trans }}</p>
             {% else %}
-              <p class="mb-0">Completa il pagamento con carta e wallet digitali. Lo stato dell'avviso sarà aggiornato automaticamente senza dover presentare ricevute agli sportelli.</p>
+              <p class="mb-0">{{ 'Completa il pagamento con carta e wallet digitali. Lo stato dell\'avviso sarà aggiornato automaticamente senza dover presentare ricevute agli sportelli.'|trans }}</p>
             {% endif %}
           </div>
         </div>
@@ -115,23 +117,23 @@
             <div class="icon-wrapper">
               <svg aria-hidden="true"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-pencil"></use></svg>
             </div>
-            <h2 class="h3 mb-3">Genera un pagamento spontaneo</h2>
-            <p class="mb-4">Non hai ricevuto un avviso ma devi pagare un importo all'ente? Compila il modulo e ottieni subito un codice avviso PagoPA — poi puoi pagarlo o aggiungerlo al carrello.</p>
+            <h2 class="h3 mb-3">{{ 'Genera un pagamento spontaneo'|trans }}</h2>
+            <p class="mb-4">{{ 'Non hai ricevuto un avviso ma devi pagare un importo all\'ente? Compila il modulo e ottieni subito un codice avviso PagoPA — poi puoi pagarlo o aggiungerlo al carrello.'|trans }}</p>
             <ul class="cta-list list-unstyled mb-4">
-              <li>Seleziona servizio o causale</li>
-              <li>Compila i dati anagrafici e l'importo</li>
-              <li>Scegli: <strong>Paga subito</strong>, <strong>Aggiungi al carrello</strong> o <strong>Stampa PDF</strong></li>
+              <li>{{ 'Seleziona servizio o causale'|trans }}</li>
+              <li>{{ 'Compila i dati anagrafici e l\'importo'|trans }}</li>
+              <li>{{ 'Scegli: <strong>Paga subito</strong>, <strong>Aggiungi al carrello</strong> o <strong>Stampa PDF</strong>'|trans|raw }}</li>
             </ul>
             <div class="d-flex gap-3 flex-wrap">
-              <a class="btn btn-primary" href="/pagamento-spontaneo" role="button">Genera avviso</a>
-              <a class="btn btn-outline-primary" href="#supporto">Informazioni</a>
+              <a class="btn btn-primary" href="/pagamento-spontaneo" role="button">{{ 'Genera avviso'|trans }}</a>
+              <a class="btn btn-outline-primary" href="#supporto">{{ 'Informazioni'|trans }}</a>
             </div>
           </div>
         </div>
         <div class="col-lg-6 order-lg-1">
           <div class="p-4 p-lg-5 rounded-4 bg-dark text-white h-100 d-flex flex-column justify-content-center">
-            <h3 class="h4 mb-3">Servizi più richiesti</h3>
-            <p class="mb-0">Mensa scolastica, retta degli asili, concessioni, diritti di segreteria, multe: tutto in un'unica procedura guidata per ridurre code e tempi allo sportello.</p>
+            <h3 class="h4 mb-3">{{ 'Servizi più richiesti'|trans }}</h3>
+            <p class="mb-0">{{ 'Mensa scolastica, retta degli asili, concessioni, diritti di segreteria, multe: tutto in un\'unica procedura guidata per ridurre code e tempi allo sportello.'|trans }}</p>
           </div>
         </div>
       </div>
@@ -144,18 +146,18 @@
       <div class="row align-items-center g-4">
         <div class="col-lg-6">
           <div class="cart-card">
-            <p class="text-uppercase small mb-2" style="color:#f5a623">Novità</p>
+            <p class="text-uppercase small mb-2" style="color:#f5a623">{{ 'Novità'|trans }}</p>
             <h2 class="h3 mb-3">
-              <i class="fa-solid fa-cart-shopping me-2"></i>Carrello multi-pagamento
+              <i class="fa-solid fa-cart-shopping me-2"></i>{{ 'Carrello multi-pagamento'|trans }}
             </h2>
-            <p class="mb-4" style="color:rgba(255,255,255,0.85)">Aggiungi fino a <strong>5 avvisi</strong> al carrello — trovati dalla ricerca o generati spontaneamente — e pagali tutti in un'unica sessione PagoPA.</p>
+            <p class="mb-4" style="color:rgba(255,255,255,0.85)">{{ 'Aggiungi fino a <strong>5 avvisi</strong> al carrello — trovati dalla ricerca o generati spontaneamente — e pagali tutti in un\'unica sessione PagoPA.'|trans|raw }}</p>
             <ul class="cta-list list-unstyled mb-4" style="color:rgba(255,255,255,0.85)">
-              <li>nessun login obbligatorio per pagamenti semplici</li>
-              <li>badge nella barra di navigazione sempre aggiornato</li>
-              <li>un solo redirect a PagoPA per tutti gli avvisi</li>
+              <li>{{ 'nessun login obbligatorio per pagamenti semplici'|trans }}</li>
+              <li>{{ 'badge nella barra di navigazione sempre aggiornato'|trans }}</li>
+              <li>{{ 'un solo redirect a PagoPA per tutti gli avvisi'|trans }}</li>
             </ul>
             <a class="btn btn-warning text-dark fw-bold" href="/carrello">
-              Vai al carrello
+              {{ 'Vai al carrello'|trans }}
               {% if cart_count|default(0) > 0 %}
                 <span class="badge bg-dark text-white ms-1">{{ cart_count }}</span>
               {% endif %}
@@ -164,12 +166,12 @@
         </div>
         <div class="col-lg-6">
           <div class="p-4 p-lg-5 rounded-4 bg-white border h-100 d-flex flex-column justify-content-center">
-            <h3 class="h4 mb-3">Come funziona il carrello</h3>
+            <h3 class="h4 mb-3">{{ 'Come funziona il carrello'|trans }}</h3>
             <ol class="ps-3 mb-0">
-              <li class="mb-2">Cerca un avviso o genera un pagamento spontaneo.</li>
-              <li class="mb-2">Clicca <strong>Aggiungi al carrello</strong> sul risultato trovato.</li>
-              <li class="mb-2">Ripeti per ogni avviso che vuoi pagare (fino a 5).</li>
-              <li>Apri il <a href="/carrello">Carrello</a> e clicca <strong>Procedi al pagamento</strong>.</li>
+              <li class="mb-2">{{ 'Cerca un avviso o genera un pagamento spontaneo.'|trans }}</li>
+              <li class="mb-2">{{ 'Clicca <strong>Aggiungi al carrello</strong> sul risultato trovato.'|trans|raw }}</li>
+              <li class="mb-2">{{ 'Ripeti per ogni avviso che vuoi pagare (fino a 5).'|trans }}</li>
+              <li>{{ 'Apri il <a href="/carrello">Carrello</a> e clicca <strong>Procedi al pagamento</strong>.'|trans|raw }}</li>
             </ol>
           </div>
         </div>
@@ -182,16 +184,16 @@
       <div class="row g-4">
         <div class="col-lg-8">
           <div class="p-4 border rounded-4 bg-white h-100">
-            <h2 class="h4 mb-2">Hai bisogno di assistenza?</h2>
+            <h2 class="h4 mb-2">{{ 'Hai bisogno di assistenza?'|trans }}</h2>
             <p class="mb-0">
-              Scrivi a <a href="mailto:{{ support_email }}">{{ support_email }}</a>
-              oppure chiama il numero {{ support_phone }} ({{ support_hours }}).
+              {{ 'Scrivi a'|trans }} <a href="mailto:{{ support_email }}">{{ support_email }}</a>
+              {{ 'oppure chiama il numero'|trans }} {{ support_phone }} ({{ support_hours }}).
             </p>
           </div>
         </div>
         <div class="col-lg-4">
           <div class="p-4 border rounded-4 bg-light h-100">
-            <h3 class="h6 text-uppercase text-muted">Orari sportello fisico</h3>
+            <h3 class="h6 text-uppercase text-muted">{{ 'Orari sportello fisico'|trans }}</h3>
             <p class="mb-0">{{ support_location|raw }}</p>
           </div>
         </div>

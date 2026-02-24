@@ -52,13 +52,13 @@
         <div class="col-lg-8">
           <nav aria-label="Percorso" class="mb-2">
             <ol class="breadcrumb mb-0">
-              <li class="breadcrumb-item"><a href="/">Home</a></li>
-              <li class="breadcrumb-item active" aria-current="page">Paga un avviso</li>
+              <li class="breadcrumb-item"><a href="/">{{ 'Home'|trans }}</a></li>
+              <li class="breadcrumb-item active" aria-current="page">{{ 'Paga un avviso'|trans }}</li>
             </ol>
           </nav>
-          <p class="text-uppercase small mb-2 text-white-50">Pagamenti PagoPA</p>
-          <h1 class="display-6 fw-semibold mb-3">Inserisci il codice avviso PagoPA e paga in sicurezza</h1>
-          <p class="mb-0 lead text-white-75">Servono il codice avviso (IUV) riportato sul documento ricevuto e il codice fiscale o la partita IVA del soggetto debitore. Il sistema verifichera' lo stato e ti portera' sul portale PagoPA.</p>
+          <p class="text-uppercase small mb-2 text-white-50">{{ 'Pagamenti PagoPA'|trans }}</p>
+          <h1 class="display-6 fw-semibold mb-3">{{ 'Inserisci il codice avviso PagoPA e paga in sicurezza'|trans }}</h1>
+          <p class="mb-0 lead text-white-75">{{ 'Servono il codice avviso (IUV) riportato sul documento ricevuto e il codice fiscale o la partita IVA del soggetto debitore. Il sistema verificherà lo stato e ti porterà sul portale PagoPA.'|trans }}</p>
         </div>
       </div>
     </div>
@@ -72,29 +72,29 @@
             <div class="card-body p-4 p-lg-5">
               <div class="d-flex flex-column flex-md-row justify-content-between gap-2 mb-4">
                 <div>
-                  <p class="section-title mb-1">Verifica avviso</p>
-                  <h2 class="h3 mb-0">Dati richiesti</h2>
+                  <p class="section-title mb-1">{{ 'Verifica avviso'|trans }}</p>
+                  <h2 class="h3 mb-0">{{ 'Dati richiesti'|trans }}</h2>
                 </div>
-                <div class="text-md-end text-muted small">Solo due campi obbligatori</div>
+                <div class="text-md-end text-muted small">{{ 'Solo due campi obbligatori'|trans }}</div>
               </div>
 
               {% if form_feedback %}
                 <div class="alert alert-{{ form_feedback.type|default('info') }}" role="status">
-                  <h3 class="h6 mb-1">{{ form_feedback.title }}</h3>
-                  <p class="mb-0">{{ form_feedback.message }}</p>
+                  <h3 class="h6 mb-1">{{ form_feedback.title|trans }}</h3>
+                  <p class="mb-0">{{ form_feedback.message|trans }}</p>
                 </div>
               {% endif %}
 
               <div class="row g-4">
                 <div class="col-12">
-                  <label for="codiceAvviso" class="form-label">Codice avviso / IUV *</label>
+                  <label for="codiceAvviso" class="form-label">{{ 'Codice avviso / IUV *'|trans }}</label>
                   <input type="text" class="form-control form-control-lg" id="codiceAvviso" name="codiceAvviso" value="{{ old.codiceAvviso|default('') }}" maxlength="35" required placeholder="0123 4567 8901 2345">
-                  <div class="form-text">Lo trovi sul bollettino o sulla comunicazione inviata dall'ente.</div>
+                  <div class="form-text">{{ 'Lo trovi sul bollettino o sulla comunicazione inviata dall\'ente.'|trans }}</div>
                 </div>
                 <div class="col-12">
-                  <label for="codiceFiscale" class="form-label">Codice fiscale / Partita IVA del soggetto pagatore *</label>
+                  <label for="codiceFiscale" class="form-label">{{ 'Codice fiscale / Partita IVA del soggetto pagatore *'|trans }}</label>
                   <input type="text" class="form-control" id="codiceFiscale" name="codiceFiscale" value="{{ old.codiceFiscale|default('') }}" maxlength="16" required placeholder="RSSMRA00A01H501Z oppure 01234567890">
-                  <div class="form-text">Inserisci il codice fiscale (16 caratteri) oppure la partita IVA (11 cifre) del soggetto pagatore.</div>
+                  <div class="form-text">{{ 'Inserisci il codice fiscale (16 caratteri) oppure la partita IVA (11 cifre) del soggetto pagatore.'|trans }}</div>
                 </div>
               </div>
 
@@ -109,17 +109,17 @@
               </script>
 
               <div class="alert alert-info mt-4" role="note">
-                <p class="mb-1 fw-semibold">Cosa succede dopo</p>
+                <p class="mb-1 fw-semibold">{{ 'Cosa succede dopo'|trans }}</p>
                 <ol class="ps-3 mb-0">
-                  <li>Verifichiamo lo stato dell'avviso e l'importo aggiornato;</li>
-                  <li>apri una finestra PagoPA per scegliere il canale preferito;</li>
-                  <li>ricevi la ricevuta digitale direttamente via email.</li>
+                  <li>{{ 'Verifichiamo lo stato dell\'avviso e l\'importo aggiornato;'|trans }}</li>
+                  <li>{{ 'apri una finestra PagoPA per scegliere il canale preferito;'|trans }}</li>
+                  <li>{{ 'ricevi la ricevuta digitale direttamente via email.'|trans }}</li>
                 </ol>
               </div>
 
               <div class="d-flex gap-3 flex-wrap mt-4">
-                <button type="submit" class="btn btn-primary btn-lg px-4">Prosegui con PagoPA</button>
-                <a class="btn btn-outline-secondary btn-lg" href="/">Annulla</a>
+                <button type="submit" class="btn btn-primary btn-lg px-4">{{ 'Prosegui con PagoPA'|trans }}</button>
+                <a class="btn btn-outline-secondary btn-lg" href="/">{{ 'Annulla'|trans }}</a>
               </div>
             </div>
           </form>
@@ -129,16 +129,16 @@
             <div class="icon-wrapper">
               <svg class="icon"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-card"></use></svg>
             </div>
-            <h3 class="fw-semibold">Hai perso l'avviso?</h3>
-            <p class="text-muted mb-2">Puoi richiederne una copia scrivendo agli uffici oppure generare un nuovo pagamento spontaneo.</p>
-            <a class="btn btn-outline-primary w-100" href="/pagamento-spontaneo">Genera pagamento spontaneo</a>
+            <h3 class="fw-semibold">{{ 'Hai perso l\'avviso?'|trans }}</h3>
+            <p class="text-muted mb-2">{{ 'Puoi richiederne una copia scrivendo agli uffici oppure generare un nuovo pagamento spontaneo.'|trans }}</p>
+            <a class="btn btn-outline-primary w-100" href="/pagamento-spontaneo">{{ 'Genera pagamento spontaneo'|trans }}</a>
           </div>
           <div class="summary-card p-4">
-            <h3 class="fw-semibold mb-2">Supporto</h3>
+            <h3 class="fw-semibold mb-2">{{ 'Supporto'|trans }}</h3>
             <ul class="cta-list text-muted ps-3 mb-0">
-              <li>Email: <a href="mailto:{{ support_email }}">{{ support_email }}</a></li>
-              <li>Telefono: {{ support_phone }} ({{ support_hours }})</li>
-              <li>Sede: {{ support_location|raw }}</li>
+              <li>{{ 'Email'|trans }}: <a href="mailto:{{ support_email }}">{{ support_email }}</a></li>
+              <li>{{ 'Telefono'|trans }}: {{ support_phone }} ({{ support_hours }})</li>
+              <li>{{ 'Sede'|trans }}: {{ support_location|raw }}</li>
             </ul>
           </div>
         </div>

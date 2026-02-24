@@ -1,6 +1,6 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}Le mie pendenze - {{ app_entity.name }}{% endblock %}
+{% block title %}{{ 'Le mie pendenze'|trans }} - {{ app_entity.name }}{% endblock %}
 
 {% block head %}
   <style>
@@ -87,24 +87,24 @@
   <div class="container-xxl py-4">
     <nav aria-label="Percorso" class="mb-3">
       <ol class="breadcrumb mb-0">
-        <li class="breadcrumb-item"><a href="/">Home</a></li>
-        <li class="breadcrumb-item active" aria-current="page">Le mie pendenze</li>
+        <li class="breadcrumb-item"><a href="/">{{ 'Home'|trans }}</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{ 'Le mie pendenze'|trans }}</li>
       </ol>
     </nav>
 
     <div class="pendenze-hero p-4 p-lg-5 mb-4">
       <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
         <div>
-          <p class="text-uppercase small mb-2 text-white-50">Area personale</p>
-          <h1 class="h3 mb-1">Le mie pendenze</h1>
-          <div class="text-white-50">Codice fiscale: <strong class="text-white">{{ codice_fiscale|default('') }}</strong></div>
-          <div class="text-white-50 small mt-2">Da qui puoi consultare lo stato, scaricare l'avviso e (quando disponibile) la ricevuta di pagamento.</div>
+          <p class="text-uppercase small mb-2 text-white-50">{{ 'Area personale'|trans }}</p>
+          <h1 class="h3 mb-1">{{ 'Le mie pendenze'|trans }}</h1>
+          <div class="text-white-50">{{ 'Codice fiscale'|trans }}: <strong class="text-white">{{ codice_fiscale|default('') }}</strong></div>
+          <div class="text-white-50 small mt-2">{{ 'Da qui puoi consultare lo stato, scaricare l\'avviso e (quando disponibile) la ricevuta di pagamento.'|trans }}</div>
         </div>
         <div class="d-flex flex-wrap gap-2">
-          <a class="btn btn-warning text-dark" href="/pagamento-avviso">Paga un avviso</a>
-          <a class="btn btn-outline-light" href="/pagamento-spontaneo">Pagamento spontaneo</a>
-          <a class="btn btn-outline-light" href="/profile">Profilo</a>
-          <a class="btn btn-outline-light" href="/logout">Logout</a>
+          <a class="btn btn-warning text-dark" href="/pagamento-avviso">{{ 'Paga un avviso'|trans }}</a>
+          <a class="btn btn-outline-light" href="/pagamento-spontaneo">{{ 'Pagamento spontaneo'|trans }}</a>
+          <a class="btn btn-outline-light" href="/profile">{{ 'Profilo'|trans }}</a>
+          <a class="btn btn-outline-light" href="/logout">{{ 'Logout'|trans }}</a>
         </div>
       </div>
     </div>
@@ -112,20 +112,20 @@
     <div class="filters-surface p-3 p-lg-4 mb-4">
       <form class="row gy-2 gx-3 align-items-end" method="get" action="/pendenze">
           <div class="col-12 col-md-4">
-            <label class="form-label" for="stato">Stato</label>
+            <label class="form-label" for="stato">{{ 'Stato'|trans }}</label>
             <select class="form-select" id="stato" name="stato">
-              <option value="" {{ stato == '' ? 'selected' : '' }}>Tutti</option>
-              <option value="NON_ESEGUITA" {{ stato == 'NON_ESEGUITA' ? 'selected' : '' }}>Da pagare</option>
-              <option value="ESEGUITA_PARZIALE" {{ stato == 'ESEGUITA_PARZIALE' ? 'selected' : '' }}>Pagata parzialmente</option>
-              <option value="ESEGUITA" {{ stato == 'ESEGUITA' ? 'selected' : '' }}>Pagata</option>
-              <option value="SCADUTA" {{ stato == 'SCADUTA' ? 'selected' : '' }}>Scaduta</option>
-              <option value="ANNULLATA" {{ stato == 'ANNULLATA' ? 'selected' : '' }}>Annullata</option>
-              <option value="ANOMALA" {{ stato == 'ANOMALA' ? 'selected' : '' }}>In verifica</option>
+              <option value="" {{ stato == '' ? 'selected' : '' }}>{{ 'Tutti'|trans }}</option>
+              <option value="NON_ESEGUITA" {{ stato == 'NON_ESEGUITA' ? 'selected' : '' }}>{{ 'Da pagare'|trans }}</option>
+              <option value="ESEGUITA_PARZIALE" {{ stato == 'ESEGUITA_PARZIALE' ? 'selected' : '' }}>{{ 'Pagata parzialmente'|trans }}</option>
+              <option value="ESEGUITA" {{ stato == 'ESEGUITA' ? 'selected' : '' }}>{{ 'Pagata'|trans }}</option>
+              <option value="SCADUTA" {{ stato == 'SCADUTA' ? 'selected' : '' }}>{{ 'Scaduta'|trans }}</option>
+              <option value="ANNULLATA" {{ stato == 'ANNULLATA' ? 'selected' : '' }}>{{ 'Annullata'|trans }}</option>
+              <option value="ANOMALA" {{ stato == 'ANOMALA' ? 'selected' : '' }}>{{ 'In verifica'|trans }}</option>
             </select>
           </div>
 
           <div class="col-12 col-md-3">
-            <label class="form-label" for="per_page">Risultati per pagina</label>
+            <label class="form-label" for="per_page">{{ 'Risultati per pagina'|trans }}</label>
             <select class="form-select" id="per_page" name="per_page">
               {% for n in [10,25,50,100] %}
                 <option value="{{ n }}" {{ per_pagina == n ? 'selected' : '' }}>{{ n }}</option>
@@ -134,23 +134,23 @@
           </div>
 
           <div class="col-12 col-md-auto ms-md-auto d-flex gap-2">
-            <button class="btn btn-primary" type="submit">Aggiorna</button>
-            <a class="btn btn-outline-secondary" href="/pendenze">Reset</a>
+            <button class="btn btn-primary" type="submit">{{ 'Aggiorna'|trans }}</button>
+            <a class="btn btn-outline-secondary" href="/pendenze">{{ 'Reset'|trans }}</a>
           </div>
       </form>
     </div>
 
     <div class="card shadow-sm">
       <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
-        <span class="fw-semibold">Elenco</span>
+        <span class="fw-semibold">{{ 'Elenco'|trans }}</span>
         <span class="text-muted small" id="carrello-hint" style="display:none">
-          <i class="fa-solid fa-cart-shopping me-1"></i>Seleziona fino a 5 pendenze pagabili e clicca "Paga selezionate"
+          <i class="fa-solid fa-cart-shopping me-1"></i>{{ 'Seleziona fino a 5 pendenze pagabili e clicca "Paga selezionate"'|trans }}
         </span>
       </div>
       <div class="card-body p-0">
         {% if items is empty %}
           <div class="p-4">
-            <div class="alert alert-info mb-0" role="status">Nessuna pendenza trovata.</div>
+            <div class="alert alert-info mb-0" role="status">{{ 'Nessuna pendenza trovata.'|trans }}</div>
           </div>
         {% else %}
           {# Hidden form for cart POST #}
@@ -163,14 +163,14 @@
               <thead>
                 <tr>
                   <th class="col-sel">
-                    <span class="sr-only">Seleziona</span>
+                    <span class="sr-only">{{ 'Seleziona'|trans }}</span>
                   </th>
-                  <th>Numero avviso</th>
-                  <th>Causale</th>
-                  <th class="text-end">Importo</th>
-                  <th>Scadenza</th>
-                  <th>Stato</th>
-                  <th class="text-end">Azioni</th>
+                  <th>{{ 'Numero avviso'|trans }}</th>
+                  <th>{{ 'Causale'|trans }}</th>
+                  <th class="text-end">{{ 'Importo'|trans }}</th>
+                  <th>{{ 'Scadenza'|trans }}</th>
+                  <th>{{ 'Stato'|trans }}</th>
+                  <th class="text-end">{{ 'Azioni'|trans }}</th>
                 </tr>
               </thead>
               <tbody>
@@ -185,7 +185,7 @@
                           name="pendenze[]"
                           value="{{ p.id_pendenza }}"
                           data-importo="{{ p.importo is not null ? (p.importo * 100)|round(0, 'floor') : 0 }}"
-                          aria-label="Seleziona pendenza {{ p.numero_avviso|default(p.id_pendenza) }}"
+                          aria-label="{{ 'Seleziona pendenza'|trans }} {{ p.numero_avviso|default(p.id_pendenza) }}"
                           form="carrello-form"
                         >
                       {% endif %}
@@ -219,23 +219,23 @@
                       <span class="badge {{ badge }}">{{ p.stato.label|default('—') }}</span>
                     </td>
                     <td class="text-end">
-                      <div class="btn-group" role="group" aria-label="Azioni pendenza">
+                      <div class="btn-group" role="group" aria-label="{{ 'Azioni pendenza'|trans|escape('html_attr') }}">
                         {% if p.detail_url %}
                           <a class="btn btn-sm btn-outline-primary" href="{{ p.detail_url }}">
                             <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
-                            <span class="sr-only">Dettaglio</span>
+                            <span class="sr-only">{{ 'Dettaglio'|trans }}</span>
                           </a>
                         {% endif %}
                         {% if p.download_url %}
                           <a class="btn btn-sm btn-outline-secondary" href="{{ p.download_url }}" target="_blank" rel="noopener">
                             <i class="fa-solid fa-file-pdf" aria-hidden="true"></i>
-                            <span class="sr-only">Scarica PDF avviso</span>
+                            <span class="sr-only">{{ 'Scarica PDF avviso'|trans }}</span>
                           </a>
                         {% endif %}
                         {% if p.receipt_url %}
                           <a class="btn btn-sm btn-outline-success" href="{{ p.receipt_url }}">
                             <i class="fa-solid fa-receipt" aria-hidden="true"></i>
-                            <span class="sr-only">Scarica ricevuta</span>
+                            <span class="sr-only">{{ 'Scarica ricevuta'|trans }}</span>
                           </a>
                         {% endif %}
                       </div>
@@ -248,10 +248,10 @@
         {% endif %}
       </div>
       <div class="card-footer d-flex flex-wrap justify-content-between align-items-center gap-2">
-        <div class="text-muted small">Pagina {{ pagination.pagina }} di {{ pagination.total_pages|default(1) }}</div>
+        <div class="text-muted small">{{ 'Pagina'|trans }} {{ pagination.pagina }} {{ 'di'|trans }} {{ pagination.total_pages|default(1) }}</div>
         <div class="d-flex gap-2">
-          <a class="btn btn-sm btn-outline-secondary {{ pagination.pagina <= 1 ? 'disabled' : '' }}" href="?page={{ pagination.pagina - 1 }}&per_page={{ pagination.risultati_per_pagina }}{% if filters.stato %}&stato={{ filters.stato }}{% endif %}" {% if pagination.pagina <= 1 %}aria-disabled="true" tabindex="-1"{% endif %}>Precedente</a>
-          <a class="btn btn-sm btn-outline-secondary {{ pagination.pagina >= (pagination.total_pages|default(1)) ? 'disabled' : '' }}" href="?page={{ pagination.pagina + 1 }}&per_page={{ pagination.risultati_per_pagina }}{% if filters.stato %}&stato={{ filters.stato }}{% endif %}" {% if pagination.pagina >= (pagination.total_pages|default(1)) %}aria-disabled="true" tabindex="-1"{% endif %}>Successiva</a>
+          <a class="btn btn-sm btn-outline-secondary {{ pagination.pagina <= 1 ? 'disabled' : '' }}" href="?page={{ pagination.pagina - 1 }}&per_page={{ pagination.risultati_per_pagina }}{% if filters.stato %}&stato={{ filters.stato }}{% endif %}" {% if pagination.pagina <= 1 %}aria-disabled="true" tabindex="-1"{% endif %}>{{ 'Precedente'|trans }}</a>
+          <a class="btn btn-sm btn-outline-secondary {{ pagination.pagina >= (pagination.total_pages|default(1)) ? 'disabled' : '' }}" href="?page={{ pagination.pagina + 1 }}&per_page={{ pagination.risultati_per_pagina }}{% if filters.stato %}&stato={{ filters.stato }}{% endif %}" {% if pagination.pagina >= (pagination.total_pages|default(1)) %}aria-disabled="true" tabindex="-1"{% endif %}>{{ 'Successiva'|trans }}</a>
         </div>
       </div>
     </div>
@@ -261,14 +261,17 @@
   <div id="carrello-bar" role="status" aria-live="polite">
     <div class="bar-info">
       <i class="fa-solid fa-cart-shopping me-2"></i>
-      <strong id="bar-count">0</strong> pendenz<span id="bar-plural">a</span> selezionata<span id="bar-plural-e"></span>
+      <strong id="bar-count">0</strong> 
+      <span id="bar-text-singular" style="display:none;">{{ 'pendenza selezionata'|trans }}</span>
+      <span id="bar-text-plural" style="display:none;">{{ 'pendenze selezionate'|trans }}</span>
+      <span id="bar-text-display"></span>
       &nbsp;·&nbsp;
-      Totale: <strong id="bar-total">€ 0,00</strong>
+      {{ 'Totale'|trans }}: <strong id="bar-total">€ 0,00</strong>
     </div>
     <div class="d-flex align-items-center gap-3">
-      <button type="button" class="btn btn-outline-light btn-sm" id="deseleziona-btn">Deseleziona tutto</button>
+      <button type="button" class="btn btn-outline-light btn-sm" id="deseleziona-btn">{{ 'Deseleziona tutto'|trans }}</button>
       <button type="submit" form="carrello-form" class="btn-paga" id="paga-btn">
-        <i class="fa-solid fa-lock me-1"></i>Paga selezionate
+        <i class="fa-solid fa-lock me-1"></i>{{ 'Paga selezionate'|trans }}
       </button>
     </div>
   </div>
@@ -297,8 +300,13 @@
 
       countEl.textContent = count;
       totalEl.textContent = formatEuro(totalCents);
-      pluralEl.textContent = count === 1 ? 'a' : 'e';
-      pluralEEl.textContent = count === 1 ? '' : '';
+      
+      const displayEl = document.getElementById('bar-text-display');
+      if (displayEl) {
+        displayEl.textContent = count === 1 ? 
+          document.getElementById('bar-text-singular').textContent : 
+          document.getElementById('bar-text-plural').textContent;
+      }
 
       if (count > 0) {
         bar.classList.add('visible');

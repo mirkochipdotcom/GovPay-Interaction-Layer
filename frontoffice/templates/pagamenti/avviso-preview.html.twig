@@ -73,22 +73,22 @@
     <div class="container-xxl">
       <nav aria-label="Percorso" class="mb-3">
         <ol class="breadcrumb mb-0">
-          <li class="breadcrumb-item"><a href="/">Home</a></li>
-          <li class="breadcrumb-item"><a href="/pagamento-avviso">Paga un avviso</a></li>
-          <li class="breadcrumb-item active" aria-current="page">Anteprima avviso</li>
+          <li class="breadcrumb-item"><a href="/">{{ 'Home'|trans }}</a></li>
+          <li class="breadcrumb-item"><a href="/pagamento-avviso">{{ 'Paga un avviso'|trans }}</a></li>
+          <li class="breadcrumb-item active" aria-current="page">{{ 'Anteprima avviso'|trans }}</li>
         </ol>
       </nav>
       <div class="d-flex flex-wrap align-items-center gap-3">
         <div>
-          <p class="text-uppercase small mb-2 text-white-50">Avviso PagoPA</p>
-          <h1 class="display-6 fw-semibold mb-1">Codice {{ avviso.numero_avviso|default('—') }}</h1>
-          <p class="lead text-white-75 mb-0">Visualizza i dettagli dell'avviso prima di procedere con la stampa o il pagamento online.</p>
+          <p class="text-uppercase small mb-2 text-white-50">{{ 'Avviso PagoPA'|trans }}</p>
+          <h1 class="display-6 fw-semibold mb-1">{{ 'Codice'|trans }} {{ avviso.numero_avviso|default('—') }}</h1>
+          <p class="lead text-white-75 mb-0">{{ 'Visualizza i dettagli dell\'avviso prima di procedere con la stampa o il pagamento online.'|trans }}</p>
         </div>
         {% set status_code = avviso.stato.code|default('') %}
         {% set status_class = status_code in ['NON_ESEGUITA','ESEGUITA_PARZIALE'] ? 'status-ok' : (status_code in ['SCADUTA','ANOMALA'] ? 'status-warn' : 'status-ko') %}
         <span class="status-pill {{ status_class }}">
           <svg class="icon icon-sm"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-check"></use></svg>
-          {{ avviso.stato.label|default('Stato sconosciuto') }}
+          {{ avviso.stato.label|default('Stato sconosciuto'|trans) }}
         </span>
       </div>
     </div>
@@ -101,7 +101,7 @@
           <div class="card summary-card p-4 p-lg-5 mb-4">
             <div class="d-flex flex-wrap gap-3 mb-4">
               <div class="metric-chip">
-                <div class="label">Importo dovuto</div>
+                <div class="label">{{ 'Importo dovuto'|trans }}</div>
                 <div class="value">
                   {% if avviso.importo is not null %}
                     € {{ avviso.importo|number_format(2, ',', '.') }}
@@ -111,12 +111,12 @@
                 </div>
               </div>
               <div class="metric-chip">
-                <div class="label">Data scadenza</div>
+                <div class="label">{{ 'Data scadenza'|trans }}</div>
                 <div class="value">
                   {% if avviso.data_scadenza %}
                     {{ avviso.data_scadenza|date('d/m/Y') }}
                   {% else %}
-                    Non prevista
+                    {{ 'Non prevista'|trans }}
                   {% endif %}
                 </div>
               </div>
@@ -124,11 +124,11 @@
 
             <div class="row g-4 mb-4">
               <div class="col-md-6">
-                <div class="text-muted text-uppercase small mb-1">Causale</div>
+                <div class="text-muted text-uppercase small mb-1">{{ 'Causale'|trans }}</div>
                 <p class="fs-6 mb-0">{{ avviso.causale|default('—') }}</p>
               </div>
               <div class="col-md-6">
-                <div class="text-muted text-uppercase small mb-1">Pagatore</div>
+                <div class="text-muted text-uppercase small mb-1">{{ 'Pagatore'|trans }}</div>
                 <p class="mb-0">
                   <strong>{{ pagatore.anagrafica|default('—') }}</strong><br>
                   <span class="text-muted">{{ pagatore.identificativo|default('') }}</span>
@@ -138,11 +138,11 @@
 
             {% if avviso.is_paid %}
               <div class="alert alert-info" role="status">
-                Questo avviso risulta già pagato. Per scaricare la ricevuta accedi con SPID/CIE.
+                {{ 'Questo avviso risulta già pagato. Per scaricare la ricevuta accedi con SPID/CIE.'|trans }}
               </div>
             {% elseif not avviso.is_payable %}
               <div class="alert alert-warning" role="status">
-                Questo avviso risulta {{ avviso.stato.label|lower }}. Non sarà possibile avviare il pagamento online, ma puoi comunque scaricare la copia dell'avviso.
+                {{ 'Questo avviso risulta'|trans }} {{ avviso.stato.label|lower }}. {{ 'Non sarà possibile avviare il pagamento online, ma puoi comunque scaricare la copia dell\'avviso.'|trans }}
               </div>
             {% endif %}
 
@@ -155,14 +155,14 @@
                   id="btn-cart-add"
                   data-id="{{ avviso.id_pendenza }}"
                   data-added="{{ (cart_items_ids is defined and avviso.id_pendenza in cart_items_ids) ? '1' : '0' }}"
-                  aria-label="Aggiungi al carrello"
+                  aria-label="{{ 'Aggiungi al carrello'|trans }}"
                 >
                   <i class="fa-solid fa-cart-shopping me-1"></i>
                   <span id="btn-cart-label">
                     {% if cart_items_ids is defined and avviso.id_pendenza in cart_items_ids %}
-                      Nel carrello ✓
+                      {{ 'Nel carrello ✓'|trans }}
                     {% else %}
-                      Aggiungi al carrello
+                      {{ 'Aggiungi al carrello'|trans }}
                     {% endif %}
                   </span>
                 </button>
@@ -171,29 +171,29 @@
               {# — Paga subito — #}
               {% if avviso.is_payable and avviso.checkout_url %}
                 <a class="btn btn-primary btn-lg" href="{{ avviso.checkout_url }}">
-                  <i class="fa-solid fa-bolt me-1"></i>Paga subito
+                  <i class="fa-solid fa-bolt me-1"></i>{{ 'Paga subito'|trans }}
                 </a>
               {% endif %}
 
               {# — Stampa / Scarica PDF — #}
               {% if avviso.download_url %}
                 <a class="btn btn-outline-primary btn-lg" href="{{ avviso.download_url }}" target="_blank" rel="noopener">
-                  <i class="fa-solid fa-print me-1"></i>Stampa / Scarica PDF
+                  <i class="fa-solid fa-print me-1"></i>{{ 'Stampa / Scarica PDF'|trans }}
                 </a>
               {% else %}
-                <button class="btn btn-outline-primary btn-lg" type="button" disabled>PDF non disponibile</button>
+                <button class="btn btn-outline-primary btn-lg" type="button" disabled>{{ 'PDF non disponibile'|trans }}</button>
               {% endif %}
 
               {% if avviso.is_paid and spid_enabled %}
                 {% if not current_user %}
-                  <a class="btn btn-outline-secondary btn-lg" href="/login?return_to={{ '/pendenze?stato=ESEGUITA'|url_encode }}">Accedi per scaricare la ricevuta</a>
+                  <a class="btn btn-outline-secondary btn-lg" href="/login?return_to={{ '/pendenze?stato=ESEGUITA'|url_encode }}">{{ 'Accedi per scaricare la ricevuta'|trans }}</a>
                 {% else %}
-                  <a class="btn btn-outline-secondary btn-lg" href="/pendenze?stato=ESEGUITA">Vai alle ricevute</a>
+                  <a class="btn btn-outline-secondary btn-lg" href="/pendenze?stato=ESEGUITA">{{ 'Vai alle ricevute'|trans }}</a>
                 {% endif %}
               {% endif %}
 
               {% if back_url|default('') %}
-                <a class="btn btn-link text-decoration-none" href="{{ back_url }}">Cerca un altro avviso</a>
+                <a class="btn btn-link text-decoration-none" href="{{ back_url }}">{{ 'Cerca un altro avviso'|trans }}</a>
               {% endif %}
             </div>
 
@@ -202,15 +202,15 @@
           {% if voci %}
             <div class="card summary-card p-4 mb-4">
               <div class="d-flex align-items-center justify-content-between mb-3">
-                <h2 class="h5 mb-0">Dettaglio voci</h2>
-                <span class="text-muted small">{{ voci|length }} voce{{ voci|length > 1 ? 'i' : '' }}</span>
+                <h2 class="h5 mb-0">{{ 'Dettaglio voci'|trans }}</h2>
+                <span class="text-muted small">{{ voci|length }} {{ voci|length > 1 ? 'voci'|trans : 'voce'|trans }}</span>
               </div>
               <div class="table-responsive">
                 <table class="table voci-table align-middle mb-0">
                   <thead>
                     <tr>
-                      <th scope="col">Descrizione</th>
-                      <th scope="col" class="text-end">Importo</th>
+                      <th scope="col">{{ 'Descrizione'|trans }}</th>
+                      <th scope="col" class="text-end">{{ 'Importo'|trans }}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -235,27 +235,27 @@
 
         <div class="col-lg-4">
           <div class="card summary-card p-4 mb-4">
-            <h2 class="h5 mb-3">Prossimi passaggi</h2>
+            <h2 class="h5 mb-3">{{ 'Prossimi passaggi'|trans }}</h2>
             <div class="timeline-step mb-3">
-              <strong>1. Stampa o salva il PDF</strong>
-              <p class="mb-0 small text-muted">L'avviso contiene tutti i dati necessari per il pagamento presso un PSP.</p>
+              <strong>{{ '1. Stampa o salva il PDF'|trans }}</strong>
+              <p class="mb-0 small text-muted">{{ 'L\'avviso contiene tutti i dati necessari per il pagamento presso un PSP.'|trans }}</p>
             </div>
             <div class="timeline-step mb-3">
-              <strong>2. Avvia il pagamento online</strong>
-              <p class="mb-0 small text-muted">Verrai portato sul portale pagoPA per inserire il codice avviso e scegliere il canale preferito.</p>
+              <strong>{{ '2. Avvia il pagamento online'|trans }}</strong>
+              <p class="mb-0 small text-muted">{{ 'Verrai portato sul portale pagoPA per inserire il codice avviso e scegliere il canale preferito.'|trans }}</p>
             </div>
             <div class="timeline-step">
-              <strong>3. Conserva la ricevuta</strong>
-              <p class="mb-0 small text-muted">Riceverai la ricevuta digitale all'indirizzo email associato all'avviso.</p>
+              <strong>{{ '3. Conserva la ricevuta'|trans }}</strong>
+              <p class="mb-0 small text-muted">{{ 'Riceverai la ricevuta digitale all\'indirizzo email associato all\'avviso.'|trans }}</p>
             </div>
           </div>
           <div class="support-card">
-            <p class="text-uppercase small mb-2">Serve assistenza?</p>
-            <h3 class="h5 mb-3">Contatta {{ app_entity.name }}</h3>
+            <p class="text-uppercase small mb-2">{{ 'Serve assistenza?'|trans }}</p>
+            <h3 class="h5 mb-3">{{ 'Contatta'|trans }} {{ app_entity.name }}</h3>
             <ul class="list-unstyled mb-0 small">
-              <li><strong>Email:</strong> <a href="mailto:{{ support_email }}">{{ support_email }}</a></li>
-              <li><strong>Telefono:</strong> {{ support_phone }} ({{ support_hours }})</li>
-              <li><strong>Sede:</strong> {{ support_location|raw }}</li>
+              <li><strong>{{ 'Email'|trans }}:</strong> <a href="mailto:{{ support_email }}">{{ support_email }}</a></li>
+              <li><strong>{{ 'Telefono'|trans }}:</strong> {{ support_phone }} ({{ support_hours }})</li>
+              <li><strong>{{ 'Sede'|trans }}:</strong> {{ support_location|raw }}</li>
             </ul>
           </div>
         </div>

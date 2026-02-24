@@ -1,6 +1,6 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}Dettaglio pendenza - {{ app_entity.name }}{% endblock %}
+{% block title %}{{ 'Dettaglio pendenza'|trans }} - {{ app_entity.name }}{% endblock %}
 
 {% set p = pendenza_preview|default({}) %}
 {% set raw = pendenza|default({}) %}
@@ -11,19 +11,19 @@
   <div class="container-xxl py-4">
     <nav aria-label="Percorso" class="mb-3">
       <ol class="breadcrumb mb-0">
-        <li class="breadcrumb-item"><a href="/">Home</a></li>
-        <li class="breadcrumb-item"><a href="/pendenze">Le mie pendenze</a></li>
-        <li class="breadcrumb-item active" aria-current="page">Dettaglio</li>
+        <li class="breadcrumb-item"><a href="/">{{ 'Home'|trans }}</a></li>
+        <li class="breadcrumb-item"><a href="/pendenze">{{ 'Le mie pendenze'|trans }}</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{ 'Dettaglio'|trans }}</li>
       </ol>
     </nav>
 
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
       <div>
-        <h1 class="h3 mb-1">Dettaglio pendenza</h1>
+        <h1 class="h3 mb-1">{{ 'Dettaglio pendenza'|trans }}</h1>
       </div>
       <div class="d-flex gap-2">
         {% if back_url|default('') %}
-          <a class="btn btn-outline-secondary" href="{{ back_url }}">Torna all'elenco</a>
+          <a class="btn btn-outline-secondary" href="{{ back_url }}">{{ 'Torna all\'elenco'|trans }}</a>
         {% endif %}
       </div>
     </div>
@@ -36,16 +36,16 @@
               {% set badge = p.stato.code in ['NON_ESEGUITA','ESEGUITA_PARZIALE'] ? 'bg-success' : (p.stato.code in ['SCADUTA','ANOMALA'] ? 'bg-warning text-dark' : 'bg-secondary') %}
               <span class="badge {{ badge }}">{{ p.stato.label|default('—') }}</span>
               {% if p.numero_avviso %}
-                <span class="text-muted">Numero avviso:</span>
+                <span class="text-muted">{{ 'Numero avviso'|trans }}:</span>
                 <span class="font-monospace">{{ p.numero_avviso }}</span>
               {% endif %}
             </div>
 
             <dl class="row mb-0">
-              <dt class="col-sm-4">Causale</dt>
+              <dt class="col-sm-4">{{ 'Causale'|trans }}</dt>
               <dd class="col-sm-8">{{ p.causale|default('—') }}</dd>
 
-              <dt class="col-sm-4">Importo</dt>
+              <dt class="col-sm-4">{{ 'Importo'|trans }}</dt>
               <dd class="col-sm-8">
                 {% if p.importo is not null %}
                   € {{ p.importo|number_format(2, ',', '.') }}
@@ -54,7 +54,7 @@
                 {% endif %}
               </dd>
 
-              <dt class="col-sm-4">Data scadenza</dt>
+              <dt class="col-sm-4">{{ 'Data scadenza'|trans }}</dt>
               <dd class="col-sm-8">
                 {% if p.data_scadenza %}
                   {{ p.data_scadenza|date('d/m/Y') }}
@@ -63,7 +63,7 @@
                 {% endif %}
               </dd>
 
-              <dt class="col-sm-4">Pagatore</dt>
+              <dt class="col-sm-4">{{ 'Pagatore'|trans }}</dt>
               <dd class="col-sm-8">
                 <strong>{{ pagatore.anagrafica|default('—') }}</strong><br>
                 <span class="text-muted">{{ pagatore.identificativo|default('') }}</span>
@@ -74,17 +74,17 @@
             {% if p.download_url %}
               <a class="btn btn-primary" href="{{ p.download_url }}" target="_blank" rel="noopener">
                 <i class="fa-solid fa-file-pdf" aria-hidden="true"></i>
-                <span class="sr-only">Scarica PDF avviso</span>
+                <span class="sr-only">{{ 'Scarica PDF avviso'|trans }}</span>
               </a>
             {% endif %}
             {% if p.receipt_url %}
               <a class="btn btn-outline-success" href="{{ p.receipt_url }}">
                 <i class="fa-solid fa-receipt" aria-hidden="true"></i>
-                <span class="sr-only">Scarica ricevuta</span>
+                <span class="sr-only">{{ 'Scarica ricevuta'|trans }}</span>
               </a>
             {% endif %}
             {% if p.is_payable and p.checkout_url %}
-              <a class="btn btn-outline-primary" href="{{ p.checkout_url }}" target="_blank" rel="noopener">Paga su pagoPA</a>
+              <a class="btn btn-outline-primary" href="{{ p.checkout_url }}" target="_blank" rel="noopener">{{ 'Paga su pagoPA'|trans }}</a>
             {% endif %}
           </div>
         </div>
@@ -92,15 +92,15 @@
         {% if voci %}
           <div class="card shadow-sm">
             <div class="card-header d-flex justify-content-between align-items-center">
-              <span class="fw-semibold">Dettaglio voci</span>
-              <span class="text-muted small">{{ voci|length }} voce{{ voci|length > 1 ? 'i' : '' }}</span>
+              <span class="fw-semibold">{{ 'Dettaglio voci'|trans }}</span>
+              <span class="text-muted small">{{ voci|length }} {{ voci|length > 1 ? 'voci'|trans : 'voce'|trans }}</span>
             </div>
             <div class="table-responsive">
               <table class="table mb-0 align-middle">
                 <thead>
                   <tr>
-                    <th>Descrizione</th>
-                    <th class="text-end">Importo</th>
+                    <th>{{ 'Descrizione'|trans }}</th>
+                    <th class="text-end">{{ 'Importo'|trans }}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -126,9 +126,9 @@
       <div class="col-12 col-lg-4">
         <div class="card shadow-sm">
           <div class="card-body">
-            <h2 class="h6">Intestatario sessione</h2>
-            <div class="text-muted small mb-2">Codice fiscale: <strong>{{ codice_fiscale|default('') }}</strong></div>
-            <a class="btn btn-outline-primary w-100" href="/pendenze">Vai all'elenco</a>
+            <h2 class="h6">{{ 'Intestatario sessione'|trans }}</h2>
+            <div class="text-muted small mb-2">{{ 'Codice fiscale'|trans }}: <strong>{{ codice_fiscale|default('') }}</strong></div>
+            <a class="btn btn-outline-primary w-100" href="/pendenze">{{ 'Vai all\'elenco'|trans }}</a>
           </div>
         </div>
       </div>

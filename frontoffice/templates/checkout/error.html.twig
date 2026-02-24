@@ -1,32 +1,32 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}Errore pagamento – {{ app_entity.name }}{% endblock %}
+{% block title %}{{ 'Errore pagamento'|trans }} – {{ app_entity.name }}{% endblock %}
 
 {% block content %}
   <div class="container-xxl py-5">
     <div class="row justify-content-center">
       <div class="col-lg-8">
         <div class="alert alert-danger" role="alert">
-          <h1 class="h4 mb-2">Si è verificato un errore</h1>
-          <p class="mb-0">Non è stato possibile completare l’operazione nel Checkout pagoPA. Puoi riprovare tra qualche minuto.</p>
+          <h1 class="h4 mb-2">{{ 'Si è verificato un errore'|trans }}</h1>
+          <p class="mb-0">{{ 'Non è stato possibile completare l\'operazione nel Checkout pagoPA. Puoi riprovare tra qualche minuto.'|trans }}</p>
         </div>
 
         {% if numero_avviso %}
-          <p class="text-muted">Numero avviso: <strong>{{ numero_avviso }}</strong></p>
+          <p class="text-muted">{{ 'Numero avviso'|trans }}: <strong>{{ numero_avviso }}</strong></p>
         {% endif %}
 
         <div class="d-flex flex-wrap gap-3 mt-4">
           {% if spid_enabled and (not is_logged_in) %}
-            <a class="btn btn-primary" href="{{ login_path }}">Accedi e riprova</a>
+            <a class="btn btn-primary" href="{{ login_path }}">{{ 'Accedi e riprova'|trans }}</a>
           {% else %}
-            <a class="btn btn-primary" href="{{ detail_path }}">Torna alla pendenza</a>
+            <a class="btn btn-primary" href="{{ detail_path }}">{{ 'Torna alla pendenza'|trans }}</a>
           {% endif %}
-          <a class="btn btn-outline-primary" href="/pendenze">Le mie pendenze</a>
-          <a class="btn btn-outline-secondary" href="/">Torna alla home</a>
+          <a class="btn btn-outline-primary" href="/pendenze">{{ 'Le mie pendenze'|trans }}</a>
+          <a class="btn btn-outline-secondary" href="/">{{ 'Torna alla home'|trans }}</a>
         </div>
 
         <div class="mt-4">
-          <p class="mb-0">Se l’errore persiste, contattaci a <a href="mailto:{{ support_email }}">{{ support_email }}</a>.</p>
+          <p class="mb-0">{{ 'Se l\'errore persiste, contattaci a'|trans|raw }} <a href="mailto:{{ support_email }}">{{ support_email }}</a>.</p>
         </div>
       </div>
     </div>

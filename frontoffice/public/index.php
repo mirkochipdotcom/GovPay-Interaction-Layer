@@ -4298,6 +4298,79 @@ $twig = new Environment($loader, [
     'autoescape' => 'html',
 ]);
 
+// ─── i18n (Multilingual Support) ──────────────────────────────────────────────
+$supportedLocales = ['it', 'en', 'es', 'fr', 'de'];
+$currentLocale = 'it';
+
+if (isset($_GET['lang']) && in_array($_GET['lang'], $supportedLocales, true)) {
+    $_SESSION['locale'] = $_GET['lang'];
+}
+
+if (isset($_SESSION['locale']) && in_array($_SESSION['locale'], $supportedLocales, true)) {
+    $currentLocale = $_SESSION['locale'];
+} else {
+    if (isset($_SERVER['HTTP_ACCEPT_LANGUAGE'])) {
+        $browserLangs = explode(',', $_SERVER['HTTP_ACCEPT_LANGUAGE']);
+        foreach ($browserLangs as $lang) {
+            $langCode = strtolower(substr(trim($lang), 0, 2));
+            if (in_array($langCode, $supportedLocales, true)) {
+                $currentLocale = $langCode;
+                $_SESSION['locale'] = $currentLocale;
+                break;
+            }
+        }
+    }
+}
+
+$localesDir = dirname(__DIR__) . '/locales';
+if (!is_dir($localesDir)) {
+    $localesDir = dirname(__DIR__) . '/frontoffice/locales';
+}
+if (!is_dir($localesDir)) {
+    $localesDir = __DIR__ . '/../locales';
+}
+
+$translations = [];
+$localeFile = $localesDir . '/' . $currentLocale . '.json';
+if (file_exists($localeFile)) {
+    $jsonContent = file_get_contents($localeFile);
+    if ($jsonContent !== false) {
+        $parsed = json_decode($jsonContent, true);
+        if (is_array($parsed)) {
+            $translations = $parsed;
+        }
+    }
+}
+
+// Custom Twig Extension for translation
+class I18nExtension extends \Twig\Extension\AbstractExtension
+{
+    private array $translations;
+    private string $currentLocale;
+
+    public function __construct(array $translations, string $currentLocale)
+    {
+        $this->translations = $translations;
+        $this->currentLocale = $currentLocale;
+    }
+
+    public function getFilters(): array
+    {
+        return [
+            new \Twig\TwigFilter('trans', [$this, 'trans']),
+        ];
+    }
+
+    public function trans(string $key): string
+    {
+        return $this->translations[$key] ?? $key;
+    }
+}
+
+$twig->addExtension(new I18nExtension($translations, $currentLocale));
+// ─────────────────────────────────────────────────────────────────────────────
+
+
 $baseContext = [
     'app_entity' => [
         'name' => $entityName,
@@ -4315,6 +4388,7 @@ $baseContext = [
     'support_hours' => $env('FRONTOFFICE_SUPPORT_HOURS', 'Lun-Ven 8:30-17:30'),
     'support_location' => $env('FRONTOFFICE_SUPPORT_LOCATION', 'Palazzo Municipale, piano terra<br>Martedì e Giovedì 9:00-12:30 / 15:00-17:00'),
     'cart_count' => frontoffice_cart_count(),
+    'current_locale' => $currentLocale,
 ];
 
 $context = array_merge(

@@ -63,13 +63,13 @@
         <div class="col-lg-8">
           <nav aria-label="Percorso" class="mb-2">
             <ol class="breadcrumb mb-0">
-              <li class="breadcrumb-item"><a href="/">Home</a></li>
-              <li class="breadcrumb-item active" aria-current="page">Pagamento spontaneo</li>
+              <li class="breadcrumb-item"><a href="/">{{ 'Home'|trans }}</a></li>
+              <li class="breadcrumb-item active" aria-current="page">{{ 'Pagamento spontaneo'|trans }}</li>
             </ol>
           </nav>
-          <p class="text-uppercase small mb-2 text-white-50">Servizi PagoPA</p>
-          <h1 class="display-6 fw-semibold mb-3">Scegli il servizio da pagare</h1>
-          <p class="mb-0 lead text-white-75">Seleziona la tipologia di pagamento per continuare. Alcuni servizi ti porteranno su un portale esterno indicato dall'Ente.</p>
+          <p class="text-uppercase small mb-2 text-white-50">{{ 'Servizi PagoPA'|trans }}</p>
+          <h1 class="display-6 fw-semibold mb-3">{{ 'Scegli il servizio da pagare'|trans }}</h1>
+          <p class="mb-0 lead text-white-75">{{ 'Seleziona la tipologia di pagamento per continuare. Alcuni servizi ti porteranno su un portale esterno indicato dall\'Ente.'|trans }}</p>
         </div>
       </div>
     </div>
@@ -85,18 +85,18 @@
 
       <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-4">
         <div>
-          <p class="service-grid-title mb-1">Servizi PagoPA</p>
-          <h2 class="h3 fw-semibold mb-0">Seleziona la tipologia di pagamento</h2>
+          <p class="service-grid-title mb-1">{{ 'Servizi PagoPA'|trans }}</p>
+          <h2 class="h3 fw-semibold mb-0">{{ 'Seleziona la tipologia di pagamento'|trans }}</h2>
         </div>
-        <p class="text-muted mb-0">L'elenco mostra le tipologie attive per il dominio {{ app_entity.name }}.</p>
+        <p class="text-muted mb-0">{{ 'L\'elenco mostra le tipologie attive per il dominio'|trans }} {{ app_entity.name }}.</p>
       </div>
 
       <div class="d-flex flex-column flex-md-row align-items-md-center gap-2 mb-4">
         <div class="flex-grow-1">
-          <label for="serviceSearch" class="form-label visually-hidden">Cerca tipologie</label>
-          <input id="serviceSearch" type="search" class="form-control" placeholder="Cerca per tipologia o descrizione" autocomplete="off" aria-label="Cerca per tipologia o descrizione">
+          <label for="serviceSearch" class="form-label visually-hidden">{{ 'Cerca tipologie'|trans }}</label>
+          <input id="serviceSearch" type="search" class="form-control" placeholder="{{ 'Cerca per tipologia o descrizione'|trans }}" autocomplete="off" aria-label="{{ 'Cerca per tipologia o descrizione'|trans }}">
         </div>
-        <button id="serviceSearchClear" type="button" class="btn btn-outline-secondary">Pulisci</button>
+        <button id="serviceSearchClear" type="button" class="btn btn-outline-secondary">{{ 'Pulisci'|trans }}</button>
       </div>
 
       {% set all_services = (internal_services|default([]))|merge(external_services|default([])) %}
@@ -107,9 +107,9 @@
             <div class="col-md-6 col-xl-4">
               <a class="service-card {{ isExternal ? 'service-card--external' : '' }}" href="/pagamento-spontaneo?tipologia={{ service.id }}" data-service-id="{{ service.id|default('')|e('html_attr') }}" data-service-label="{{ service.label|default('')|e('html_attr') }}" data-service-desc="{{ service.descrizione_estesa|default('')|e('html_attr') }}">
                 {% if isExternal %}
-                  <span class="badge text-bg-light text-secondary text-uppercase small mb-3">Portale esterno</span>
+                  <span class="badge text-bg-light text-secondary text-uppercase small mb-3">{{ 'Portale esterno'|trans }}</span>
                 {% else %}
-                  <span class="badge text-bg-primary-subtle text-primary-emphasis text-uppercase small mb-3">PagoPA</span>
+                  <span class="badge text-bg-primary-subtle text-primary-emphasis text-uppercase small mb-3">{{ 'PagoPA'|trans }}</span>
                 {% endif %}
 
                 <h3 class="h5 fw-semibold mb-2">{{ service.label }}</h3>
@@ -118,10 +118,10 @@
                   {% if service.descrizione_estesa is defined and service.descrizione_estesa is not empty %}
                     <p class="text-muted mb-4">{{ service.descrizione_estesa|nl2br }}</p>
                   {% else %}
-                    <p class="text-muted mb-4">Verrai reindirizzato al portale esterno dell'Ente.</p>
+                    <p class="text-muted mb-4">{{ 'Verrai reindirizzato al portale esterno dell\'Ente.'|trans }}</p>
                   {% endif %}
                   <div class="d-flex align-items-center gap-2 text-secondary fw-semibold">
-                    Vai al servizio
+                    {{ 'Vai al servizio'|trans }}
                     <span class="service-card__icon" aria-hidden="true">
                       <svg class="icon"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-chevron-right"></use></svg>
                     </span>
@@ -131,7 +131,7 @@
                     {% if service.descrizione_estesa is defined and service.descrizione_estesa is not empty %}
                       {{ service.descrizione_estesa|nl2br }}
                     {% else %}
-                      Richiedi l'emissione dell'avviso e completa il pagamento su questo portale.
+                      {{ 'Richiedi l\'emissione dell\'avviso e completa il pagamento su questo portale.'|trans }}
                     {% endif %}
                   </p>
                   <span class="service-card__icon" aria-hidden="true">
@@ -143,7 +143,7 @@
           {% endfor %}
         </div>
       {% else %}
-        <p class="text-muted">Al momento non sono disponibili tipologie.</p>
+        <p class="text-muted">{{ 'Al momento non sono disponibili tipologie.'|trans }}</p>
       {% endif %}
     </div>
   </section>

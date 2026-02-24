@@ -1,15 +1,15 @@
 {% extends "base.html.twig" %}
 
-{% block title %}Servizio non disponibile{% endblock %}
+{% block title %}{{ 'Servizio non disponibile'|trans }}{% endblock %}
 
 {% block content %}
   {# DEBUG SPID: errors={{ debug_spid_errors|default('none') }}, reason={{ debug_spid_reason|default('none') }}, session_info={{ debug_session_info|default('none') }} #}
   <div class="container-xxl py-5">
     <div class="row">
       <div class="col-12 col-lg-8">
-        <h1 class="h3 mb-3">Servizio non disponibile</h1>
+        <h1 class="h3 mb-3">{{ 'Servizio non disponibile'|trans }}</h1>
         <p class="text-muted mb-4">
-          {{ message|default('Operazione non disponibile in questo momento.') }}
+          {{ message|default('Operazione non disponibile in questo momento.'|trans) }}
         </p>
         {% if debug_spid_errors %}
           <p class="small text-muted"><strong>SPID Errors:</strong> {{ debug_spid_errors }}</p>
@@ -20,7 +20,7 @@
         {% if debug_session_info %}
           <p class="small text-muted"><strong>Session Info:</strong> {{ debug_session_info }}</p>
         {% endif %}
-        <a class="btn btn-outline-primary" href="/">Torna alla home</a>
+        <a class="btn btn-outline-primary" href="/">{{ 'Torna alla home'|trans }}</a>
       </div>
     </div>
   </div>
