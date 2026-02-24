@@ -6,30 +6,31 @@
         <div class="col-12">
           <div class="it-header-slim-wrapper-content">
             <a class="d-none d-lg-block navbar-brand text-white" href="#">{{ app_entity.name }}</a>
-            <div class="it-header-slim-right-zone pe-0">
-              <a class="btn {{ current_path starts with '/carrello' ? 'btn-light text-primary' : 'btn-primary' }} btn-sm me-3 d-flex align-items-center py-1 px-2" href="/carrello" aria-label="Carrello ({{ cart_count|default(0) }} avvisi)" title="Carrello">
+            <div class="it-header-slim-right-zone pe-0 w-100 justify-content-between justify-content-lg-end">
+              <a class="btn {{ current_path starts with '/carrello' ? 'btn-light text-primary' : 'btn-primary' }} btn-sm me-auto me-lg-3 d-flex align-items-center py-1 px-2" href="/carrello" aria-label="Carrello ({{ cart_count|default(0) }} avvisi)" title="Carrello">
                 <i class="fa-solid fa-cart-shopping"></i>
                 <span class="badge rounded-pill {{ current_path starts with '/carrello' ? 'bg-primary text-white' : 'bg-light text-dark' }} ms-2 cart-badge" {% if cart_count|default(0) == 0 %}style="display:none;"{% endif %}>{{ cart_count|default(0) }}</span>
               </a>
-              <div class="nav-item dropdown">
-                <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                  <span class="visually-hidden">Selezione lingua: lingua selezionata</span>
-                  <span>ITA</span>
-                  <svg class="icon d-none d-lg-block"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-expand"></use></svg>
-                </a>
-                <div class="dropdown-menu">
-                  <div class="row">
-                    <div class="col-12">
-                      <div class="link-list-wrapper">
-                        <ul class="link-list">
-                          <li><a class="dropdown-item list-item" href="#"><span>ITA <span class="visually-hidden">selezionata</span></span></a></li>
-                        </ul>
+              <div class="d-flex align-items-center">
+                <div class="nav-item dropdown">
+                  <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <span class="visually-hidden">Selezione lingua: lingua selezionata</span>
+                    <span>ITA</span>
+                    <svg class="icon d-none d-lg-block"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-expand"></use></svg>
+                  </a>
+                  <div class="dropdown-menu">
+                    <div class="row">
+                      <div class="col-12">
+                        <div class="link-list-wrapper">
+                          <ul class="link-list">
+                            <li><a class="dropdown-item list-item" href="#"><span>ITA <span class="visually-hidden">selezionata</span></span></a></li>
+                          </ul>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-              <div class="it-access-top-wrapper">
+                <div class="it-access-top-wrapper">
                  {% if current_user %}
                 <div class="it-user-wrapper nav-item dropdown show">
                   <a aria-expanded="false" class="btn btn-primary btn-icon btn-full" data-bs-toggle="dropdown" href="#" id="userDropdown">
@@ -74,6 +75,7 @@
                     <a class="btn btn-primary btn-sm" href="/login">Accedi</a>
                   {% endif %}
                 {% endif %}
+                </div>
               </div>
             </div>
           </div>
