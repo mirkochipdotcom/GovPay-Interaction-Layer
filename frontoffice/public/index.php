@@ -2100,10 +2100,17 @@ if ($imgDir === null) {
     $imgDir = $documentRoot . '/img';
 }
 
-$customLogoPath = $imgDir . '/stemma_ente.png';
-$appLogo = file_exists($customLogoPath)
-    ? ['type' => 'img', 'src' => '/img/stemma_ente.png']
-    : ['type' => 'sprite', 'src' => '/assets/bootstrap-italia/svg/sprites.svg#it-pa'];
+$logoSrc = trim($env('APP_LOGO_SRC', '/img/stemma_ente.png'));
+$logoType = trim($env('APP_LOGO_TYPE', 'img'));
+
+$appLogo = ['type' => $logoType, 'src' => $logoSrc];
+// Fallback se il file non esiste e il tipo è 'img' (logica semplificata: se è specificato un src esterno o relativo usiamolo)
+if ($logoType === 'img' && $logoSrc === '/img/stemma_ente.png') {
+    $customLogoPath = $imgDir . '/stemma_ente.png';
+    if (!file_exists($customLogoPath)) {
+        $appLogo = ['type' => 'sprite', 'src' => '/assets/bootstrap-italia/svg/sprites.svg#it-pa'];
+    }
+}
 
 $faviconCandidates = [
     ['href' => '/img/favicon.ico', 'path' => $imgDir . '/favicon.ico', 'type' => 'image/x-icon'],
@@ -2117,7 +2124,10 @@ foreach ($faviconCandidates as $candidate) {
     }
 }
 
-$supportEmail = 'pagamenti@' . preg_replace('/[^a-z0-9]+/', '', strtolower($entityName ?: 'ente')) . '.it';
+$supportEmail = trim($env('APP_SUPPORT_EMAIL', ''));
+if ($supportEmail === '') {
+    $supportEmail = 'pagamenti@' . preg_replace('/[^a-z0-9]+/', '', strtolower($entityName ?: 'ente')) . '.it';
+}
 
 $serviceCatalog = frontoffice_load_service_options();
 $serviceInternalOptions = array_values(array_filter($serviceCatalog, static fn ($opt) => ($opt['type'] ?? 'internal') === 'internal'));
@@ -4384,9 +4394,9 @@ $baseContext = [
     'spid_enabled' => frontoffice_spid_enabled(),
     'spid_mode' => frontoffice_spid_mode(),
     'support_email' => $supportEmail,
-    'support_phone' => $env('FRONTOFFICE_SUPPORT_PHONE', '800.000.000'),
-    'support_hours' => $env('FRONTOFFICE_SUPPORT_HOURS', 'Lun-Ven 8:30-17:30'),
-    'support_location' => $env('FRONTOFFICE_SUPPORT_LOCATION', 'Palazzo Municipale, piano terra<br>Martedì e Giovedì 9:00-12:30 / 15:00-17:00'),
+    'support_phone' => $env('APP_SUPPORT_PHONE', '800.000.000'),
+    'support_hours' => $env('APP_SUPPORT_HOURS', 'Lun-Ven 9:00-18:00'),
+    'support_location' => $env('APP_SUPPORT_LOCATION', 'Via Roma 1, 00100 Montesilvano (PE)'),
     'cart_count' => frontoffice_cart_count(),
     'current_locale' => $currentLocale,
 ];
