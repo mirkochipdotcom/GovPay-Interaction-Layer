@@ -184,7 +184,9 @@ services:
       - GOVPAY_TLS_KEY=${GOVPAY_TLS_KEY}
       - TASSONOMIE_PAGOPA=${TASSONOMIE_PAGOPA}
       - COMPOSE_PROFILES=${COMPOSE_PROFILES}
-      - IAM_PROXY_SAML2_IDP_METADATA_URL_INTERNAL=${IAM_PROXY_SAML2_IDP_METADATA_URL_INTERNAL:-https://satosa-nginx:443/Saml2IDP/metadata}
+      - IAM_PROXY_SAML2_IDP_METADATA_URL_INTERNAL=${IAM_PROXY_SAML2_IDP_METADATA_URL_INTERNAL:-http://satosa-nginx:80/Saml2IDP/metadata}
+      - IAM_PROXY_PUBLIC_BASE_URL=${IAM_PROXY_PUBLIC_BASE_URL}
+      - IAM_PROXY_DEBUG=${IAM_PROXY_DEBUG}
     depends_on:
       - db
     entrypoint: [ "/usr/local/bin/docker-setup.sh" ]
