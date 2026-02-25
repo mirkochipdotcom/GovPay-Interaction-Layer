@@ -153,7 +153,7 @@ return (function (): array {
         }
     });
 
-    $publicPaths = ['/login', '/logout', '/assets/*', '/debug/*', '/guida'];
+    $publicPaths = ['/login', '/logout', '/assets/*', '/debug/*', '/guida', '/password-dimenticata', '/reset-password'];
     $app->add(new AuthMiddleware($publicPaths));
     $app->add(new FlashMiddleware($twig));
     $app->add(new SessionMiddleware());

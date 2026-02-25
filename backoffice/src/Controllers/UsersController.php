@@ -222,6 +222,62 @@ class UsersController
         return $response->withHeader('Location', $this->usersHome())->withStatus(302);
     }
 
+    public function sendPasswordResetLink(Request $request, Response $response, array $args): Response
+    {
+        $this->assertAdmin();
+        $id = (int)($args['id'] ?? 0);
+        $target = $this->users->findById($id);
+        $current = $_SESSION['user'] ?? null;
+
+        if (!$target) {
+            $_SESSION['flash'][] = ['type' => 'danger', 'text' => 'Utente non trovato'];
+            return $response->withHeader('Location', $this->usersHome())->withStatus(302);
+        }
+
+        // Se l'utente è un superadmin e chi preme è un semplice admin, blocca
+        if (($target['role'] ?? '') === 'superadmin' && ($current['role'] ?? '') === 'admin') {
+            $_SESSION['flash'][] = ['type' => 'danger', 'text' => 'Non puoi inviare reset password a un account superadmin'];
+            Logger::getInstance()->warning('Blocked send-reset by admin on superadmin', ['current_id' => $current['id'] ?? null, 'target_id' => $id]);
+            return $response->withHeader('Location', $this->usersHome())->withStatus(302);
+        }
+
+        $email = $target['email'];
+        $toName = trim(($target['first_name'] ?? '') . ' ' . ($target['last_name'] ?? ''));
+        
+        try {
+            $token = $this->users->createPasswordResetToken($email, 60);
+            
+            // Per generare l'URL corretto, riusiamo la logica del PasswordResetController o la iniettiamo?
+            // Qui costruiamo l'URL basandoci sulla logica già definita
+            $baseUrl = (string)(getenv('BACKOFFICE_PUBLIC_BASE_URL') ?: '');
+            if ($baseUrl !== '') {
+                $baseUrl = rtrim($baseUrl, '/');
+            } else {
+                $uri = $request->getUri();
+                $scheme = $request->getHeaderLine('X-Forwarded-Proto') ?: $uri->getScheme();
+                $host = $request->getHeaderLine('X-Forwarded-Host') ?: $uri->getHost();
+                $port = $uri->getPort();
+                $baseUrl = $scheme . '://' . $host;
+                if ($port && !in_array($port, ($scheme === 'https' ? [443] : [80]), true)) {
+                    $baseUrl .= ':' . $port;
+                }
+            }
+            $resetUrl = $baseUrl . '/reset-password?token=' . urlencode($token);
+            $appName = (string)(getenv('APP_ENTITY_NAME') ?: 'GIL Backoffice');
+
+            $mailer = \App\Services\MailerService::forSuite('backoffice');
+            $mailer->sendResetPassword($email, $toName, $resetUrl, $appName, 60);
+
+            $_SESSION['flash'][] = ['type' => 'success', 'text' => "Email di reset inviata correttamente a $email"];
+            Logger::getInstance()->info('Manual password reset link sent by admin', ['admin_id' => $current['id'] ?? null, 'target_id' => $id, 'target_email' => $email]);
+        } catch (\Throwable $e) {
+            $_SESSION['flash'][] = ['type' => 'danger', 'text' => 'Errore durante l\'invio dell\'email'];
+            Logger::getInstance()->error('Error sending manual password reset', ['error' => $e->getMessage(), 'target_id' => $id]);
+        }
+
+        return $response->withHeader('Location', $this->usersHome())->withStatus(302);
+    }
+
     private function usersHome(): string
     {
         return '/configurazione?tab=utenti';

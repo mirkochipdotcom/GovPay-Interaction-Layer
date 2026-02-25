@@ -354,6 +354,10 @@ return function (App $app, Twig $twig): void {
         $controller = new UsersController();
         return $controller->enable($request, $response, $args);
     });
+    $app->post('/users/{id}/send-reset-password', function($request, $response, $args) {
+        $controller = new UsersController();
+        return $controller->sendPasswordResetLink($request, $response, $args);
+    });
     // Login routes
     $app->get('/login', function($request, $response) use ($twig) {
         if (isset($_SESSION['user'])) {
@@ -405,6 +409,24 @@ return function (App $app, Twig $twig): void {
             session_regenerate_id(true);
         }
         return $response->withHeader('Location', '/login')->withStatus(302);
+    });
+
+    // Password reset (route pubbliche)
+    $app->get('/password-dimenticata', function($request, $response) use ($twig) {
+        $controller = new \App\Controllers\PasswordResetController($twig);
+        return $controller->showForgot($request, $response);
+    });
+    $app->post('/password-dimenticata', function($request, $response) use ($twig) {
+        $controller = new \App\Controllers\PasswordResetController($twig);
+        return $controller->sendReset($request, $response);
+    });
+    $app->get('/reset-password', function($request, $response) use ($twig) {
+        $controller = new \App\Controllers\PasswordResetController($twig);
+        return $controller->showReset($request, $response);
+    });
+    $app->post('/reset-password', function($request, $response) use ($twig) {
+        $controller = new \App\Controllers\PasswordResetController($twig);
+        return $controller->doReset($request, $response);
     });
 
     $appDebugRaw = getenv('APP_DEBUG');

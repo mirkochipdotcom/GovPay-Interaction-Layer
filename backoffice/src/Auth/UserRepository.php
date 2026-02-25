@@ -97,4 +97,76 @@ class UserRepository
         $row = $stmt->fetch();
         return (int)($row['c'] ?? 0);
     }
+
+    // -------------------------------------------------------------------------
+    // Password reset tokens
+    // -------------------------------------------------------------------------
+
+    /**
+     * Genera un token sicuro per il reset password, lo salva (hash) nel DB
+     * e restituisce il token in chiaro da includere nell'URL dell'email.
+     * Il token scade dopo $ttlMinutes minuti.
+     */
+    public function createPasswordResetToken(string $email, int $ttlMinutes = 60): string
+    {
+        // Pulizia token scaduti o già usati
+        $this->deleteExpiredTokens();
+
+        // Invalida eventuali token precedenti per la stessa email
+        $stmt = $this->pdo->prepare('DELETE FROM password_resets WHERE email = :email');
+        $stmt->execute([':email' => $email]);
+
+        // Genera token crittograficamente sicuro
+        $token = bin2hex(random_bytes(32)); // 64 caratteri hex
+        $hash  = hash('sha256', $token);
+        $expires = (new \DateTimeImmutable())->modify("+{$ttlMinutes} minutes")->format('Y-m-d H:i:s');
+
+        $stmt = $this->pdo->prepare(
+            'INSERT INTO password_resets (email, token_hash, expires_at) VALUES (:email, :hash, :expires)'
+        );
+        $stmt->execute([':email' => $email, ':hash' => $hash, ':expires' => $expires]);
+
+        return $token;
+    }
+
+    /**
+     * Trova un token valido (non scaduto, non usato) e restituisce la riga
+     * o null se non valido.
+     */
+    public function findValidResetToken(string $token): ?array
+    {
+        $hash = hash('sha256', $token);
+        $stmt = $this->pdo->prepare(
+            'SELECT * FROM password_resets
+             WHERE token_hash = :hash
+               AND expires_at > NOW()
+               AND used_at IS NULL
+             LIMIT 1'
+        );
+        $stmt->execute([':hash' => $hash]);
+        $row = $stmt->fetch();
+        return $row ?: null;
+    }
+
+    /**
+     * Segna il token come usato (monouso).
+     */
+    public function consumeResetToken(string $token): void
+    {
+        $hash = hash('sha256', $token);
+        $stmt = $this->pdo->prepare(
+            'UPDATE password_resets SET used_at = NOW() WHERE token_hash = :hash'
+        );
+        $stmt->execute([':hash' => $hash]);
+    }
+
+    /**
+     * Rimuove i token scaduti o già usati.
+     */
+    public function deleteExpiredTokens(): void
+    {
+        $this->pdo->exec(
+            'DELETE FROM password_resets WHERE expires_at <= NOW() OR used_at IS NOT NULL'
+        );
+    }
 }

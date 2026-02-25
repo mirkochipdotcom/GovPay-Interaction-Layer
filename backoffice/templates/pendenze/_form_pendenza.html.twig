@@ -196,6 +196,7 @@
     if (causaleCounter) {
       causaleCounter.textContent = causaleInput.value.length + '/140';
     }
+    causaleInput.dispatchEvent(new Event('input'));
   }
 
   if (templateSelector) {
@@ -208,7 +209,10 @@
 
       // Populate basic fields
       if (idTipoPendenzaInput) idTipoPendenzaInput.value = selectedOption.getAttribute('data-tipo');
-      if (importoInput) importoInput.value = selectedOption.getAttribute('data-importo');
+      if (importoInput) {
+        importoInput.value = selectedOption.getAttribute('data-importo');
+        importoInput.dispatchEvent(new Event('input'));
+      }
       
       // Store raw causale pattern and trigger initial update
       rawTemplateCausale = selectedOption.getAttribute('data-causale') || '';

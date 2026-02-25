@@ -81,20 +81,27 @@
                   <a class="btn btn-sm btn-outline-primary" href="/users/{{ u.id }}/edit">Modifica</a>
                   <button class="btn btn-sm btn-outline-danger" disabled title="Non puoi disabilitare il tuo account">Disabilita</button>
                 {% else %}
-                  <a class="btn btn-sm btn-outline-primary" href="/users/{{ u.id }}/edit">Modifica</a>
-                  {% if not is_disabled %}
-                    {% if target_is_super and count_super <= 1 %}
-                      <button class="btn btn-sm btn-outline-danger" disabled title="Impossibile disabilitare l'ultimo superadmin attivo">Disabilita</button>
+                  <div class="d-flex gap-1 align-items-center">
+                    <a class="btn btn-sm btn-outline-primary" href="/users/{{ u.id }}/edit">Modifica</a>
+                    
+                    <form method="post" action="/users/{{ u.id }}/send-reset-password" onsubmit="return confirm('Inviare l\'email di reset password a {{ u.email }}?');">
+                      <button class="btn btn-sm btn-outline-info" type="submit" title="Invia link reset password">Reset</button>
+                    </form>
+
+                    {% if not is_disabled %}
+                      {% if target_is_super and count_super <= 1 %}
+                        <button class="btn btn-sm btn-outline-danger" disabled title="Impossibile disabilitare l'ultimo superadmin attivo">Disabilita</button>
+                      {% else %}
+                        <form method="post" action="/users/{{ u.id }}/disable" onsubmit="return confirm('Confermi la disabilitazione dell\'utente?');">
+                          <button class="btn btn-sm btn-outline-danger" type="submit">Disabilita</button>
+                        </form>
+                      {% endif %}
                     {% else %}
-                      <form method="post" action="/users/{{ u.id }}/disable" style="display:inline-block" onsubmit="return confirm('Confermi la disabilitazione dell\'utente?');">
-                        <button class="btn btn-sm btn-outline-danger" type="submit">Disabilita</button>
+                      <form method="post" action="/users/{{ u.id }}/enable" onsubmit="return confirm('Confermi la riattivazione dell\'utente?');">
+                        <button class="btn btn-sm btn-outline-success" type="submit">Riabilita</button>
                       </form>
                     {% endif %}
-                  {% else %}
-                    <form method="post" action="/users/{{ u.id }}/enable" style="display:inline-block" onsubmit="return confirm('Confermi la riattivazione dell\'utente?');">
-                      <button class="btn btn-sm btn-outline-success" type="submit">Riabilita</button>
-                    </form>
-                  {% endif %}
+                  </div>
                 {% endif %}
               {% endif %}
             </td>
