@@ -262,6 +262,24 @@ return function (App $app, Twig $twig): void {
         return $controller->copyTipologieDescrizioneEstesaFromTassonomie($request, $response);
     });
 
+    // Pendenza Templates (CRUD)
+    $app->post('/configurazione/templates/add', function($request, $response) use ($twig) {
+        $controller = new ConfigurazioneController($twig);
+        return $controller->addPendenzaTemplate($request, $response);
+    });
+    $app->post('/configurazione/templates/{id}/update', function($request, $response, $args) use ($twig) {
+        $controller = new ConfigurazioneController($twig);
+        return $controller->updatePendenzaTemplate($request, $response, $args);
+    });
+    $app->post('/configurazione/templates/{id}/delete', function($request, $response, $args) use ($twig) {
+        $controller = new ConfigurazioneController($twig);
+        return $controller->deletePendenzaTemplate($request, $response, $args);
+    });
+    $app->post('/configurazione/templates/{id}/assign-users', function($request, $response, $args) use ($twig) {
+        $controller = new ConfigurazioneController($twig);
+        return $controller->assignUsersToPendenzaTemplate($request, $response, $args);
+    });
+
     // Endpoint per attivare/disattivare la tipologia direttamente su GovPay (solo superadmin)
     $app->post('/configurazione/tipologie/{idEntrata}/govpay', function($request, $response, $args) use ($twig) {
         $controller = new ConfigurazioneController($twig);

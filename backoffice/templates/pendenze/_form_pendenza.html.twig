@@ -7,6 +7,27 @@
  #}
 {% set is_edit_mode = is_edit|default(false) %}
 {% set can_remove_voci = not is_edit_mode %}
+
+{% if not is_edit_mode and pendenza_templates is defined and pendenza_templates|length > 0 %}
+<div class="row mb-3 pb-3 border-bottom">
+  <div class="col-md-12">
+    <label for="templateSelector" class="form-label active fw-bold text-primary"><i class="fas fa-magic me-1"></i> Usa un template (opzionale)</label>
+    <select id="templateSelector" class="form-select border-primary">
+      <option value="">-- Seleziona un template per autocompilare i campi --</option>
+      {% for t in pendenza_templates %}
+        <option value="{{ t.id }}" 
+                data-tipo="{{ t.id_tipo_pendenza }}" 
+                data-causale="{{ t.causale|e('html_attr') }}"
+                data-importo="{{ t.importo }}">
+          {{ t.titolo }} (Importo: {{ t.importo|number_format(2, ',', '.') }} €)
+        </option>
+      {% endfor %}
+    </select>
+    <div class="form-text small">Selezionando un template verranno precompilati: Tipologia Pendenza, Importo e Causale. La causale verrà ricalcolata in tempo reale in base a Nominativo o Ragione Sociale.</div>
+  </div>
+</div>
+{% endif %}
+
 <div class="row">
   <div class="form-group col-md-6">
     <div class="select-wrapper">
@@ -148,6 +169,65 @@
   }
   attachUppercase(ident);
   attachUppercase(anagraficaInput);
+  attachUppercase(nomeInput);
+
+  // --- Logic for Pendenza Templates ---
+  const templateSelector = document.getElementById('templateSelector');
+  const causaleInput = document.getElementById('causale');
+  const importoInput = document.getElementById('importo');
+  const idTipoPendenzaInput = document.getElementById('idTipoPendenza');
+  const annoRiferimentoInput = document.getElementById('annoRiferimento');
+  const causaleCounter = document.getElementById('causaleCounter');
+
+  let rawTemplateCausale = ''; // Stores the causale string with placeholders from the template
+
+  function updateCausalePlaceholder() {
+    if (!rawTemplateCausale || !causaleInput) return;
+    
+    let compiled = rawTemplateCausale;
+    const nome = nomeInput ? (nomeInput.value || '').trim() : '';
+    const cognome = anagraficaInput ? (anagraficaInput.value || '').trim() : '';
+    
+    compiled = compiled.replace(/%nome%/gi, nome);
+    compiled = compiled.replace(/%cognome%/gi, cognome);
+    compiled = compiled.replace(/%ragione_sociale%/gi, cognome); // for PJ
+
+    causaleInput.value = compiled.substring(0, 140);
+    if (causaleCounter) {
+      causaleCounter.textContent = causaleInput.value.length + '/140';
+    }
+  }
+
+  if (templateSelector) {
+    templateSelector.addEventListener('change', function() {
+      const selectedOption = templateSelector.options[templateSelector.selectedIndex];
+      if (!selectedOption.value) {
+        rawTemplateCausale = '';
+        return; // No template selected, leave fields as they are
+      }
+
+      // Populate basic fields
+      if (idTipoPendenzaInput) idTipoPendenzaInput.value = selectedOption.getAttribute('data-tipo');
+      if (importoInput) importoInput.value = selectedOption.getAttribute('data-importo');
+      
+      // Store raw causale pattern and trigger initial update
+      rawTemplateCausale = selectedOption.getAttribute('data-causale') || '';
+      updateCausalePlaceholder();
+    });
+  }
+
+  // Bind input events on Subject inputs to recalculate dynamic causale
+  if (nomeInput) {
+    nomeInput.addEventListener('input', updateCausalePlaceholder);
+  }
+  if (anagraficaInput) {
+    anagraficaInput.addEventListener('input', updateCausalePlaceholder);
+  }
+  
+  // Also hook into PJ/PF radio to refresh placeholder if they switch
+  if (pf) pf.addEventListener('change', updateCausalePlaceholder);
+  if (pj) pj.addEventListener('change', updateCausalePlaceholder);
+  // --- End Logic for Pendenza Templates ---
   attachUppercase(nomeInput);
 })();
 </script>

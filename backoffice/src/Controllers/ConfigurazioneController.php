@@ -768,6 +768,33 @@ class ConfigurazioneController
             }
         }
 
+        $pendenzaTemplates = [];
+        $tipologiePendenze = [];
+        if ($tab === 'templates' && $canManageUsers) {
+            try {
+                $idDominioEnv = getenv('ID_DOMINIO') ?: '';
+                if ($idDominioEnv !== '') {
+                    $templateRepo = new \App\Database\PendenzaTemplateRepository();
+                    $pendenzaTemplates = $templateRepo->findAllByDominio($idDominioEnv);
+                    foreach ($pendenzaTemplates as &$pt) {
+                        $pt['users'] = $templateRepo->getAssignedUserIds((int)$pt['id']);
+                    }
+                    unset($pt);
+
+                    $entrateRepo = new EntrateRepository();
+                    $tipologiePendenze = $entrateRepo->listAbilitateByDominio($idDominioEnv);
+                } else {
+                    $errors[] = 'ID_DOMINIO non impostato: impossibile caricare i template';
+                }
+
+                if (empty($usersList)) {
+                    $usersList = $this->userRepository->listAll();
+                }
+            } catch (\Throwable $e) {
+                $errors[] = 'Errore caricamento template pendenze: ' . $e->getMessage();
+            }
+        }
+
         return $this->twig->render($response, 'configurazione.html.twig', [
             'errors' => $errors,
             'cfg_json' => $cfgJson,
@@ -799,6 +826,8 @@ class ConfigurazioneController
             'logs_lines' => $logsLines,
             'query_params' => $params,
             'users' => $usersList,
+            'pendenza_templates' => $pendenzaTemplates,
+            'tipologie_pendenze' => $tipologiePendenze,
             'count_superadmins' => $countSuperadmins,
             'config_readonly' => !$canEditConfig,
             'can_manage_users' => $canManageUsers,
@@ -1674,5 +1703,148 @@ class ConfigurazioneController
     {
         $u = $_SESSION['user'] ?? null;
         return $u && ($u['role'] ?? '') === 'superadmin';
+    }
+
+    public function addPendenzaTemplate(Request $request, Response $response): Response
+    {
+        if (!$this->isSuperadmin() && !in_array($_SESSION['user']['role'] ?? '', ['admin'], true)) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Accesso negato'];
+            return $this->redirectToTab($response, 'templates');
+        }
+
+        $idDominio = getenv('ID_DOMINIO') ?: '';
+        if ($idDominio === '') {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'ID_DOMINIO non impostato'];
+            return $this->redirectToTab($response, 'templates');
+        }
+
+        $data = (array)($request->getParsedBody() ?? []);
+        $titolo = trim((string)($data['titolo'] ?? ''));
+        $idTipoPendenza = trim((string)($data['id_tipo_pendenza'] ?? ''));
+        $causale = trim((string)($data['causale'] ?? ''));
+        $importo = (float)($data['importo'] ?? 0);
+
+        if ($titolo === '' || $idTipoPendenza === '' || $causale === '' || $importo <= 0) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Compila tutti i campi obbligatori del template'];
+            return $this->redirectToTab($response, 'templates');
+        }
+
+        try {
+            $repo = new \App\Database\PendenzaTemplateRepository();
+            $repo->create([
+                'id_dominio' => $idDominio,
+                'titolo' => $titolo,
+                'id_tipo_pendenza' => $idTipoPendenza,
+                'causale' => $causale,
+                'importo' => $importo
+            ]);
+            $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Template creato con successo'];
+            Logger::getInstance()->info('PendenzaTemplate created', ['titolo' => $titolo, 'user' => $_SESSION['user']['id'] ?? '']);
+        } catch (\Throwable $e) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Errore creazione template: ' . $e->getMessage()];
+            Logger::getInstance()->error('Errore creazione template', ['error' => $e->getMessage()]);
+        }
+
+        return $this->redirectToTab($response, 'templates');
+    }
+
+    public function updatePendenzaTemplate(Request $request, Response $response, array $args): Response
+    {
+        if (!$this->isSuperadmin() && !in_array($_SESSION['user']['role'] ?? '', ['admin'], true)) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Accesso negato'];
+            return $this->redirectToTab($response, 'templates');
+        }
+
+        $id = isset($args['id']) ? (int)$args['id'] : 0;
+        if ($id <= 0) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'ID template non valido'];
+            return $this->redirectToTab($response, 'templates');
+        }
+
+        $data = (array)($request->getParsedBody() ?? []);
+        $titolo = trim((string)($data['titolo'] ?? ''));
+        $idTipoPendenza = trim((string)($data['id_tipo_pendenza'] ?? ''));
+        $causale = trim((string)($data['causale'] ?? ''));
+        $importo = (float)($data['importo'] ?? 0);
+
+        if ($titolo === '' || $idTipoPendenza === '' || $causale === '' || $importo <= 0) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Compila tutti i campi obbligatori del template'];
+            return $this->redirectToTab($response, 'templates');
+        }
+
+        try {
+            $repo = new \App\Database\PendenzaTemplateRepository();
+            $repo->update($id, [
+                'titolo' => $titolo,
+                'id_tipo_pendenza' => $idTipoPendenza,
+                'causale' => $causale,
+                'importo' => $importo
+            ]);
+            $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Template aggiornato con successo'];
+            Logger::getInstance()->info('PendenzaTemplate updated', ['id' => $id, 'user' => $_SESSION['user']['id'] ?? '']);
+        } catch (\Throwable $e) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Errore aggiornamento template: ' . $e->getMessage()];
+            Logger::getInstance()->error('Errore aggiornamento template', ['error' => $e->getMessage()]);
+        }
+
+        return $this->redirectToTab($response, 'templates');
+    }
+
+    public function deletePendenzaTemplate(Request $request, Response $response, array $args): Response
+    {
+        if (!$this->isSuperadmin() && !in_array($_SESSION['user']['role'] ?? '', ['admin'], true)) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Accesso negato'];
+            return $this->redirectToTab($response, 'templates');
+        }
+
+        $id = isset($args['id']) ? (int)$args['id'] : 0;
+        if ($id <= 0) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'ID template non valido'];
+            return $this->redirectToTab($response, 'templates');
+        }
+
+        try {
+            $repo = new \App\Database\PendenzaTemplateRepository();
+            $repo->delete($id);
+            $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Template eliminato'];
+            Logger::getInstance()->info('PendenzaTemplate deleted', ['id' => $id, 'user' => $_SESSION['user']['id'] ?? '']);
+        } catch (\Throwable $e) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Errore eliminazione template: ' . $e->getMessage()];
+            Logger::getInstance()->error('Errore eliminazione template', ['error' => $e->getMessage()]);
+        }
+
+        return $this->redirectToTab($response, 'templates');
+    }
+
+    public function assignUsersToPendenzaTemplate(Request $request, Response $response, array $args): Response
+    {
+        if (!$this->isSuperadmin() && !in_array($_SESSION['user']['role'] ?? '', ['admin'], true)) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Accesso negato'];
+            return $this->redirectToTab($response, 'templates');
+        }
+
+        $id = isset($args['id']) ? (int)$args['id'] : 0;
+        if ($id <= 0) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'ID template non valido'];
+            return $this->redirectToTab($response, 'templates');
+        }
+
+        $data = (array)($request->getParsedBody() ?? []);
+        $userIds = isset($data['user_ids']) && is_array($data['user_ids']) ? $data['user_ids'] : [];
+
+        // Cast to int array
+        $userIds = array_map('intval', $userIds);
+
+        try {
+            $repo = new \App\Database\PendenzaTemplateRepository();
+            $repo->assignUsers($id, $userIds);
+            $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Assegnazioni salvate'];
+            Logger::getInstance()->info('PendenzaTemplate users assigned', ['id' => $id, 'users_count' => count($userIds)]);
+        } catch (\Throwable $e) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Errore assegnazione utenti: ' . $e->getMessage()];
+            Logger::getInstance()->error('Errore assegnazione utenti template', ['error' => $e->getMessage()]);
+        }
+
+        return $this->redirectToTab($response, 'templates');
     }
 }

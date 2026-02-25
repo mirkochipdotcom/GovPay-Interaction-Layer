@@ -401,7 +401,7 @@
                 <thead class="table-light">
                   <tr>
                     <th>#</th>
-                    <th>Importo</th>
+                    <th class="text-nowrap">Importo</th>
                     <th>Validità</th>
                     <th>Scadenza</th>
                     <th>Stato</th>
@@ -421,7 +421,7 @@
                     {% endfor %}
                     <tr class="{{ (selected_rate is defined and selected_rate is not null and (i == (selected_rate|default(0) + 0))) ? 'table-info' : '' }}">
                       <td>{{ i }}</td>
-                      <td class="text-end">{% if rt is not null and rt.importo is defined %}{{ rt.importo|number_format(2, ',', '.') }} €{% else %}—{% endif %}</td>
+                      <td class="text-end text-nowrap">{% if rt is not null and rt.importo is defined %}{{ rt.importo|number_format(2, ',', '.') }} €{% else %}—{% endif %}</td>
                       <td>{% if rt is not null and rt.dataValidita is defined and rt.dataValidita %}{{ rt.dataValidita|date('d/m/Y') }}{% else %}—{% endif %}</td>
                       <td>{% if rt is not null and rt.dataScadenza is defined and rt.dataScadenza %}{{ rt.dataScadenza|date('d/m/Y') }}{% else %}—{% endif %}</td>
                       {# Stato: mostra badge colorato usando pendenza_states quando possibile #}
@@ -489,7 +489,7 @@
                   <th scope="col">#</th>
                   <th scope="col">ID voce</th>
                   <th scope="col">Descrizione</th>
-                  <th scope="col" class="text-end">Importo</th>
+                  <th scope="col" class="text-end text-nowrap">Importo</th>
                   <th scope="col">Stato</th>
                   <th scope="col">Descrizione tipologia</th>
                   <th scope="col">IBAN</th>
@@ -503,7 +503,7 @@
                     <td>{{ voce.indice|default(loop.index) }}</td>
                     <td>{{ voce.idVocePendenza|default('—') }}</td>
                     <td>{{ voce.descrizione|default('—') }}</td>
-                    <td class="text-end">{% if voce.importo is defined %}{{ voce.importo|number_format(2, ',', '.') }} €{% else %}—{% endif %}</td>
+                    <td class="text-end text-nowrap">{% if voce.importo is defined %}{{ voce.importo|number_format(2, ',', '.') }} €{% else %}—{% endif %}</td>
                     <td>
                       {% set st_voce = voce.stato|default('') %}
                       {% include 'partials/state_badge.html.twig' with { state: st_voce, pill: false, small: true } %}
@@ -595,7 +595,7 @@
                       <th>Identificativo pagamento</th>
                       <th>Data e ora</th>
                       <th>Stato</th>
-                      <th class="text-end">Importo</th>
+                      <th class="text-end text-nowrap">Importo</th>
                       <th>ABI</th>
                       <th>Istituto</th>
                       <th class="text-center">Ricevuta</th>
@@ -682,7 +682,7 @@
                           —
                         {% endif %}
                       </td>
-                      <td class="text-end">{% if importo is not null %}{{ importo|number_format(2, ',', '.') }} €{% else %}—{% endif %}</td>
+                      <td class="text-end text-nowrap">{% if importo is not null %}{{ importo|number_format(2, ',', '.') }} €{% else %}—{% endif %}</td>
                       <td>{{ abi ?: '—' }}</td>
                       <td>{{ istituto ?: '—' }}</td>
                       <td class="text-center">

@@ -28,6 +28,7 @@
     <a class="nav-link {{ currentTab == 'tassonomie' ? 'active' : '' }}" href="/configurazione?tab=tassonomie"><i class="fas fa-sitemap me-2"></i>Tassonomie</a>
     <a class="nav-link {{ currentTab == 'tipologie_esterne' ? 'active' : '' }}" href="/configurazione?tab=tipologie_esterne"><i class="fas fa-external-link-alt me-2"></i>Tipologie esterne</a>
         <a class="nav-link {{ currentTab == 'gestionali' ? 'active' : '' }}" href="/configurazione?tab=gestionali"><i class="fas fa-cog me-2"></i>Gestionali</a>
+        <a class="nav-link {{ currentTab == 'templates' ? 'active' : '' }}" href="/configurazione?tab=templates"><i class="fas fa-file-invoice me-2"></i>Template Pendenze</a>
   <a class="nav-link {{ currentTab == 'info' ? 'active' : '' }}" href="/configurazione?tab=info"><i class="fas fa-info-circle me-2"></i>Info</a>
   <a class="nav-link {{ currentTab == 'logs' ? 'active' : '' }}" href="/configurazione?tab=logs"><i class="fas fa-file-alt me-2"></i>Logs</a>
         <a class="nav-link {{ currentTab == 'applicazioni' ? 'active' : '' }}" href="/configurazione?tab=applicazioni"><i class="fas fa-puzzle-piece me-2"></i>Applicazioni</a>
@@ -1224,8 +1225,157 @@
             <pre class="mb-0">{{ operatori_json }}</pre>
           </div>
         {% endif %}
+      {% elseif currentTab == 'templates' %}
+        <div class="card shadow-sm mb-4">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h2 class="h6 mb-0">Template Pendenze</h2>
+            <button class="btn btn-sm btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#collapseNewTemplate" aria-expanded="false" aria-controls="collapseNewTemplate">
+              <i class="fas fa-plus me-1"></i> Nuovo Template
+            </button>
+          </div>
+          <div class="card-body">
+            <div class="collapse mb-4" id="collapseNewTemplate">
+              <div class="card card-body bg-light border-0">
+                <form method="post" action="/configurazione/templates/add" class="row g-3">
+                  <div class="col-md-6">
+                    <label class="form-label form-label-sm">Titolo*</label>
+                    <input type="text" name="titolo" class="form-control form-control-sm" required placeholder="Es. Mensa Scolastica">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label form-label-sm">Tipo Pendenza*</label>
+                    <select name="id_tipo_pendenza" class="form-select form-select-sm" required>
+                      <option value="">-- seleziona --</option>
+                      {% for tipo in tipologie_pendenze|default([]) %}
+                        <option value="{{ tipo.id_entrata }}">{{ tipo.nome|default(tipo.descrizione)|e }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="col-md-12">
+                    <label class="form-label form-label-sm">Causale*</label>
+                    <input type="text" name="causale" class="form-control form-control-sm" required placeholder="Es. Rata mensa %nome% %cognome%">
+                    <div class="form-text small">Usa %nome%, %cognome%, %ragione_sociale% come segnaposto.</div>
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label form-label-sm">Importo*</label>
+                    <input type="number" step="0.01" name="importo" class="form-control form-control-sm" required placeholder="0.00">
+                  </div>
+                  <div class="col-12 text-end">
+                    <button type="submit" class="btn btn-sm btn-success">Crea Template</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+
+            {% if pendenza_templates and pendenza_templates|length > 0 %}
+              <div class="table-responsive">
+                <table class="table table-sm table-striped align-middle">
+                  <thead>
+                    <tr>
+                      <th>Titolo</th>
+                      <th>Tipo Pendenza</th>
+                      <th>Causale</th>
+                      <th>Importo</th>
+                      <th>Utenti Assegnati</th>
+                      <th class="text-end">Azioni</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for t in pendenza_templates %}
+                      <tr>
+                        <td><strong>{{ t.titolo }}</strong></td>
+                        <td class="font-monospace small">{{ t.id_tipo_pendenza }}</td>
+                        <td>{{ t.causale }}</td>
+                        <td>{{ t.importo|number_format(2, ',', '.') }} €</td>
+                        <td>
+                          <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#assignUsers{{ t.id }}" aria-expanded="false" aria-controls="assignUsers{{ t.id }}">
+                            <i class="fas fa-users"></i> {{ t.users|length }}
+                          </button>
+                        </td>
+                        <td class="text-end">
+                          <div class="btn-group">
+                            <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#editTemplate{{ t.id }}" aria-expanded="false" aria-controls="editTemplate{{ t.id }}" title="Modifica">
+                              <i class="fas fa-edit"></i>
+                            </button>
+                            <form action="/configurazione/templates/{{ t.id }}/delete" method="post" class="d-inline" onsubmit="return confirm('Sei sicuro di voler eliminare questo template?');">
+                              <button type="submit" class="btn btn-sm btn-outline-danger" title="Elimina"><i class="fas fa-trash"></i></button>
+                            </form>
+                          </div>
+                        </td>
+                      </tr>
+                      
+                      <!-- Collapse Modifica Template -->
+                      <tr>
+                        <td colspan="6" class="p-0 border-0">
+                          <div class="collapse" id="editTemplate{{ t.id }}">
+                            <div class="card card-body bg-light rounded-0 border-top-0 border-bottom">
+                              <form method="post" action="/configurazione/templates/{{ t.id }}/update" class="row g-2">
+                                <div class="col-md-3">
+                                  <label class="form-label form-label-sm">Titolo</label>
+                                  <input type="text" name="titolo" class="form-control form-control-sm" value="{{ t.titolo }}" required>
+                                </div>
+                                <div class="col-md-3">
+                                  <label class="form-label form-label-sm">Tipo Pendenza</label>
+                                  <select name="id_tipo_pendenza" class="form-select form-select-sm" required>
+                                    <option value="">-- seleziona --</option>
+                                    {% for tipo in tipologie_pendenze|default([]) %}
+                                      <option value="{{ tipo.id_entrata }}" {% if t.id_tipo_pendenza == tipo.id_entrata %}selected{% endif %}>{{ tipo.nome|default(tipo.descrizione)|e }}</option>
+                                    {% endfor %}
+                                  </select>
+                                </div>
+                                <div class="col-md-6">
+                                  <label class="form-label form-label-sm">Causale</label>
+                                  <input type="text" name="causale" class="form-control form-control-sm" value="{{ t.causale }}" required>
+                                </div>
+                                <div class="col-md-3">
+                                  <label class="form-label form-label-sm">Importo</label>
+                                  <input type="number" step="0.01" name="importo" class="form-control form-control-sm" value="{{ t.importo }}" required>
+                                </div>
+                                <div class="col-md-6 d-flex align-items-end justify-content-end">
+                                  <button type="submit" class="btn btn-sm btn-primary">Salva Modifiche</button>
+                                </div>
+                              </form>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+
+                      <!-- Collapse Assegnazione Utenti -->
+                      <tr>
+                        <td colspan="6" class="p-0 border-0">
+                          <div class="collapse" id="assignUsers{{ t.id }}">
+                            <div class="card card-body bg-white rounded-0 border-top-0 border-bottom">
+                              <form method="post" action="/configurazione/templates/{{ t.id }}/assign-users">
+                                <p class="small fw-bold mb-2">Utenti autorizzati ad utilizzare questo template:</p>
+                                <div class="row g-2 mb-3 max-vh-50 overflow-auto">
+                                  {% for u in users %}
+                                    <div class="col-md-4 col-sm-6">
+                                      <div class="form-check form-check-sm">
+                                        <input class="form-check-input" type="checkbox" name="user_ids[]" value="{{ u.id }}" id="user_{{ t.id }}_{{ u.id }}" {% if u.id in t.users %}checked{% endif %}>
+                                        <label class="form-check-label small" for="user_{{ t.id }}_{{ u.id }}">
+                                          {{ u.first_name }} {{ u.last_name }} <span class="text-muted">({{ u.email }})</span>
+                                        </label>
+                                      </div>
+                                    </div>
+                                  {% endfor %}
+                                </div>
+                                <div class="text-end">
+                                  <button type="submit" class="btn btn-sm btn-primary">Salva Assegnazioni</button>
+                                </div>
+                              </form>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            {% else %}
+              <div class="alert alert-info py-2 small mb-0">Nessun template configurato per questo dominio.</div>
+            {% endif %}
+          </div>
+        </div>
       {% elseif currentTab == 'utenti' %}
-        <div class="card shadow-sm">
           <div class="card-header d-flex justify-content-between align-items-center">
             <div>
               <h2 class="h6 mb-0">Utenti applicazione</h2>

@@ -6,7 +6,7 @@ services:
     user: "0:0"
     volumes:
       - ./iam-proxy/spid-certs:/certs
-    entrypoint: ["/bin/sh", "-c"]
+    entrypoint: [ "/bin/sh", "-c" ]
     command:
       - |
         if [ -f /certs/sp-signing.key ] && [ -f /certs/sp-signing.crt ]; then
@@ -27,7 +27,6 @@ services:
           --crt-out /certs/sp-signing.crt
     env_file:
       - .env
-      - .env.iam-proxy
     profiles:
       - iam-proxy
 
@@ -39,19 +38,21 @@ services:
       - ./iam-proxy/metadata-sp:/metadata/sp
       - ./iam-proxy/metadata-sp:/var/www/html/metadata-sp
       - ./iam-proxy/spid-certs:/var/www/html/spid-certs
-    env_file:
-      - .env
-      - .env.iam-proxy
+    environment:
+      - FRONTOFFICE_PUBLIC_BASE_URL=${FRONTOFFICE_PUBLIC_BASE_URL}
+      - APP_ENTITY_NAME=${APP_ENTITY_NAME}
+      - APP_ENTITY_IPA_CODE=${APP_ENTITY_IPA_CODE}
+      - IAM_PROXY_SAML2_IDP_METADATA_URL_INTERNAL=${IAM_PROXY_SAML2_IDP_METADATA_URL_INTERNAL:-https://satosa-nginx:443/Saml2IDP/metadata}
     depends_on:
       init-spid-cert:
         condition: service_completed_successfully
-    entrypoint: ["/bin/sh", "-c"]
+    entrypoint: [ "/bin/sh", "-c" ]
     command:
       - |
         sh /scripts/ensure-sp-metadata.sh || exit 0
     profiles:
       - iam-proxy
-  
+
   govpay-interaction-backoffice:
     build:
       context: .
@@ -59,23 +60,61 @@ services:
     image: govpay-interaction-backoffice:latest
     container_name: govpay-interaction-backoffice
     ports:
-      - "${BACKOFFICE_HTTPS_PORT:-8443}:443"
+      - "${BACKOFFICE_HTTP_PORT:-8443}:80"
     volumes:
       # Monta solo la cartella debug per sviluppo live
       - ./debug:/var/www/html/public/debug
       - ./iam-proxy/metadata-sp:/var/www/html/metadata-sp:ro
       - ./iam-proxy/metadata-sp:/metadata/sp:ro
     environment:
+      - SSL=${SSL}
       - APACHE_SERVER_NAME=${APACHE_SERVER_NAME}
-      # Dice a Composer di installare 'vendor' qui, indipendentemente da dove viene eseguito.
-      - COMPOSER_VENDOR_DIR=/var/www/html/vendor 
+      - COMPOSER_VENDOR_DIR=/var/www/html/vendor
       - APP_SUITE=backoffice
-    env_file:
-      - .env # Assicura il caricamento dei parametri, leggere il readme
+      - APP_DEBUG=${APP_DEBUG}
+      - ENABLE_DEBUG_TOOL=${ENABLE_DEBUG_TOOL}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - APP_ENTITY_NAME=${APP_ENTITY_NAME}
+      - APP_ENTITY_SUFFIX=${APP_ENTITY_SUFFIX}
+      - APP_ENTITY_GOVERNMENT=${APP_ENTITY_GOVERNMENT}
+      - APP_ENTITY_URL=${APP_ENTITY_URL}
+      - APP_SUPPORT_EMAIL=${APP_SUPPORT_EMAIL}
+      - APP_SUPPORT_PHONE=${APP_SUPPORT_PHONE}
+      - APP_SUPPORT_HOURS=${APP_SUPPORT_HOURS}
+      - APP_SUPPORT_LOCATION=${APP_SUPPORT_LOCATION}
+      - APP_LOGO_SRC=${APP_LOGO_SRC}
+      - APP_LOGO_TYPE=${APP_LOGO_TYPE}
+      - ID_DOMINIO=${ID_DOMINIO}
+      - ID_A2A=${ID_A2A}
+      - URL_ENTE=${URL_ENTE}
+      - PAGOPA_CHECKOUT_EC_BASE_URL=${PAGOPA_CHECKOUT_EC_BASE_URL}
+      - PAGOPA_CHECKOUT_SUBSCRIPTION_KEY=${PAGOPA_CHECKOUT_SUBSCRIPTION_KEY}
+      - PAGOPA_CHECKOUT_COMPANY_NAME=${PAGOPA_CHECKOUT_COMPANY_NAME}
+      - PAGOPA_CHECKOUT_RETURN_OK_URL=${PAGOPA_CHECKOUT_RETURN_OK_URL}
+      - PAGOPA_CHECKOUT_RETURN_CANCEL_URL=${PAGOPA_CHECKOUT_RETURN_CANCEL_URL}
+      - PAGOPA_CHECKOUT_RETURN_ERROR_URL=${PAGOPA_CHECKOUT_RETURN_ERROR_URL}
+      - PAGOPA_PAYMENT_OPTIONS_URL=${PAGOPA_PAYMENT_OPTIONS_URL}
+      - PAGOPA_PAYMENT_OPTIONS_KEY=${PAGOPA_PAYMENT_OPTIONS_KEY}
+      - GOVPAY_PENDENZE_URL=${GOVPAY_PENDENZE_URL}
+      - GOVPAY_PAGAMENTI_URL=${GOVPAY_PAGAMENTI_URL}
+      - GOVPAY_RAGIONERIA_URL=${GOVPAY_RAGIONERIA_URL}
+      - GOVPAY_BACKOFFICE_URL=${GOVPAY_BACKOFFICE_URL}
+      - GOVPAY_PENDENZE_PATCH_URL=${GOVPAY_PENDENZE_PATCH_URL}
+      - AUTHENTICATION_GOVPAY=${AUTHENTICATION_GOVPAY}
+      - GOVPAY_USER=${GOVPAY_USER}
+      - GOVPAY_PASSWORD=${GOVPAY_PASSWORD}
+      - GOVPAY_TLS_CERT=${GOVPAY_TLS_CERT}
+      - GOVPAY_TLS_KEY=${GOVPAY_TLS_KEY}
+      - TASSONOMIE_PAGOPA=${TASSONOMIE_PAGOPA}
+      - ADMIN_EMAIL=${ADMIN_EMAIL}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      # env_file_ rimosso per sicurezza (isolamento esplicito)
       # - .env.backoffice (rimosso: mantenere solo .env locale)
     depends_on:
       - db
-    entrypoint: ["/usr/local/bin/docker-setup.sh"] # Esegue script di setup (composer/autoload + cert) poi CMD apache
+    entrypoint: [ "/usr/local/bin/docker-setup.sh" ] # Esegue script di setup (composer/autoload + cert) poi CMD apache
     restart: unless-stopped
     networks:
       - govpay-network
@@ -86,7 +125,7 @@ services:
     image: govpay-interaction-frontoffice:latest
     container_name: govpay-interaction-frontoffice
     ports:
-      - "${FRONTOFFICE_HTTPS_PORT:-8444}:443"
+      - "${FRONTOFFICE_HTTP_PORT:-8444}:80"
     volumes:
       # Monta solo la cartella debug per sviluppo live
       - ./debug:/var/www/html/public/debug
@@ -94,20 +133,54 @@ services:
       - ./iam-proxy/metadata-sp:/metadata/sp:ro
       - ./iam-proxy/spid-certs:/var/www/html/spid-certs:ro
     environment:
+      - SSL=${SSL}
       - APACHE_SERVER_NAME=${APACHE_SERVER_NAME}
       - COMPOSER_VENDOR_DIR=/var/www/html/vendor
-      - APP_DEBUG=0
-      - ENABLE_DEBUG_TOOL=0
+      - APP_DEBUG=${APP_DEBUG}
+      - ENABLE_DEBUG_TOOL=${ENABLE_DEBUG_TOOL}
       - APP_SUITE=frontoffice
       - DB_NAME=${DB_NAME_CITTADINI}
       - DB_USER=${DB_USER_CITTADINI}
       - DB_PASSWORD=${DB_PASSWORD_CITTADINI}
-    env_file:
-      - .env
-      - .env.iam-proxy
+      - FRONTOFFICE_AUTH_PROXY_TYPE=${FRONTOFFICE_AUTH_PROXY_TYPE}
+      - FRONTOFFICE_PUBLIC_BASE_URL=${FRONTOFFICE_PUBLIC_BASE_URL}
+      - APP_ENTITY_IPA_CODE=${APP_ENTITY_IPA_CODE}
+      - APP_ENTITY_NAME=${APP_ENTITY_NAME}
+      - APP_ENTITY_SUFFIX=${APP_ENTITY_SUFFIX}
+      - APP_ENTITY_GOVERNMENT=${APP_ENTITY_GOVERNMENT}
+      - APP_ENTITY_URL=${APP_ENTITY_URL}
+      - APP_SUPPORT_EMAIL=${APP_SUPPORT_EMAIL}
+      - APP_SUPPORT_PHONE=${APP_SUPPORT_PHONE}
+      - APP_SUPPORT_HOURS=${APP_SUPPORT_HOURS}
+      - APP_SUPPORT_LOCATION=${APP_SUPPORT_LOCATION}
+      - APP_LOGO_SRC=${APP_LOGO_SRC}
+      - APP_LOGO_TYPE=${APP_LOGO_TYPE}
+      - ID_DOMINIO=${ID_DOMINIO}
+      - ID_A2A=${ID_A2A}
+      - URL_ENTE=${URL_ENTE}
+      - PAGOPA_CHECKOUT_EC_BASE_URL=${PAGOPA_CHECKOUT_EC_BASE_URL}
+      - PAGOPA_CHECKOUT_SUBSCRIPTION_KEY=${PAGOPA_CHECKOUT_SUBSCRIPTION_KEY}
+      - PAGOPA_CHECKOUT_COMPANY_NAME=${PAGOPA_CHECKOUT_COMPANY_NAME}
+      - PAGOPA_CHECKOUT_RETURN_OK_URL=${PAGOPA_CHECKOUT_RETURN_OK_URL}
+      - PAGOPA_CHECKOUT_RETURN_CANCEL_URL=${PAGOPA_CHECKOUT_RETURN_CANCEL_URL}
+      - PAGOPA_CHECKOUT_RETURN_ERROR_URL=${PAGOPA_CHECKOUT_RETURN_ERROR_URL}
+      - PAGOPA_PAYMENT_OPTIONS_URL=${PAGOPA_PAYMENT_OPTIONS_URL}
+      - PAGOPA_PAYMENT_OPTIONS_KEY=${PAGOPA_PAYMENT_OPTIONS_KEY}
+      - GOVPAY_PENDENZE_URL=${GOVPAY_PENDENZE_URL}
+      - GOVPAY_PAGAMENTI_URL=${GOVPAY_PAGAMENTI_URL}
+      - GOVPAY_RAGIONERIA_URL=${GOVPAY_RAGIONERIA_URL}
+      - GOVPAY_BACKOFFICE_URL=${GOVPAY_BACKOFFICE_URL}
+      - GOVPAY_PENDENZE_PATCH_URL=${GOVPAY_PENDENZE_PATCH_URL}
+      - AUTHENTICATION_GOVPAY=${AUTHENTICATION_GOVPAY}
+      - GOVPAY_USER=${GOVPAY_USER}
+      - GOVPAY_PASSWORD=${GOVPAY_PASSWORD}
+      - GOVPAY_TLS_CERT=${GOVPAY_TLS_CERT}
+      - GOVPAY_TLS_KEY=${GOVPAY_TLS_KEY}
+      - TASSONOMIE_PAGOPA=${TASSONOMIE_PAGOPA}
+      - IAM_PROXY_SAML2_IDP_METADATA_URL_INTERNAL=${IAM_PROXY_SAML2_IDP_METADATA_URL_INTERNAL:-https://satosa-nginx:443/Saml2IDP/metadata}
     depends_on:
       - db
-    entrypoint: ["/usr/local/bin/docker-setup.sh"]
+    entrypoint: [ "/usr/local/bin/docker-setup.sh" ]
     restart: unless-stopped
     networks:
       - govpay-network
@@ -115,14 +188,15 @@ services:
   sync-iam-proxy:
     image: alpine:latest
     container_name: sync-iam-proxy
+    environment:
+      - APP_ENTITY_NAME=${APP_ENTITY_NAME}
     env_file:
-      - .env
       - .env.iam-proxy
     volumes:
       - ./iam-proxy:/iam-proxy
       - ./scripts:/scripts:ro
     working_dir: /scripts
-    command: 
+    command:
       - /bin/sh
       - -c
       - |
@@ -134,7 +208,7 @@ services:
   iam-proxy-italia:
     image: ghcr.io/italia/iam-proxy-italia:latest
     container_name: iam-proxy-italia
-    command: 
+    command:
       - /bin/bash
       - -c
       - |
@@ -157,13 +231,14 @@ services:
     environment:
       # Config minima per esecuzione container (valori dettagliati/secret in .env)
       - SATOSA_BY_DOCKER=1
+      - APP_ENTITY_NAME=${APP_ENTITY_NAME}
+      - APP_ENTITY_IPA_CODE=${APP_ENTITY_IPA_CODE}
     env_file:
-      - .env
       # - .env.frontoffice (rimosso: usare .env e .env.iam-proxy)
       - .env.iam-proxy
     restart: on-failure:3
     healthcheck:
-      test: ["CMD", "test", "-f", "/satosa_proxy/entrypoint.sh"]
+      test: [ "CMD", "test", "-f", "/satosa_proxy/entrypoint.sh" ]
       interval: 5s
       timeout: 2s
       retries: 10
@@ -180,12 +255,13 @@ services:
       iam-proxy-italia:
         condition: service_started
     ports:
-      - "${IAM_PROXY_HTTPS_PORT:-9445}:443"
+      - "${IAM_PROXY_HTTP_PORT:-9445}:80"
     environment:
+      - SSL=${SSL:-on}
       - NGINX_HOST=${IAM_PROXY_HOSTNAME:-satosa-nginx}
       - TZ=${TZ:-Europe/Rome}
     volumes:
-      - ./iam-proxy/nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./iam-proxy/nginx/conf.d:/satosa_config_templates:ro
       - ./iam-proxy/nginx/html:/usr/share/nginx/html:ro
       - ./iam-proxy/nginx/entrypoint.d:/docker-entrypoint.d:ro
       # Mount SATOSA static files for serving by nginx

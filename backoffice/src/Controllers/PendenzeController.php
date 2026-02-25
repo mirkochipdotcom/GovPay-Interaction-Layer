@@ -243,11 +243,19 @@ class PendenzeController
                     // ignore
                 }
             }
+            $templates = [];
+            if ($idDominio && isset($_SESSION['user']['id'])) {
+                try {
+                    $templateRepo = new \App\Database\PendenzaTemplateRepository();
+                    $templates = $templateRepo->findAllAssignedToUser($idDominio, (int)$_SESSION['user']['id']);
+                } catch (\Throwable $e) {}
+            }
             return $this->twig->render($response, 'pendenze/inserimento.html.twig', [
                 'errors' => $errors,
                 'warnings' => $warnings,
                 'old' => $params,
                 'tipologie_pendenze' => $tipologie,
+                'pendenza_templates' => $templates,
                 'id_dominio' => $idDominio,
                 'id_a2a' => $idA2A,
                 'default_anno' => (int)date('Y'),
@@ -326,11 +334,19 @@ class PendenzeController
                     $tipologie = $repo->listAbilitateByDominio($idDominio);
                 } catch (\Throwable $e) {}
             }
+            $templates = [];
+            if ($idDominio && isset($_SESSION['user']['id'])) {
+                try {
+                    $templateRepo = new \App\Database\PendenzaTemplateRepository();
+                    $templates = $templateRepo->findAllAssignedToUser($idDominio, (int)$_SESSION['user']['id']);
+                } catch (\Throwable $e) {}
+            }
             return $this->twig->render($response, 'pendenze/inserimento.html.twig', [
                 'errors' => $errors,
                 'warnings' => $warnings,
                 'old' => $params,
                 'tipologie_pendenze' => $tipologie,
+                'pendenza_templates' => $templates,
                 'id_dominio' => $idDominio,
                 'id_a2a' => $idA2A,
                 'default_anno' => (int)date('Y'),
@@ -351,11 +367,19 @@ class PendenzeController
                     $tipologie = $repo->listAbilitateByDominio($idDominio);
                 } catch (\Throwable $e) {}
             }
+            $templates = [];
+            if ($idDominio && isset($_SESSION['user']['id'])) {
+                try {
+                    $templateRepo = new \App\Database\PendenzaTemplateRepository();
+                    $templates = $templateRepo->findAllAssignedToUser($idDominio, (int)$_SESSION['user']['id']);
+                } catch (\Throwable $e) {}
+            }
                 return $this->twig->render($response, 'pendenze/inserimento.html.twig', [
                     'errors' => $errors,
                     'warnings' => $warnings,
                     'old' => $params,
                     'tipologie_pendenze' => $tipologie,
+                    'pendenza_templates' => $templates,
                     'id_dominio' => $idDominio,
                     'default_anno' => (int)date('Y'),
                 ]);
@@ -380,11 +404,19 @@ class PendenzeController
                         $tipologie = $repo->listAbilitateByDominio($idDominio);
                     } catch (\Throwable $e) {}
                 }
+                $templates = [];
+                if ($idDominio && isset($_SESSION['user']['id'])) {
+                    try {
+                        $templateRepo = new \App\Database\PendenzaTemplateRepository();
+                        $templates = $templateRepo->findAllAssignedToUser($idDominio, (int)$_SESSION['user']['id']);
+                    } catch (\Throwable $e) {}
+                }
                 return $this->twig->render($response, 'pendenze/inserimento.html.twig', [
                     'errors' => $errors,
                     'warnings' => $warnings,
                     'old' => $params,
                     'tipologie_pendenze' => $tipologie,
+                    'pendenza_templates' => $templates,
                     'id_dominio' => $idDominio,
                     'id_a2a' => $idA2A,
                     'default_anno' => (int)date('Y'),
@@ -429,11 +461,19 @@ class PendenzeController
                 $tipologie = $repo->listAbilitateByDominio($idDominio);
             } catch (\Throwable $e) {}
         }
+            $templates = [];
+            if ($idDominio && isset($_SESSION['user']['id'])) {
+                try {
+                    $templateRepo = new \App\Database\PendenzaTemplateRepository();
+                    $templates = $templateRepo->findAllAssignedToUser($idDominio, (int)$_SESSION['user']['id']);
+                } catch (\Throwable $e) {}
+            }
             return $this->twig->render($response, 'pendenze/inserimento.html.twig', [
                 'errors' => $errors,
                 'warnings' => $warnings,
                 'old' => $params,
                 'tipologie_pendenze' => $tipologie,
+                'pendenza_templates' => $templates,
                 'id_dominio' => $idDominio,
                 'id_a2a' => $idA2A,
                 'default_anno' => (int)date('Y'),
@@ -832,8 +872,19 @@ class PendenzeController
             }
         }
 
+        $templates = [];
+        if ($idDominio && isset($_SESSION['user']['id'])) {
+            try {
+                $templateRepo = new \App\Database\PendenzaTemplateRepository();
+                $templates = $templateRepo->findAllByDominioForUser($idDominio, (int)$_SESSION['user']['id']);
+            } catch (\Throwable $e) {
+                error_log("Error fetching Pendenza Templates: " . $e->getMessage());
+            }
+        }
+
         return $this->twig->render($response, 'pendenze/inserimento.html.twig', [
             'tipologie_pendenze' => $tipologie,
+            'pendenza_templates' => $templates,
             'id_dominio' => $idDominio,
             'id_a2a' => getenv('ID_A2A') ?: '',
             'default_anno' => (int)date('Y'),

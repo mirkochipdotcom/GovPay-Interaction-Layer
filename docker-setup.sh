@@ -81,9 +81,10 @@ else
 fi
 
 # === SSL: genera certificati self-signed se non esistono o sono vuoti ===
-# Se SKIP_SELF_SIGNED è impostato, non generare.
+# Se SKIP_SELF_SIGNED è impostato o se SSL è off, non generare.
 # Nota: Apache fallisce anche se i file esistono ma sono vuoti (0 byte), quindi usiamo -s.
-if [ -z "${SKIP_SELF_SIGNED:-}" ] && ( [ ! -s /ssl/server.crt ] || [ ! -s /ssl/server.key ] ); then
+SSL_ON="${SSL:-on}"
+if [ "$SSL_ON" = "on" ] && [ -z "${SKIP_SELF_SIGNED:-}" ] && ( [ ! -s /ssl/server.crt ] || [ ! -s /ssl/server.key ] ); then
   echo "⚙️  Certificati SSL mancanti o vuoti: genero certificati self-signed in /ssl ..."
   mkdir -p /ssl
   rm -f /ssl/server.key /ssl/server.crt || true
@@ -283,4 +284,9 @@ if [ -f /etc/apache2/envvars ]; then
   # shellcheck disable=SC1091
   . /etc/apache2/envvars
 fi
-exec apache2 -DFOREGROUND
+
+if [ "$SSL_ON" = "on" ]; then
+  exec apache2 -DFOREGROUND -D SSL_ON
+else
+  exec apache2 -DFOREGROUND
+fi

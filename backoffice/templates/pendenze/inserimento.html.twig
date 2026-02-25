@@ -39,7 +39,13 @@
           <div class="alert alert-warning small mb-0">Variabile di ambiente <code>ID_A2A</code> non impostata: imposta <code>ID_A2A</code> in <code>.env</code> prima di creare pendenze.</div>
         {% endif %}
       </div>
-      {% include 'pendenze/_form_pendenza.html.twig' with { old: old, tipologie_pendenze: tipologie_pendenze, default_anno: default_anno, is_edit: false } %}
+      {% include 'pendenze/_form_pendenza.html.twig' with {
+        old: old,
+        tipologie_pendenze: tipologie_pendenze,
+        pendenza_templates: pendenza_templates|default([]),
+        default_anno: default_anno,
+        is_edit: false
+      } %}
 
       <div class="d-flex gap-2 mt-4">
         <button type="submit" formaction="/pendenze/preview" formmethod="post" class="btn btn-primary">Anteprima</button>

@@ -61,6 +61,27 @@ $statements = [
         created_at DATETIME NOT NULL,
         updated_at DATETIME NOT NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
+
+    // pendenza_template
+    "CREATE TABLE IF NOT EXISTS pendenza_template (
+        id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        id_dominio VARCHAR(64) NOT NULL,
+        titolo VARCHAR(255) NOT NULL,
+        id_tipo_pendenza VARCHAR(128) NOT NULL,
+        causale VARCHAR(140) NOT NULL,
+        importo DECIMAL(10,2) NOT NULL,
+        created_at DATETIME NOT NULL,
+        updated_at DATETIME NOT NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
+
+    // pendenza_template_users
+    "CREATE TABLE IF NOT EXISTS pendenza_template_users (
+        template_id INT UNSIGNED NOT NULL,
+        user_id INT UNSIGNED NOT NULL,
+        PRIMARY KEY (template_id, user_id),
+        FOREIGN KEY (template_id) REFERENCES pendenza_template(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
 ];
 
 foreach ($statements as $sql) {
@@ -149,6 +170,17 @@ try {
     if (!$has) {
         $pdo->exec("ALTER TABLE users ADD COLUMN disabled_at DATETIME NULL AFTER updated_at");
         echo "Added column disabled_at to users\n";
+    }
+} catch (Throwable $e) {
+    // non fatale
+}
+
+try {
+    $stmt = $pdo->query("SHOW COLUMNS FROM pendenza_template LIKE 'anno_riferimento'");
+    $has = $stmt ? $stmt->fetch() : false;
+    if ($has) {
+        $pdo->exec("ALTER TABLE pendenza_template DROP COLUMN anno_riferimento");
+        echo "Dropped column anno_riferimento from pendenza_template\n";
     }
 } catch (Throwable $e) {
     // non fatale
