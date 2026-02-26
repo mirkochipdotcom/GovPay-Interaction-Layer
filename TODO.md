@@ -18,3 +18,6 @@
 
 ### Manutenzione e Sistema
 - [ ] **Configurazione**: Funzionalità di backup e importazione della configurazione di sistema.
+
+### Integrazioni Esterne
+- [ ] **PagoPA Checkout**: Implementazione API PagoPA per avviare il checkout di pagamenti non generati da GovPay (simulazione portale checkout.pagopa.it).
