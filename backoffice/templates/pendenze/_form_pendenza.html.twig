@@ -8,27 +8,9 @@
 {% set is_edit_mode = is_edit|default(false) %}
 {% set can_remove_voci = not is_edit_mode %}
 
-{% if not is_edit_mode and pendenza_templates is defined and pendenza_templates|length > 0 %}
-<div class="row mb-3 pb-3 border-bottom">
-  <div class="col-md-12">
-    <label for="templateSelector" class="form-label active fw-bold text-primary"><i class="fas fa-magic me-1"></i> Usa un template (opzionale)</label>
-    <select id="templateSelector" class="form-select border-primary">
-      <option value="">-- Seleziona un template per autocompilare i campi --</option>
-      {% for t in pendenza_templates %}
-        <option value="{{ t.id }}" 
-                data-tipo="{{ t.id_tipo_pendenza }}" 
-                data-causale="{{ t.causale|e('html_attr') }}"
-                data-importo="{{ t.importo }}">
-          {{ t.titolo }} (Importo: {{ t.importo|number_format(2, ',', '.') }} €)
-        </option>
-      {% endfor %}
-    </select>
-    <div class="form-text small">Selezionando un template verranno precompilati: Tipologia Pendenza, Importo e Causale. La causale verrà ricalcolata in tempo reale in base a Nominativo o Ragione Sociale.</div>
-  </div>
-</div>
-{% endif %}
-
-<div class="row">
+{# ── Sezione 1: Dati Principali ────────────────────────────── #}
+<h6 class="text-primary border-bottom pb-2 mb-3"><i class="fas fa-file-invoice me-1"></i> Dati Principali</h6>
+<div class="row pt-3">
   <div class="form-group col-md-6">
     <div class="select-wrapper">
       <label for="idTipoPendenza" class="active">Tipologia pendenza</label>
@@ -83,6 +65,9 @@
       <span id="causaleCounter">0/140</span>
     </div>
     <div class="form-text small">La causale verrà usata automaticamente per la prima voce se non ne viene specificata una diversa.</div>
+    <div id="placeholderHelp" class="alert alert-info py-1 px-2 mt-2 d-none small" style="background-image: none; padding-left: 1rem;">
+      <strong>Automazione attiva:</strong> i valori tra <code>%...%</code> verranno sostituiti automaticamente con i dati del pagatore.
+    </div>
   </div>
 </div>
 <div class="row g-3 mt-1">
@@ -95,9 +80,10 @@
     <input id="dataScadenza" name="dataScadenza" type="date" class="form-control" value="{{ old.dataScadenza|default('') }}">
   </div>
 </div>
-<hr>
-<h3 class="h6">Soggetto pagatore</h3>
-<div class="row g-3 align-items-end">
+
+{# ── Sezione 2: Soggetto Pagatore ──────────────────────────── #}
+<h6 class="text-primary border-bottom pb-2 mb-3 mt-4"><i class="fas fa-user-circle me-1"></i> Soggetto Pagatore</h6>
+<div class="row g-3 align-items-end pt-2">
   <div class="form-group col-12">
     <div class="form-check form-check-inline">
       <input class="form-check-input" type="radio" name="soggettoPagatore[tipo]" id="soggettoPF" value="F" {% if old.soggettoPagatore is defined and old.soggettoPagatore.tipo is defined and old.soggettoPagatore.tipo == 'G' %}{% else %}checked{% endif %}>
@@ -130,6 +116,7 @@
     <input id="email" name="soggettoPagatore[email]" type="email" class="form-control" placeholder="esempio@dominio.it" value="{{ old.soggettoPagatore.email|default('') }}">
   </div>
 </div>
+
 <script>
 (function(){
   const pf = document.getElementById('soggettoPF');
@@ -188,9 +175,9 @@
     const nome = nomeInput ? (nomeInput.value || '').trim() : '';
     const cognome = anagraficaInput ? (anagraficaInput.value || '').trim() : '';
     
-    compiled = compiled.replace(/%nome%/gi, nome);
-    compiled = compiled.replace(/%cognome%/gi, cognome);
-    compiled = compiled.replace(/%ragione_sociale%/gi, cognome); // for PJ
+    compiled = compiled.replace(/%nome%/gi, nome || '%nome%');
+    compiled = compiled.replace(/%cognome%/gi, cognome || '%cognome%');
+    compiled = compiled.replace(/%ragione_sociale%/gi, cognome || '%ragione_sociale%');
 
     causaleInput.value = compiled.substring(0, 140);
     if (causaleCounter) {
@@ -202,8 +189,11 @@
   if (templateSelector) {
     templateSelector.addEventListener('change', function() {
       const selectedOption = templateSelector.options[templateSelector.selectedIndex];
+      const helpBox = document.getElementById('placeholderHelp');
+      
       if (!selectedOption.value) {
         rawTemplateCausale = '';
+        if (helpBox) helpBox.classList.add('d-none');
         return; // No template selected, leave fields as they are
       }
 
@@ -216,6 +206,16 @@
       
       // Store raw causale pattern and trigger initial update
       rawTemplateCausale = selectedOption.getAttribute('data-causale') || '';
+      
+      // Show/hide help based on placeholders existence
+      if (helpBox) {
+        if (rawTemplateCausale.includes('%')) {
+          helpBox.classList.remove('d-none');
+        } else {
+          helpBox.classList.add('d-none');
+        }
+      }
+      
       updateCausalePlaceholder();
     });
   }
@@ -235,18 +235,20 @@
   attachUppercase(nomeInput);
 })();
 </script>
-<hr>
-<h3 class="h6">Voci di pendenza</h3>
-<div class="d-flex align-items-center justify-content-between mb-5">
-  <p class="text-muted small mb-0">
-    {% if can_remove_voci %}
-      Il sistema crea sempre una voce principale (ID 1) che resta obbligatoria; puoi aggiungere o eliminare tutte le altre.
-    {% else %}
-      Il sistema crea sempre una voce principale (ID 1) che resta obbligatoria; in modifica puoi aggiungere nuove voci ma non eliminarne di esistenti.
-    {% endif %}
-  </p>
+
+{# ── Sezione 3: Voci di pendenza ───────────────────────────── #}
+<div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 mt-4">
+  <h6 class="text-primary mb-0"><i class="fas fa-list-ul me-1"></i> Voci di pendenza</h6>
+  <p class="text-muted small mb-2">
+  {% if can_remove_voci %}
+    Il sistema crea sempre una voce principale (ID 1) che resta obbligatoria; puoi aggiungere o eliminare tutte le altre.
+  {% else %}
+    Il sistema crea sempre una voce principale (ID 1) che resta obbligatoria; in modifica puoi aggiungere nuove voci ma non eliminarne di esistenti.
+  {% endif %}
+</p>
 </div>
-<div id="vociList">
+
+<div id="vociList" class="row pt-3">
   {% set existingVoci = old.voci|default([]) %}
   {% if existingVoci is iterable and existingVoci|length > 0 %}
     {% for idx, voce in existingVoci %}
@@ -288,24 +290,25 @@
         <label for="voce_desc_0" class="active">Descrizione voce</label>
         <input id="voce_desc_0" name="voci[0][descrizione]" type="text" class="form-control" placeholder="Descrizione voce" value="{{ old.causale|default('') }}" required>
       </div>
-      <div class="form-group col-md-3">
+      <div class="form-group col-md-2">
         <label for="voce_imp_0" class="input-symbol-label active">Importo voce</label>
         <div class="input-group input-number">
           <span class="input-group-text fw-semibold">€</span>
           <input id="voce_imp_0" name="voci[0][importo]" type="number" step="0.01" min="0.01" class="form-control" placeholder="0.00" value="{{ old.importo|default('') }}" required>
+        </div> 
+      </div>
+      <div class="form-group col-md-1 d-flex align-items-center">
+            <button type="button" id="addVoceBtn" class="btn btn-outline-primary btn-sm" title="Aggiungi voce">
+              <span aria-hidden="true">✚</span>
+              <span class="visually-hidden">Aggiungi voce</span>
+            </button>
         </div>
-      </div>
-      <div class="col-md-1 d-flex align-items-center">
-        {# voce iniziale non rimovibile #}
-      </div>
     </div>
   {% endif %}
 </div>
-<div class="mt-2 mb-4">
-  <button type="button" id="addVoceBtn" class="btn btn-outline-secondary btn-sm">Aggiungi voce</button>
-</div>
 <div id="vociSumError" class="alert alert-danger d-none" role="alert"></div>
 <div id="formValidationErrors" class="alert alert-danger d-none" role="alert"></div>
+
 {% set advanced_has_values = (old.ibanAccredito|default('') != '')
   or (old.codiceContabilita|default(old.codEntrata|default('')) != '')
   or (old.tipoBollo|default('') != '')
@@ -315,59 +318,52 @@
   or (old.cartellaPagamento|default('') != '') %}
 {% set advanced_open = (not is_edit_mode) and advanced_has_values %}
 <div class="collapse {{ advanced_open ? 'show' : '' }}" id="apiExtra">
-  <div class="row">
-    <div class="col-12">
-      <article class="it-card it-card-height-full rounded shadow-sm border">
-        <h5 class="it-card-title">Campi avanzati (API)</h5>
-        <div class="it-card-body">
-          <div class="row g-3 mt-4">
-            <div class="form-group col-md-4 mt-1">
-              <label for="ibanAccredito" class="active">IBAN accredito (opzionale)</label>
-              <input id="ibanAccredito" name="ibanAccredito" type="text" maxlength="34" class="form-control" placeholder="IT.." value="{{ old.ibanAccredito|default('') }}">
-              <div class="form-text small">Se presente, l'IBAN sarà inviato e il codice entrata non verrà inviato.</div>
-            </div>
-            <div class="form-group col-md-4">
-              <label for="codiceContabilita" class="active">Codice contabilita' (opzionale)</label>
-              <input id="codiceContabilita" name="codiceContabilita" type="text" maxlength="35" pattern="[A-Za-z0-9\-_.]{1,35}" class="form-control" placeholder="Es. 0114111AP" value="{{ old.codiceContabilita|default(old.codEntrata|default('')) }}">
-              <div class="form-text small">Se non è presente l'IBAN, questo valore verrà inviato come <code>codiceContabilita</code>. Non usare caratteri speciali.</div>
-            </div>
-            <div class="form-group col-md-4">
-              <label for="tipoBollo" class="active">Tipo bollo (opzionale)</label>
-              <input id="tipoBollo" name="tipoBollo" type="text" maxlength="16" class="form-control" placeholder="Es. 01" value="{{ old.tipoBollo|default('') }}">
-            </div>
-            <div class="form-group col-md-4">
-              <div class="select-wrapper">
-                <label for="tipoContabilita" class="active">Tipo contabilità (opzionale)</label>
-                <select id="tipoContabilita" name="tipoContabilita" aria-label="Tipo contabilità">
-                  <option value="">-- seleziona --</option>
-                  <option value="CAPITOLO" {% if old.tipoContabilita is defined and old.tipoContabilita == 'CAPITOLO' %}selected{% endif %}>CAPITOLO</option>
-                  <option value="SPECIALE" {% if old.tipoContabilita is defined and old.tipoContabilita == 'SPECIALE' %}selected{% endif %}>SPECIALE</option>
-                  <option value="SIOPE" {% if old.tipoContabilita is defined and old.tipoContabilita == 'SIOPE' %}selected{% endif %}>SIOPE</option>
-                  <option value="ALTRO" {% if old.tipoContabilita is defined and old.tipoContabilita == 'ALTRO' %}selected{% endif %}>ALTRO</option>
-                </select>
-                <div class="form-text small">Obbligatorio se si invia un codice entrata o altri dati di contabilita'.</div>
-              </div>
-            </div>
-          </div>
-          <div class="row g-3 mt-2">
-            <div class="form-group col-md-4">
-              <label for="direzione" class="active">Direzione (opzionale)</label>
-              <input id="direzione" name="direzione" type="text" class="form-control" value="{{ old.direzione|default('') }}">
-            </div>
-            <div class="form-group col-md-4">
-              <label for="divisione" class="active">Divisione (opzionale)</label>
-              <input id="divisione" name="divisione" type="text" class="form-control" value="{{ old.divisione|default('') }}">
-            </div>
-            <div class="form-group col-md-4">
-              <label for="cartellaPagamento" class="active">Cartella pagamento (opzionale)</label>
-              <input id="cartellaPagamento" name="cartellaPagamento" type="text" class="form-control" value="{{ old.cartellaPagamento|default('') }}">
-            </div>
-          </div>
-        </div>
+  <h6 class="text-primary border-bottom pb-2 mb-3 mt-4"><i class="fas fa-cogs me-1"></i> Campi avanzati (API)</h6>
+  <div class="row g-3">
+    <div class="form-group col-md-4">
+      <label for="ibanAccredito" class="active">IBAN accredito (opzionale)</label>
+      <input id="ibanAccredito" name="ibanAccredito" type="text" maxlength="34" class="form-control" placeholder="IT.." value="{{ old.ibanAccredito|default('') }}">
+      <div class="form-text small">Se presente, l'IBAN sarà inviato e il codice entrata non verrà inviato.</div>
+    </div>
+    <div class="form-group col-md-4">
+      <label for="codiceContabilita" class="active">Codice contabilita' (opzionale)</label>
+      <input id="codiceContabilita" name="codiceContabilita" type="text" maxlength="35" pattern="[A-Za-z0-9\-_.]{1,35}" class="form-control" placeholder="Es. 0114111AP" value="{{ old.codiceContabilita|default(old.codEntrata|default('')) }}">
+      <div class="form-text small">Se non è presente l'IBAN, questo valore verrà inviato come <code>codiceContabilita</code>. Non usare caratteri speciali.</div>
+    </div>
+    <div class="form-group col-md-4">
+      <label for="tipoBollo" class="active">Tipo bollo (opzionale)</label>
+      <input id="tipoBollo" name="tipoBollo" type="text" maxlength="16" class="form-control" placeholder="Es. 01" value="{{ old.tipoBollo|default('') }}">
+    </div>
+    <div class="form-group col-md-4">
+      <div class="select-wrapper">
+        <label for="tipoContabilita" class="active">Tipo contabilità (opzionale)</label>
+        <select id="tipoContabilita" name="tipoContabilita" aria-label="Tipo contabilità">
+          <option value="">-- seleziona --</option>
+          <option value="CAPITOLO" {% if old.tipoContabilita is defined and old.tipoContabilita == 'CAPITOLO' %}selected{% endif %}>CAPITOLO</option>
+          <option value="SPECIALE" {% if old.tipoContabilita is defined and old.tipoContabilita == 'SPECIALE' %}selected{% endif %}>SPECIALE</option>
+          <option value="SIOPE" {% if old.tipoContabilita is defined and old.tipoContabilita == 'SIOPE' %}selected{% endif %}>SIOPE</option>
+          <option value="ALTRO" {% if old.tipoContabilita is defined and old.tipoContabilita == 'ALTRO' %}selected{% endif %}>ALTRO</option>
+        </select>
+        <div class="form-text small">Obbligatorio se si invia un codice entrata o altri dati di contabilita'.</div>
       </div>
-    </article>
+    </div>
+  </div>
+  <div class="row g-3 mt-2">
+    <div class="form-group col-md-4">
+      <label for="direzione" class="active">Direzione (opzionale)</label>
+      <input id="direzione" name="direzione" type="text" class="form-control" value="{{ old.direzione|default('') }}">
+    </div>
+    <div class="form-group col-md-4">
+      <label for="divisione" class="active">Divisione (opzionale)</label>
+      <input id="divisione" name="divisione" type="text" class="form-control" value="{{ old.divisione|default('') }}">
+    </div>
+    <div class="form-group col-md-4">
+      <label for="cartellaPagamento" class="active">Cartella pagamento (opzionale)</label>
+      <input id="cartellaPagamento" name="cartellaPagamento" type="text" class="form-control" value="{{ old.cartellaPagamento|default('') }}">
+    </div>
   </div>
 </div>
+
 {# Script condiviso per aggiunta/rimozione voci + validazione somma + stato entrata #}
 <script>
 (function(){
@@ -446,7 +442,7 @@
   const entrataModeInfo = document.createElement('div');
   entrataModeInfo.id = 'entrataModeInfo';
   entrataModeInfo.className = 'form-text small text-muted mb-2';
-  const apiExtraBody = document.querySelector('#apiExtra .card-body');
+  const apiExtraBody = document.getElementById('apiExtra');
   if (apiExtraBody) apiExtraBody.appendChild(entrataModeInfo);
   function refreshEntrataState(){
     if (!codiceContabilitaInput || !tipoContSelect || !ibanInput || !entrataModeInfo) return;

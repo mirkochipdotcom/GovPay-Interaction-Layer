@@ -27,10 +27,31 @@
     {% endif %}
 
     {# ID A2A: deve essere preso esclusivamente dalla variabile d'ambiente (mostrato nel body per mantenere header in cima alla card) #}
-    <div class="card-header bg-light border-bottom py-3">
-      <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-lg-between gap-1">
-        <h2 class="h5 mb-0">Inserimento Nuova pendenza</h2>
-        <p class="mb-0 text-muted small">Compila i campi obbligatori per creare una pendenza</p>
+    <div class="card-header bg-light border-bottom py-2">
+      <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
+        <div class="lh-1">
+          <h2 class="h6 mb-0">Inserimento Nuova pendenza</h2>
+          <small class="text-muted" style="font-size: 0.75rem;">Compila i campi obbligatori</small>
+        </div>
+        
+        {% if not is_edit_mode and pendenza_templates is defined and pendenza_templates|length > 0 %}
+        <div class="d-flex align-items-center gap-2 flex-grow-1 justify-content-md-end" style="max-width: 500px;">
+          <label for="templateSelector" class="form-label mb-0 small text-nowrap fw-bold text-primary">
+            <i class="fas fa-magic me-1"></i> Template:
+          </label>
+          <select id="templateSelector" class="form-select form-select-sm border-primary">
+            <option value="">-- Seleziona per autocompilare --</option>
+            {% for t in pendenza_templates %}
+              <option value="{{ t.id }}" 
+                      data-tipo="{{ t.id_tipo_pendenza }}" 
+                      data-causale="{{ t.causale|e('html_attr') }}"
+                      data-importo="{{ t.importo }}">
+                {{ t.titolo }} ({{ t.importo|number_format(2, ',', '.') }} €)
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        {% endif %}
       </div>
     </div>
     <div class="card-body">
