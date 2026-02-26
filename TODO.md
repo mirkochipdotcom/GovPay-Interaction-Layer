@@ -16,6 +16,11 @@
 - [ ] **Sicurezza**: Funzione di cambio password.
 - [ ] **Personalizzazione**: Possibilità di associare template all'utente.
 
+### Autenticazione e Identity
+- [ ] **IAM Proxy**: Sistemazione integrazione proxy IAM.
+- [ ] **CIE**: Bugfixing autenticazione con CIE.
+- [ ] **Discovery Page**: Sistemazione grafica della pagina `disco.html`.
+
 ### Manutenzione e Sistema
 - [ ] **Configurazione**: Funzionalità di backup e importazione della configurazione di sistema.
 
