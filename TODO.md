@@ -24,7 +24,11 @@
 ### Gestione Profilo Utente
 - [ ] **Interfaccia**: Miglioramento dell'interfaccia dell'area profilo.
 - [ ] **Sicurezza**: Funzione di cambio password.
-- [ ] **Personalizzazione**: Possibilità di associare template all'utente.
+- [ ] **Personalizzazione e Permessi**
+    - [ ] Possibilità di associare template all'utente.
+    - [ ] Associare agli utenti una tipologia di pendenza di default.
+    - [ ] Sistema per limitare la visibilità delle tipologie per utente (filtro tipologie abilitate).
+- [ ] **Gruppi Utenti**: Implementazione gruppi per gestire centralmente template, tipologie e permessi.
 
 ### Autenticazione e Identity
 - [ ] **IAM Proxy**: Sistemazione integrazione proxy IAM.
