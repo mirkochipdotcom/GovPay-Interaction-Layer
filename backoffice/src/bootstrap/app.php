@@ -64,6 +64,21 @@ return (function (): array {
     $twig->getEnvironment()->addGlobal('app_logo', $appLogo);
     $twig->getEnvironment()->addGlobal('app_favicon', $appFavicon);
 
+    $versionFileCandidates = [
+        __DIR__ . '/../../../VERSION',
+        __DIR__ . '/../../VERSION',
+        '/var/www/html/VERSION',
+    ];
+    $appVersion = 'dev';
+    foreach ($versionFileCandidates as $vf) {
+        if (file_exists($vf)) {
+            $appVersion = trim((string) file_get_contents($vf));
+            break;
+        }
+    }
+    $twig->getEnvironment()->addGlobal('app_version', $appVersion);
+
+
     $pendenzaStates = [
         'NON_ESEGUITA' => ['label' => 'Da pagare', 'color' => 'secondary'],
         'NON_ESEGUITO' => ['label' => 'Da pagare', 'color' => 'secondary'],

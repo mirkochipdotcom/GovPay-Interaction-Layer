@@ -4399,6 +4399,19 @@ $baseContext = [
     'support_location' => $env('APP_SUPPORT_LOCATION', 'Via Roma 1, 00100 Montesilvano (PE)'),
     'cart_count' => frontoffice_cart_count(),
     'current_locale' => $currentLocale,
+    'app_version' => (function () {
+        $candidates = [
+            dirname(__DIR__, 2) . '/VERSION',
+            dirname(__DIR__, 3) . '/VERSION',
+            '/var/www/html/VERSION',
+        ];
+        foreach ($candidates as $f) {
+            if (file_exists($f)) {
+                return trim((string) file_get_contents($f));
+            }
+        }
+        return 'dev';
+    })(),
 ];
 
 $context = array_merge(
