@@ -12,3 +12,6 @@
 - [ ] **Interfaccia**: Miglioramento dell'interfaccia dell'area profilo.
 - [ ] **Sicurezza**: Funzione di cambio password.
 - [ ] **Personalizzazione**: Possibilità di associare template all'utente.
+
+### Manutenzione e Sistema
+- [ ] **Configurazione**: Funzionalità di backup e importazione della configurazione di sistema.
