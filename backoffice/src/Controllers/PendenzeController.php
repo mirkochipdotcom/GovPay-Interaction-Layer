@@ -312,7 +312,7 @@ class PendenzeController
 
         // Inject operator and source information
         $payload['datiAllegati'] = $payload['datiAllegati'] ?? [];
-        $payload['datiAllegati']['operatore'] = $this->getCurrentOperatorString();
+        $payload['datiAllegati']['operatore'] = self::getCurrentOperatorString();
         $payload['datiAllegati']['sorgente'] = 'GIL-Backoffice';
 
         // Costruisce le voci applicando la stessa logica usata anche in fase di modifica
@@ -2910,7 +2910,7 @@ class PendenzeController
         return $response->withHeader('Location', '/pendenze/dettaglio/' . rawurlencode($idPendenza))->withStatus(302);
     }
 
-    private function getCurrentOperatorString(): string
+    public static function getCurrentOperatorString(): string
     {
         $user = $_SESSION['user'] ?? null;
         if (!is_array($user)) {
