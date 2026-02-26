@@ -164,31 +164,27 @@ class MassivePendenzeController
 
     public function conferma(Request $request, Response $response): Response
     {
-        try {
-            $this->exposeCurrentUser();
-            $params = (array)($request->getParsedBody() ?? []);
-            $batchId = trim((string)($params['batch_id'] ?? ''));
-            $idTipo = trim((string)($params['idTipoPendenza'] ?? ''));
-            if ($batchId === '' || $idTipo === '') {
-                return $response->withStatus(400);
-            }
-            $valid = $_SESSION['massive_valid_rows'][$batchId] ?? [];
-            if (!is_array($valid) || count($valid) === 0) {
-                return $response->withStatus(400);
-            }
-            $repo = new MassivePendenzeRepository();
-            $riga = 0;
-            $operatore = PendenzeController::getCurrentOperatorString() ?? 'Operatore Sconosciuto';
-            foreach ($valid as $v) {
-                $riga = (int)($v['_row'] ?? ++$riga);
-                $payload = self::rowToPayload($v, $idTipo, $batchId, $operatore);
-                $repo->insertPending($batchId, $riga, $payload, null);
-            }
-            // redirect alla lista dettagli batch
-            return $response->withHeader('Location', '/pendenze/massivo/dettaglio?batch=' . urlencode($batchId) . '&from=inserimento')->withStatus(302);
-        } catch (\Throwable $e) {
-            die('ERRORE 500 CATTURATO: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+        $this->exposeCurrentUser();
+        $params = (array)($request->getParsedBody() ?? []);
+        $batchId = trim((string)($params['batch_id'] ?? ''));
+        $idTipo = trim((string)($params['idTipoPendenza'] ?? ''));
+        if ($batchId === '' || $idTipo === '') {
+            return $response->withStatus(400);
         }
+        $valid = $_SESSION['massive_valid_rows'][$batchId] ?? [];
+        if (!is_array($valid) || count($valid) === 0) {
+            return $response->withStatus(400);
+        }
+        $repo = new MassivePendenzeRepository();
+        $riga = 0;
+        $operatore = PendenzeController::getCurrentOperatorString() ?? 'Operatore Sconosciuto';
+        foreach ($valid as $v) {
+            $riga = (int)($v['_row'] ?? ++$riga);
+            $payload = self::rowToPayload($v, $idTipo, $batchId, $operatore);
+            $repo->insertPending($batchId, $riga, $payload, null);
+        }
+        // redirect alla lista dettagli batch
+        return $response->withHeader('Location', '/pendenze/massivo/dettaglio?batch=' . urlencode($batchId) . '&from=inserimento')->withStatus(302);
     }
 
     public function dettaglio(Request $request, Response $response): Response
