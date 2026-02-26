@@ -463,7 +463,7 @@ class MassivePendenzeController
                 ]
             ]
         ];
-        $payload['datiAllegati'] = json_encode($datiAllegati);
+        $payload['datiAllegati'] = $datiAllegati;
         
         return $payload;
     }

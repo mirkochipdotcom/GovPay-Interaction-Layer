@@ -93,7 +93,7 @@ foreach ($pending as $row) {
     $dDa = isset($payload['datiAllegati']) && is_string($payload['datiAllegati']) ? json_decode($payload['datiAllegati'], true) : ($payload['datiAllegati'] ?? []);
     if (!is_array($dDa)) $dDa = [];
     $dDa['sorgente'] = 'GIL-Massivo';
-    $payload['datiAllegati'] = json_encode($dDa);
+    $payload['datiAllegati'] = $dDa;
 
     // Creiamo una pendenza con \App\Controllers\PendenzeController::sendPendenzaToBackoffice
     // Togliamo la chiave " idPendenza " se ne generasse uno per lasciare che backoffice
