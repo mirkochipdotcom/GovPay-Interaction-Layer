@@ -64,6 +64,7 @@ services:
     volumes:
       # Monta solo la cartella debug per sviluppo live
       - ./debug:/var/www/html/public/debug
+      - ./VERSION:/var/www/html/VERSION:ro
       - ./iam-proxy/metadata-sp:/var/www/html/metadata-sp:ro
       - ./iam-proxy/metadata-sp:/metadata/sp:ro
     environment:
@@ -135,6 +136,7 @@ services:
     volumes:
       # Monta solo la cartella debug per sviluppo live
       - ./debug:/var/www/html/public/debug
+      - ./VERSION:/var/www/html/VERSION:ro
       - ./iam-proxy/metadata-sp:/var/www/html/metadata-sp:ro
       - ./iam-proxy/metadata-sp:/metadata/sp:ro
       - ./iam-proxy/spid-certs:/var/www/html/spid-certs:ro

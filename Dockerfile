@@ -105,7 +105,7 @@ COPY --from=asset_builder /app/fontawesome-dist/webfonts ${FA_DEST}/webfonts/
 RUN chmod -R 755 public/assets
 
 # (Documentativo) composer gestito nello stage vendor_builder
-COPY composer.json composer.lock* /var/www/html/
+COPY composer.json composer.lock* VERSION /var/www/html/
 
 # ----------------------------------------------------------------------
 # Configurazione Finale
