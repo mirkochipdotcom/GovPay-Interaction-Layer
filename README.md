@@ -367,6 +367,59 @@ Obiettivo: far sì che i redirect generati puntino sempre agli URL pubblici corr
 - `FRONTOFFICE_PUBLIC_BASE_URL` e `IAM_PROXY_PUBLIC_BASE_URL` devono essere coerenti con gli URL pubblici reali.
 - Se cambi host/porta, rigenera i metadata SP del frontoffice (vedi sezione dedicata).
 
+---
+
+## Processi batch (Cron Job)
+
+GIL utilizza degli script PHP via CLI per gestire elaborazioni asincrone o massive. Questi script devono essere schedulati sull'host tramite `crontab` o `systemd timers`.
+
+### 1. Inserimento Massivo Pendenze
+Lo script recupera i lotti caricati via Web (in stato `PENDING`) e li invia alle API di GovPay.
+
+- **Percorso**: `/var/www/html/scripts/cron_pendenze_massive.php` (all'interno del container backoffice)
+- **Comando manuale**:
+  ```bash
+  docker exec govpay-interaction-backoffice php /var/www/html/scripts/cron_pendenze_massive.php
+  ```
+
+### 2. Rendicontazione e Webhook (In arrivo)
+Il sistema di rendicontazione utilizzerà un processo simile per scansionare i flussi, inviare mail e notificare sistemi terzi via webhook.
+
+### Esempio Schedulazione (Host)
+
+#### Opzione A: Crontab
+Per l'elaborazione massiva ogni 5 minuti:
+```cron
+*/5 * * * * docker exec govpay-interaction-backoffice php /var/www/html/scripts/cron_pendenze_massive.php >> /var/log/gil_cron.log 2>&1
+```
+
+#### Opzione B: Systemd Timer (Consigliato per Podman/Produzione)
+Crea un file `/etc/systemd/system/gil-cron.service`:
+```ini
+[Unit]
+Description=Run GIL Massive Pendenze Cron
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/docker exec govpay-interaction-backoffice php /var/www/html/scripts/cron_pendenze_massive.php
+```
+
+E un file `/etc/systemd/system/gil-cron.timer`:
+```ini
+[Unit]
+Description=Run GIL Massive Pendenze every 5 minutes
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target
+```
+
+---
+
 ## Funzionalità Backoffice
 
 ### Gestione Pendenze

@@ -33,7 +33,7 @@
 
 ### Manutenzione e Sistema
 - [ ] **Configurazione**: Funzionalità di backup e importazione della configurazione di sistema.
-- [ ] **Documentazione**: Sistemazione documentazione relativa ai cron (attualmente massivo, in futuro rendicontazione).
+- [x] **Documentazione**: Sistemazione documentazione relativa ai cron (attualmente massivo, in futuro rendicontazione).
 
 ### Integrazioni Esterne
 - [ ] **PagoPA Checkout**: Implementazione API PagoPA per avviare il checkout di pagamenti non generati da GovPay (simulazione portale checkout.pagopa.it).
