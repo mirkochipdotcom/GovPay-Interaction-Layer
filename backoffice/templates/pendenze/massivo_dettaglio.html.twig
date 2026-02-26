@@ -3,27 +3,89 @@
 {% block title %}Dettaglio caricamento massivo{% endblock %}
 
 {% block content %}
-  <h1 class="it-title">Dettaglio caricamento massivo</h1>
-  <p class="text-muted small">Batch: <code>{{ batch_id }}</code></p>
-  <div class="table-responsive">
-    <table class="table table-sm align-middle">
-      <thead><tr><th>ID</th><th>Riga</th><th>Stato</th><th>Errore</th><th>Payload</th><th>Response</th><th>Created</th><th>Updated</th></tr></thead>
-      <tbody>
-      {% for r in rows %}
-        <tr>
-          <td>{{ r.id }}</td>
-          <td>{{ r.riga }}</td>
-          <td>
-            {% include 'partials/state_badge.html.twig' with { state: r.stato|default(''), pill: true, small: true } %}
-          </td>
-          <td class="small text-danger">{{ r.errore }}</td>
-          <td><pre class="small mb-0">{{ r.payload_json }}</pre></td>
-          <td><pre class="small mb-0">{{ r.response_json }}</pre></td>
-          <td>{{ r.created_at }}</td>
-          <td>{{ r.updated_at }}</td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
+<div class="container my-4">
+  <div class="row mb-4">
+    <div class="col-12">
+      {% set back_url = '/pendenze/massivo/inserimento' %}
+      {% set back_text = "Torna all'inserimento massivo" %}
+      {% if from == 'storico' %}
+        {% set back_url = '/pendenze/massivo/storico' %}
+        {% set back_text = "Torna allo storico massivo" %}
+      {% endif %}
+      <a href="{{ back_url }}" class="btn btn-outline-primary btn-sm mb-3">
+        <svg class="icon icon-sm icon-primary"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-arrow-left"></use></svg>
+        {{ back_text }}
+      </a>
+      <h1 class="it-title">Dettaglio Caricamento</h1>
+      <p class="text-muted">Analisi delle righe per il batch: <strong>{{ batch_id }}</strong></p>
+    </div>
   </div>
+
+  <div class="row">
+    <div class="col-12">
+      <div class="card-wrapper card-space">
+        <div class="card card-bg">
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-sm table-striped align-middle">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Riga</th>
+                    <th>Stato</th>
+                    <th>Errore</th>
+                    <th>Dettagli Payload</th>
+                    <th>Data Creazione</th>
+                  </tr>
+                </thead>
+                <tbody>
+                {% for r in rows %}
+                  <tr>
+                    <td>{{ r.id }}</td>
+                    <td><strong>{{ r.riga }}</strong></td>
+                    <td>
+                      {% if r.stato == 'PENDING' %}
+                        <span class="badge bg-secondary">In Coda</span>
+                      {% elseif r.stato == 'PROCESSING' %}
+                        <span class="badge bg-info">In Elaborazione</span>
+                      {% elseif r.stato == 'SUCCESS' %}
+                        <span class="badge bg-success">Completato</span>
+                      {% elseif r.stato == 'ERROR' %}
+                        <span class="badge bg-danger">Errore</span>
+                      {% else %}
+                        <span class="badge bg-light text-dark">{{ r.stato }}</span>
+                      {% endif %}
+                    </td>
+                    <td class="text-danger small">{{ r.errore }}</td>
+                    <td>
+                      <button class="btn btn-xs btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#payload{{ r.id }}" aria-expanded="false" aria-controls="payload{{ r.id }}">
+                        Mostra Dati
+                      </button>
+                      <div class="collapse mt-2" id="payload{{ r.id }}">
+                        <div class="p-2 border bg-white small" style="max-height: 200px; overflow-y: auto;">
+                          <strong>Payload Originale:</strong>
+                          <pre class="mb-2 text-wrap">{{ r.payload_json }}</pre>
+                          {% if r.response_json %}
+                            <strong>Risposta API:</strong>
+                            <pre class="mb-0 text-wrap">{{ r.response_json }}</pre>
+                          {% endif %}
+                        </div>
+                      </div>
+                    </td>
+                    <td class="small">{{ r.created_at|date('d/m/Y H:i') }}</td>
+                  </tr>
+                {% else %}
+                  <tr>
+                    <td colspan="6" class="text-center text-muted py-4">Nessuna riga trovata per questo batch.</td>
+                  </tr>
+                {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}

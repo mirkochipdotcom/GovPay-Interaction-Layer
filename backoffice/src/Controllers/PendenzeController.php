@@ -1371,7 +1371,7 @@ class PendenzeController
      * Helper: invia singola pendenza al backoffice. Ritorna array con chiavi
      * 'success' (bool), 'idPendenza' e 'errors' (array)
      */
-    private function sendPendenzaToBackoffice(array $payload, ?string $idPendenza = null): array
+    public function sendPendenzaToBackoffice(array $payload, ?string $idPendenza = null): array
     {
         $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
         $idA2A = getenv('ID_A2A') ?: '';
@@ -1503,7 +1503,7 @@ class PendenzeController
      * Applica la logica di arricchimento delle voci partendo da voci base (id/descrizione/importo)
      * e dai parametri avanzati forniti dal form o dalla pendenza corrente.
      */
-    private function buildVociWithAccounting(array $baseVoci, array $params, ?array $currentPendenza, array &$errors, ?array &$warnings = null): array
+    public function buildVociWithAccounting(array $baseVoci, array $params, ?array $currentPendenza, array &$errors, ?array &$warnings = null): array
     {
         if ($warnings === null) {
             $warnings = [];

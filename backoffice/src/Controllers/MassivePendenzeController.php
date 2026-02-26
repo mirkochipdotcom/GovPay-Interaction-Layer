@@ -177,13 +177,14 @@ class MassivePendenzeController
         }
         $repo = new MassivePendenzeRepository();
         $riga = 0;
+        $operatore = PendenzeController::getCurrentOperatorString() ?? 'Operatore Sconosciuto';
         foreach ($valid as $v) {
             $riga = (int)($v['_row'] ?? ++$riga);
-            $payload = self::rowToPayload($v, $idTipo);
+            $payload = self::rowToPayload($v, $idTipo, $batchId, $operatore);
             $repo->insertPending($batchId, $riga, $payload, null);
         }
         // redirect alla lista dettagli batch
-        return $response->withHeader('Location', '/pendenze/massivo/dettaglio?batch=' . urlencode($batchId))->withStatus(302);
+        return $response->withHeader('Location', '/pendenze/massivo/dettaglio?batch=' . urlencode($batchId) . '&from=inserimento')->withStatus(302);
     }
 
     public function dettaglio(Request $request, Response $response): Response
@@ -191,13 +192,109 @@ class MassivePendenzeController
         $this->exposeCurrentUser();
         $params = $request->getQueryParams();
         $batchId = $params['batch'] ?? '';
+        $from = $params['from'] ?? 'inserimento';
         if ($batchId === '') return $response->withStatus(400);
         $repo = new MassivePendenzeRepository();
         $rows = $repo->listByBatch($batchId, null, 1, 500);
         return $this->twig->render($response, 'pendenze/massivo_dettaglio.html.twig', [
             'batch_id' => $batchId,
             'rows' => $rows,
+            'from' => $from
         ]);
+    }
+
+    public function storico(Request $request, Response $response): Response
+    {
+        $this->exposeCurrentUser();
+        $repo = new MassivePendenzeRepository();
+        
+        // Raccogliamo i lotti distinti e contiamo gli stati per ognuno
+        $pdo = \App\Database\Connection::getPDO();
+        $stmt = $pdo->query('
+            SELECT file_batch_id, 
+                   SUM(CASE WHEN stato="PENDING" THEN 1 ELSE 0 END) as pending,
+                   SUM(CASE WHEN stato="PROCESSING" THEN 1 ELSE 0 END) as processing,
+                   SUM(CASE WHEN stato="SUCCESS" THEN 1 ELSE 0 END) as success,
+                   SUM(CASE WHEN stato="ERROR" THEN 1 ELSE 0 END) as error,
+                   SUM(CASE WHEN stato="PAUSED" THEN 1 ELSE 0 END) as paused,
+                   SUM(CASE WHEN stato="CANCELLED" THEN 1 ELSE 0 END) as cancelled,
+                   COUNT(*) as totale,
+                   MIN(created_at) as data_creazione
+            FROM pendenze_massive
+            GROUP BY file_batch_id
+            ORDER BY data_creazione DESC
+        ');
+        $batchList = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        
+        return $this->twig->render($response, 'pendenze/massivo_storico.html.twig', [
+            'batch_list' => $batchList
+        ]);
+    }
+
+    public function azioneBatch(Request $request, Response $response, string $batchId, string $azione): Response
+    {
+        $repo = new MassivePendenzeRepository();
+        $msg = '';
+        $type = 'success';
+        
+        switch ($azione) {
+            case 'PAUSE':
+                $mod = $repo->updateBatchStatus($batchId, 'PENDING', 'PAUSED');
+                $msg = "Batch messo in pausa. $mod righe bloccate.";
+                break;
+            case 'RESUME':
+                $mod = $repo->updateBatchStatus($batchId, 'PAUSED', 'PENDING');
+                $msg = "Batch ripreso. $mod righe reinserite in coda.";
+                break;
+            case 'DELETE':
+                // Check if it's safe to delete (only pending or paused)
+                $safe = ($repo->countByBatch($batchId, 'PROCESSING') === 0 && 
+                         $repo->countByBatch($batchId, 'SUCCESS') === 0 && 
+                         $repo->countByBatch($batchId, 'ERROR') === 0);
+                if ($safe) {
+                    $repo->deleteBatch($batchId);
+                    $msg = "Batch eliminato completamente dal sistema.";
+                } else {
+                    $type = 'error';
+                    $msg = "Impossibile eliminare: il batch ha già righe elaborate.";
+                }
+                break;
+            case 'CANCEL':
+                // Annulla tutte le pendenze in stato SUCCESS
+                $rows = $repo->listByBatch($batchId, 'SUCCESS', 1, 9999);
+                if (empty($rows)) {
+                    $type = 'warning';
+                    $msg = "Nessuna pendenza processata da annullare.";
+                } else {
+                    $successi = 0; $errori = 0;
+                    $pendenzeCtrl = new PendenzeController($this->twig);
+                    $repo->updateBatchStatus($batchId, 'SUCCESS', 'PROCESSING'); // Temporaneo per non inviare roba doppia
+                    
+                    foreach ($rows as $r) {
+                        try {
+                            $respJson = json_decode((string)$r['response_json'], true);
+                            if ($respJson && isset($respJson['id_avviso'])) {
+                                $idA2A = $respJson['id_a2a'] ?? getenv('ID_A2A');
+                                $pendenzeCtrl->annullaPendenzaById($idA2A, $respJson['id_avviso']);
+                                $repo->updateBatchStatus($batchId, 'PROCESSING', 'CANCELLED');
+                                $successi++;
+                            }
+                        } catch (\Throwable $e) {
+                            $errori++;
+                            $repo->setResult((int)$r['id'], true, null, 'Errore API di Annullamento: ' . $e->getMessage()); 
+                        }
+                    }
+                    $msg = "Operazione annullamento terminata: $successi completati, $errori falliti.";
+                    
+                    // Riporta in success quelli che erano falliti l'annullamento per non perdere la cronologia originale
+                    $pdo = \App\Database\Connection::getPDO();
+                    $pdo->prepare('UPDATE pendenze_massive SET stato="SUCCESS" WHERE file_batch_id=? AND stato="PROCESSING"')->execute([$batchId]);
+                }
+                break;
+        }
+        
+        $_SESSION['flash'] = ['type' => $type, 'message' => $msg];
+        return $response->withHeader('Location', '/pendenze/massivo/storico')->withStatus(302);
     }
 
     private function exposeCurrentUser(): void
@@ -336,7 +433,7 @@ class MassivePendenzeController
         return null;
     }
 
-    private static function rowToPayload(array $norm, string $idTipoPendenza): array
+    private static function rowToPayload(array $norm, string $idTipoPendenza, string $batchId, string $operatore): array
     {
         $payload = [
             'idTipoPendenza' => $idTipoPendenza,
@@ -354,6 +451,20 @@ class MassivePendenzeController
         if (!empty($norm['email'])) $payload['soggettoPagatore']['email'] = $norm['email'];
         if (!empty($norm['dataValidita'])) $payload['dataValidita'] = $norm['dataValidita'];
         if (!empty($norm['dataScadenza'])) $payload['dataScadenza'] = $norm['dataScadenza'];
+        $datiAllegati = [
+            'sorgente' => 'GIL-Massivo',
+            'batchId' => $batchId,
+            'history' => [
+                [
+                    'data' => date('c'),
+                    'operazione' => 'Creazione Pendenza Massiva',
+                    'dettaglio' => 'Caricamento batch ' . $batchId,
+                    'operatore' => $operatore,
+                ]
+            ]
+        ];
+        $payload['datiAllegati'] = json_encode($datiAllegati);
+        
         return $payload;
     }
 }

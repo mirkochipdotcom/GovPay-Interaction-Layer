@@ -3,166 +3,213 @@
 {% block title %}Pendenze - Inserimento massivo{% endblock %}
 
 {% block content %}
-  <h1 class="it-title">Pendenze - Inserimento massivo</h1>
-  <p class="text-muted small">Carica un file CSV per creare pendenze multiple. Scarica il template per avere le intestazioni corrette.</p>
-
-  <div class="card mb-4">
-    <div class="card-body">
-      <h2 class="h6">Passo 1: Scarica template e carica CSV</h2>
-      <form method="post" action="/pendenze/massivo/upload" enctype="multipart/form-data" class="mt-2" id="massiveUploadForm">
-        <div class="mb-2">
-          <a href="/pendenze/massivo/template-csv" class="btn btn-outline-secondary btn-sm">Scarica template CSV</a>
-        </div>
-        <div class="mb-3">
-          <label class="form-label" for="csvFile">File CSV</label>
-          <div class="upload-dragdrop border rounded p-3" id="csvDropArea">
-            <div class="upload-dragdrop-image">
-              <img src="/assets/bootstrap-italia/svg/upload-drag-drop-icon.svg" alt="" aria-hidden="true">
-              <div class="upload-dragdrop-loading" aria-hidden="true">
-                <div class="progress-donut" data-bs-progress-donut></div>
-              </div>
-              <div class="upload-dragdrop-success" aria-hidden="true">
-                <svg class="icon" aria-hidden="true"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-check"></use></svg>
-              </div>
-            </div>
-            <div class="upload-dragdrop-text">
-              <p class="upload-dragdrop-weight mb-1" id="csvFileInfo">
-                <svg class="icon icon-xs" aria-hidden="true"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-file"></use></svg>
-                CSV
-              </p>
-              <h5 class="mb-1">Trascina il file per caricarlo</h5>
-              <p class="mb-0">oppure
-                <input type="file" name="csv_file" id="csvFile" class="upload-dragdrop-input" accept=".csv" required>
-                <label for="csvFile" class="ms-1">selezionalo dal dispositivo</label>
-              </p>
-            </div>
-          </div>
-          <div class="form-text mt-2">Intestazioni richieste: <code>TIPO;CODICE_FISCALE_PIVA;COGNOME_ANAGRAFICA;NOME;CAUSALE;ANNO_RIFERIMENTO;IMPORTO;EMAIL;DATA_VALIDITA;DATA_SCADENZA;RATA;VOCE_1_IMPORTO;VOCE_1_CAUSALE;VOCE_2_IMPORTO;VOCE_2_CAUSALE</code></div>
-        </div>
-        <button type="submit" class="btn btn-primary">Carica & Anteprima</button>
-      </form>
-      <script>
-        (function(){
-          const dropArea = document.getElementById('csvDropArea');
-          const input = document.getElementById('csvFile');
-          const info = document.getElementById('csvFileInfo');
-          if (!dropArea || !input) return;
-          const preventDefaults = (e) => { e.preventDefault(); e.stopPropagation(); };
-          ['dragenter','dragover','dragleave','drop'].forEach(ev => {
-            dropArea.addEventListener(ev, preventDefaults, false);
-          });
-          ['dragenter','dragover'].forEach(ev => {
-            dropArea.addEventListener(ev, () => dropArea.classList.add('is-dragover'));
-          });
-          ['dragleave','drop'].forEach(ev => {
-            dropArea.addEventListener(ev, () => dropArea.classList.remove('is-dragover'));
-          });
-          dropArea.addEventListener('drop', (e) => {
-            const dt = e.dataTransfer; if (!dt || !dt.files || !dt.files.length) return;
-            const f = dt.files[0];
-            if (f && (!f.name || !f.name.toLowerCase().endsWith('.csv'))) {
-              alert('Seleziona un file .csv');
-              return;
-            }
-            input.files = dt.files;
-            info && (info.innerText = `${f.name} (${(f.size/1024/1024).toFixed(2)}MB)`);
-            dropArea.classList.add('upload-success');
-          });
-          input.addEventListener('change', () => {
-            const f = input.files && input.files[0];
-            if (f) {
-              info && (info.innerText = `${f.name} (${(f.size/1024/1024).toFixed(2)}MB)`);
-              dropArea.classList.add('upload-success');
-            }
-          });
-        })();
-      </script>
+<div class="container my-4">
+  <div class="row mb-4">
+    <div class="col-12">
+      <h1 class="it-title">Inserimento Massivo Pendenze</h1>
+      <p class="text-muted">Carica un file CSV per creare pendenze multiple. Scarica il template per avere le intestazioni corrette.</p>
     </div>
   </div>
 
-  {% if preview is defined %}
-    <div class="card mb-4">
-      <div class="card-body">
-        <h2 class="h6">Passo 2: Anteprima righe valide</h2>
-        <p class="small mb-2">Righe valide: <strong>{{ preview.valid_count }}</strong> / {{ preview.total_count }}. Mostrate le prime 2 valide.</p>
-        <div class="table-responsive mb-3">
-          <table class="table table-sm">
-            <thead>
-              <tr>
-                <th>#</th><th>Tipo</th><th>CF/P.IVA</th><th>Cognome/Anagrafica</th><th>Nome</th><th>Causale</th><th>Anno</th><th>Importo</th><th>Email</th><th>Validità</th><th>Scadenza</th><th>Rata</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for r in preview.first_valid %}
-                <tr>
-                  <td>{{ r._row }}</td>
-                  <td>{{ r.tipo }}</td>
-                  <td>{{ r.identificativo }}</td>
-                  <td>{{ r.anagrafica }}</td>
-                  <td>{{ r.nome }}</td>
-                  <td>{{ r.causale }}</td>
-                  <td>{{ r.annoRiferimento }}</td>
-                  <td>{{ r.importo }}</td>
-                  <td>{{ r.email }}</td>
-                  <td>{{ r.dataValidita }}</td>
-                  <td>{{ r.dataScadenza }}</td>
-                  <td>{{ r.rata }}</td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+  {% if errors is defined and errors|length > 0 %}
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="alert alert-danger" role="alert">
+          <strong>Errore caricamento:</strong>
+          <ul class="mb-0 mt-1">
+            {% for err in errors %}
+              <li>{{ err }}</li>
+            {% endfor %}
+          </ul>
         </div>
-        {% if preview.invalid_count > 0 %}
-          <a href="/pendenze/massivo/errori-csv?batch={{ preview.batch_id }}" class="btn btn-outline-danger btn-sm">Scarica CSV errori ({{ preview.invalid_count }})</a>
-        {% endif %}
       </div>
     </div>
   {% endif %}
 
-  {% if preview is defined and preview.valid_count > 0 %}
-    <div class="card mb-4">
-      <div class="card-body">
-        <h2 class="h6">Passo 3: Seleziona tipologia pendenza</h2>
-        <form method="post" action="/pendenze/massivo/conferma">
-          <input type="hidden" name="batch_id" value="{{ preview.batch_id }}">
-          <div class="mb-3">
-            <label for="massivoTipo" class="form-label">Tipologia pendenza</label>
-            <select id="massivoTipo" name="idTipoPendenza" class="form-select" required>
-              <option value="">-- seleziona --</option>
-              {% for t in tipologie_pendenze|default([]) %}
-                <option value="{{ t.id_entrata }}">{{ t.nome|default(t.descrizione)|e }}</option>
-              {% endfor %}
-            </select>
+  <div class="row">
+    <div class="col-lg-8">
+      {# Form upload #}
+      <div class="card-wrapper card-space mb-4">
+        <div class="card card-bg">
+          <div class="card-body">
+            <h5 class="card-title">1. Caricamento CSV</h5>
+            <p class="card-text text-muted small mb-3">Scarica il template CSV, compilalo e trascinalo qui sotto.</p>
+            <form method="post" action="/pendenze/massivo/upload" enctype="multipart/form-data" id="massiveUploadForm">
+              <div class="mb-3">
+                <a href="/pendenze/massivo/template-csv" class="btn btn-outline-primary btn-icon btn-sm mb-3">
+                  <svg class="icon icon-primary icon-sm"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-download"></use></svg>
+                  <span>Scarica template CSV</span>
+                </a>
+              </div>
+              <div class="mb-3">
+                <p class="form-text small mb-2">Intestazioni richieste: <code>TIPO;CODICE_FISCALE_PIVA;COGNOME_ANAGRAFICA;NOME;CAUSALE;ANNO_RIFERIMENTO;IMPORTO;EMAIL;DATA_VALIDITA;DATA_SCADENZA;RATA;VOCE_1_IMPORTO;VOCE_1_CAUSALE;VOCE_2_IMPORTO;VOCE_2_CAUSALE</code></p>
+                
+                <input type="file" name="csv_file" class="upload-dragdrop" id="csvFile" accept=".csv" required data-bs-upload-dragdrop>
+                <label for="csvFile">Trascina qui il file oppure clicca per selezionarlo</label>
+              </div>
+              
+              <div class="d-flex align-items-center mt-3">
+                <button type="submit" class="btn btn-primary btn-icon" id="uploadSubmitBtn">
+                  <svg class="icon icon-white"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-upload"></use></svg>
+                  <span>Carica & Anteprima</span>
+                </button>
+                <div id="uploadSpinner" class="spinner-border text-primary ms-3 d-none" role="status">
+                  <span class="visually-hidden">Caricamento in corso...</span>
+                </div>
+              </div>
+            </form>
           </div>
-          <button type="submit" class="btn btn-primary">Carica in staging</button>
-        </form>
+        </div>
       </div>
-    </div>
-  {% endif %}
 
-  {% if batch_list is defined %}
-    <div class="card mb-4">
-      <div class="card-body">
-        <h2 class="h6">Passo 4: Stato caricamenti</h2>
-        <div class="table-responsive">
-          <table class="table table-sm">
-            <thead><tr><th>Batch</th><th>Righe totali</th><th>Pending</th><th>Processing</th><th>Success</th><th>Error</th><th>Azioni</th></tr></thead>
-            <tbody>
-              {% for b in batch_list %}
-                <tr>
-                  <td>{{ b.file_batch_id }}</td>
-                  <td>{{ b.totale }}</td>
-                  <td>{{ b.pending }}</td>
-                  <td>{{ b.processing }}</td>
-                  <td class="text-success">{{ b.success }}</td>
-                  <td class="text-danger">{{ b.error }}</td>
-                  <td><a href="/pendenze/massivo/dettaglio?batch={{ b.file_batch_id }}" class="btn btn-link btn-sm">Dettaglio</a></td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+      {# Anteprima e Selezione Tipologia #}
+      {% if preview is defined %}
+        <div class="card-wrapper card-space mb-4" id="previewSection">
+          <div class="card card-bg">
+            <div class="card-body">
+              <h5 class="card-title">2. Anteprima e Importazione</h5>
+              <div class="alert alert-info" role="alert">
+                Righe valide trovate: <strong>{{ preview.valid_count }}</strong> su {{ preview.total_count }}. 
+                {% if preview.valid_count > 0 %}Vengono mostrate le prime 2 righe valide per verifica.{% endif %}
+              </div>
+        <script>
+          document.addEventListener("DOMContentLoaded", function() {
+            setTimeout(() => {
+              const el = document.getElementById('previewSection');
+              if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }
+            }, 100);
+          });
+        </script>
+
+              {% if preview.valid_count > 0 %}
+                <div class="table-responsive mb-4">
+                  <table class="table table-sm table-striped">
+                    <thead>
+                      <tr>
+                        <th>R.</th><th>Tipo</th><th>Identificativo</th><th>Anagrafica</th><th>Causale</th><th>Importo</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for r in preview.first_valid %}
+                        <tr>
+                          <td>{{ r._row }}</td>
+                          <td>{{ r.tipo }}</td>
+                          <td>{{ r.identificativo }}</td>
+                          <td>{{ r.anagrafica }} {{ r.nome }}</td>
+                          <td>{{ r.causale }}</td>
+                          <td>€ {{ r.importo|number_format(2, ',', '.') }}</td>
+                        </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+                
+                <form method="post" action="/pendenze/massivo/conferma" class="mt-3 border-top pt-3">
+                  <input type="hidden" name="batch_id" value="{{ preview.batch_id }}">
+                  <div class="mb-3">
+                    <label for="massivoTipo" class="active t-primary">Tipologia pendenza *</label>
+                    <div class="select-wrapper">
+                      <select id="massivoTipo" name="idTipoPendenza" class="form-select" required>
+                        <option value="">Seleziona tipologia...</option>
+                        {% for t in tipologie_pendenze|default([]) %}
+                          <option value="{{ t.id_entrata }}">{{ t.nome|default(t.descrizione)|e }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                  </div>
+                  <button type="submit" class="btn btn-primary btn-icon mt-2" onclick="this.innerHTML='<span class=\'spinner-border spinner-border-sm\' role=\'status\' aria-hidden=\'true\'></span> Elaborazione...'; this.form.submit();">
+                    <svg class="icon icon-white"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-settings"></use></svg>
+                    <span>Conferma e Invia in elaborazione</span>
+                  </button>
+                </form>
+              {% endif %}
+
+              {% if preview.invalid_count > 0 %}
+                <div class="callout callout-danger mt-4">
+                  <div class="callout-title">
+                    <svg class="icon icon-danger"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-error"></use></svg>
+                    Errori riscontrati
+                  </div>
+                  <p>Sono stati riscontrati errori in <strong>{{ preview.invalid_count }}</strong> righe. Queste non verranno importate.</p>
+                  <a href="/pendenze/massivo/errori-csv?batch={{ preview.batch_id }}" class="btn btn-danger btn-xs mt-2">Scarica CSV errori</a>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+
+    {# Tabella lato destro: Stato caricamenti #}
+    <div class="col-lg-4">
+      <div class="card-wrapper">
+        <div class="card card-bg">
+          <div class="card-body p-3">
+            <h5 class="card-title">Storico Caricamenti</h5>
+            {% if batch_list is defined and batch_list|length > 0 %}
+              <div class="mt-3">
+                {% for b in batch_list %}
+                  <div class="border-bottom pb-2 mb-2">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                      <span class="fw-bold small">{{ b.file_batch_id }}</span>
+                      <a href="/pendenze/massivo/dettaglio?batch={{ b.file_batch_id }}" class="btn btn-outline-primary btn-xs" title="Dettaglio">
+                        <svg class="icon icon-primary icon-xs"><use href="/assets/bootstrap-italia/svg/sprites.svg#it-info-circle"></use></svg>
+                      </a>
+                    </div>
+                    <div class="d-flex justify-content-start gap-1 align-items-center mb-1 flex-wrap">
+                      {% if b.pending > 0 %}<span class="badge bg-secondary text-white" title="In coda">{{ b.pending }} PEND.</span>{% endif %}
+                      {% if b.processing > 0 %}<span class="badge bg-info text-white" title="In elaborazione">{{ b.processing }} PROC.</span>{% endif %}
+                      {% if b.success > 0 %}<span class="badge bg-success text-white" title="Importate">{{ b.success }} OK</span>{% endif %}
+                      {% if b.error > 0 %}<span class="badge bg-danger text-white" title="Errori">{{ b.error }} ERR</span>{% endif %}
+                    </div>
+                    <div class="small text-muted">Totale righe: {{ b.totale }}</div>
+                  </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <p class="small text-muted mt-3">Nessun caricamento precedente.</p>
+            {% endif %}
+          </div>
         </div>
       </div>
     </div>
-  {% endif %}
+  </div>
+</div>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    const form = document.getElementById('massiveUploadForm');
+    const input = document.getElementById('csvFile');
+    const btn = document.getElementById('uploadSubmitBtn');
+    const spi = document.getElementById('uploadSpinner');
+    
+    // Auto-submit quando viene selezionato un file per un flusso agevole
+    if (input) {
+      input.addEventListener('change', function() {
+        if (this.files && this.files.length > 0) {
+          let f = this.files[0];
+          if (!f.name.toLowerCase().endsWith('.csv')) {
+             alert("Seleziona solo file CSV");
+             this.value = ''; // reset
+             return;
+          }
+          // Mostra spinner e nascondi bottone in attesa
+          btn.classList.add('d-none');
+          spi.classList.remove('d-none');
+          form.submit();
+        }
+      });
+    }
+
+    // Gestione visuale del submit nel caso venga cliccato manualmente il bottone
+    if (form) {
+      form.addEventListener('submit', function() {
+         btn.classList.add('d-none');
+         spi.classList.remove('d-none');
+      });
+    }
+  });
+</script>
 {% endblock %}

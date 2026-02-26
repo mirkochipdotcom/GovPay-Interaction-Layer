@@ -94,12 +94,44 @@ class MassivePendenzeRepository
     }
 
     /**
+     * Aggiorna in blocco lo stato delle pendenze di un determinato batch.
+     * Restituisce le righe modificate.
+     */
+    public function updateBatchStatus(string $fileBatchId, string $fromStatus, string $toStatus): int
+    {
+        $sql = 'UPDATE pendenze_massive SET stato = :toStato, updated_at = NOW() WHERE file_batch_id = :batch AND stato = :fromStato';
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([
+            ':batch' => $fileBatchId,
+            ':fromStato' => $fromStatus,
+            ':toStato' => $toStatus
+        ]);
+        return $stmt->rowCount();
+    }
+
+    /**
+     * Elimina tutte le pendenze di un lotto. 
+     * Ritorna le righe eliminate.
+     */
+    public function deleteBatch(string $fileBatchId): int
+    {
+        $sql = 'DELETE FROM pendenze_massive WHERE file_batch_id = :batch';
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([':batch' => $fileBatchId]);
+        return $stmt->rowCount();
+    }
+
+    /**
      * Crea la tabella se assente (idempotente). Evita errori 42S02 se le migrazioni non sono ancora state eseguite.
      */
     private function ensureTable(): void
     {
         try {
             $this->pdo->query('SELECT 1 FROM pendenze_massive LIMIT 1');
+            // Try to alter table safely (adds PAUSED and CANCELLED to enum if missing)
+            try {
+                $this->pdo->exec("ALTER TABLE pendenze_massive MODIFY COLUMN stato ENUM('PENDING','PROCESSING','SUCCESS','ERROR','PAUSED','CANCELLED') NOT NULL DEFAULT 'PENDING'");
+            } catch (\Throwable $e) {}
         } catch (\Throwable $e) {
             // Solo se table not found (42S02)
             if (method_exists($e, 'getCode') && (string)$e->getCode() !== '42S02') {
@@ -109,7 +141,7 @@ class MassivePendenzeRepository
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   file_batch_id VARCHAR(64) NOT NULL,
   riga INT UNSIGNED NOT NULL,
-  stato ENUM('PENDING','PROCESSING','SUCCESS','ERROR') NOT NULL DEFAULT 'PENDING',
+  stato ENUM('PENDING','PROCESSING','SUCCESS','ERROR','PAUSED','CANCELLED') NOT NULL DEFAULT 'PENDING',
   errore TEXT NULL,
   payload_json JSON NULL,
   response_json JSON NULL,

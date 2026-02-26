@@ -67,6 +67,7 @@ services:
       - ./VERSION:/var/www/html/VERSION:ro
       - ./iam-proxy/metadata-sp:/var/www/html/metadata-sp:ro
       - ./iam-proxy/metadata-sp:/metadata/sp:ro
+      - ./scripts:/var/www/html/scripts
     environment:
       - SSL=${SSL}
       - APACHE_SERVER_NAME=${APACHE_SERVER_NAME}

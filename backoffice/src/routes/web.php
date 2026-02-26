@@ -77,7 +77,7 @@ return function (App $app, Twig $twig): void {
         return $controller->createRateizzazione($request, $response);
     });
 
-    $app->get('/pendenze/inserimento-massivo', function(Request $request, Response $response) use ($twig): Response {
+    $app->get('/pendenze/massivo/inserimento', function(Request $request, Response $response) use ($twig): Response {
         $controller = new \App\Controllers\MassivePendenzeController($twig);
         return $controller->index($request, $response);
     });
@@ -104,6 +104,31 @@ return function (App $app, Twig $twig): void {
     $app->get('/pendenze/massivo/dettaglio', function(Request $request, Response $response) use ($twig): Response {
         $controller = new \App\Controllers\MassivePendenzeController($twig);
         return $controller->dettaglio($request, $response);
+    });
+
+    $app->get('/pendenze/massivo/storico', function(Request $request, Response $response) use ($twig): Response {
+        $controller = new \App\Controllers\MassivePendenzeController($twig);
+        return $controller->storico($request, $response);
+    });
+
+    $app->post('/pendenze/massivo/{batchId}/pausa', function(Request $request, Response $response, array $args) use ($twig): Response {
+        $controller = new \App\Controllers\MassivePendenzeController($twig);
+        return $controller->azioneBatch($request, $response, $args['batchId'] ?? '', 'PAUSE');
+    });
+
+    $app->post('/pendenze/massivo/{batchId}/riprendi', function(Request $request, Response $response, array $args) use ($twig): Response {
+        $controller = new \App\Controllers\MassivePendenzeController($twig);
+        return $controller->azioneBatch($request, $response, $args['batchId'] ?? '', 'RESUME');
+    });
+
+    $app->post('/pendenze/massivo/{batchId}/elimina', function(Request $request, Response $response, array $args) use ($twig): Response {
+        $controller = new \App\Controllers\MassivePendenzeController($twig);
+        return $controller->azioneBatch($request, $response, $args['batchId'] ?? '', 'DELETE');
+    });
+
+    $app->post('/pendenze/massivo/{batchId}/annulla', function(Request $request, Response $response, array $args) use ($twig): Response {
+        $controller = new \App\Controllers\MassivePendenzeController($twig);
+        return $controller->azioneBatch($request, $response, $args['batchId'] ?? '', 'CANCEL');
     });
 
     $app->get('/pendenze/dettaglio/{idPendenza}', function(Request $request, Response $response, array $args) use ($twig): Response {
