@@ -570,6 +570,9 @@
             {% if r.datiAllegati is defined and r.datiAllegati.sorgente is defined %}
                 <div><span class="text-muted">Origine:</span> {{ r.datiAllegati.sorgente }}</div>
             {% endif %}
+            {% if r.datiAllegati is defined and r.datiAllegati.batchId is defined %}
+                <div><span class="text-muted">Batch ID:</span> {{ r.datiAllegati.batchId }}</div>
+            {% endif %}
             {% if r.datiAllegati is defined and r.datiAllegati.operatore is defined %}
                 <div><span class="text-muted">Operatore:</span> {{ r.datiAllegati.operatore }}</div>
             {% endif %}

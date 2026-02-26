@@ -454,7 +454,8 @@ class MassivePendenzeController
         $datiAllegati = [
             'sorgente' => 'GIL-Massivo',
             'batchId' => $batchId,
-            'history' => [
+            'operatore' => $operatore,
+            'storico' => [
                 [
                     'data' => date('c'),
                     'operazione' => 'Creazione Pendenza Massiva',
