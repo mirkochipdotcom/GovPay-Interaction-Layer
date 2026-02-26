@@ -37,3 +37,14 @@
 
 ### Integrazioni Esterne
 - [ ] **PagoPA Checkout**: Implementazione API PagoPA per avviare il checkout di pagamenti non generati da GovPay (simulazione portale checkout.pagopa.it).
+
+### Ottimizzazione Infrastruttura e Cleanup
+- [ ] **Snellimento Build**
+    - [ ] Semplificazione degli script di build.
+    - [ ] Rimozione dei container effimeri che terminano dopo la build (es. `sync-iam-proxy`).
+    - [ ] Valutazione sostituzione bind-mount con istruzioni `COPY` (o `docker cp`) per le cartelle statiche.
+    - [ ] Rimozione di `chown` e operazioni simili dagli script di entrypoint/build per velocizzare l'avvio.
+- [ ] **Pulizia Repository**
+    - [ ] Rimozione degli script di migrazione orfani.
+    - [ ] Eliminazione definitiva della cartella `debug/`.
+    - [ ] Cleanup finale e modernizzazione della struttura del repository.
