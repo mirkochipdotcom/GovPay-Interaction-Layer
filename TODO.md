@@ -37,6 +37,10 @@
 
 ### Manutenzione e Sistema
 - [ ] **Configurazione**: Funzionalità di backup e importazione della configurazione di sistema.
+- [ ] **Pannello di Configurazione (UI)**:
+    - [ ] Creazione di una procedura di inizializzazione guidata (setup wizard).
+    - [ ] Possibilità di gestire i parametri (comprese variabili env, logo, certificati GovPay) direttamente dall'interfaccia.
+    - [ ] Snellimento e semplificazione della gestione manuale dei file `.env`.
 - [x] **Documentazione**: Sistemazione documentazione relativa ai cron (attualmente massivo, in futuro rendicontazione).
 
 ### Integrazioni Esterne
