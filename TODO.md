@@ -11,6 +11,16 @@
     - [ ] Inserimento esiti/log notifiche nei `datiAllegati` della pendenza (es. timestamp mail, ID notifica IO).
     - [ ] Modifica del dettaglio pendenza per visualizzare una scheda/tab dedicata alle notifiche inviate.
 
+### Sistema di Rendicontazione
+- [ ] **Automazione**
+    - [ ] Cron job per la scansione dei flussi non rendicontati.
+    - [ ] Invio notifiche email ai destinatari configurati per ogni flusso elaborato.
+    - [ ] Implementazione del meccanismo di rendicontazione automatica del flusso al completamento del processing/notifica di tutte le pendenze.
+- [ ] **Webhook Agnostici**
+    - [ ] Meccanismo di notifica verso sistemi terzi basato su regole configurabili (per tipologia di pendenza, ecc.).
+- [ ] **Interfaccia Backoffice**
+    - [ ] Inserimento del tasto "Rendiconta flusso" nel dettaglio flusso per permettere il bypass manuale.
+
 ### Gestione Profilo Utente
 - [ ] **Interfaccia**: Miglioramento dell'interfaccia dell'area profilo.
 - [ ] **Sicurezza**: Funzione di cambio password.
