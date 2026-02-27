@@ -25,6 +25,9 @@ services:
           --key-out /certs/sp-signing.key \
           --csr-out /certs/sp-signing.csr \
           --crt-out /certs/sp-signing.crt
+        # Crea symlink con naming SATOSA-compatibile (cert.pem, privkey.pem)
+        cp /certs/sp-signing.crt /certs/cert.pem
+        cp /certs/sp-signing.key /certs/privkey.pem
     env_file:
       - .env
     profiles:
@@ -233,6 +236,7 @@ services:
     volumes:
       - ./iam-proxy/iam-proxy-italia-project:/satosa_proxy
       - ./iam-proxy/metadata-sp:/satosa_proxy/metadata/sp:ro
+      - ./iam-proxy/spid-certs:/satosa_proxy/pki # certificati SPID-compliant generati da init-spid-cert
     profiles:
       - iam-proxy
     depends_on:
