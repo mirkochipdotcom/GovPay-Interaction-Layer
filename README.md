@@ -220,9 +220,31 @@ Nota importante: **questa parte è pensata per avvio/validazione dello stack**. 
 
 3) Verifica endpoint principali:
 
-- Metadata SAML2 IdP: `https://localhost:8445/Saml2IDP/metadata`
-- Metadata SAML2 IdP: `https://localhost:9445/Saml2IDP/metadata`
-- Discovery (static): `https://localhost:9445/static/disco.html`
+### Endpoint esposti da SATOSA
+
+> [!IMPORTANT]
+> SATOSA espone **due set di metadata distinti** con scopi completamente diversi. Usare l'endpoint sbagliato è
+> la fonte più comune di errori di configurazione e validazione.
+
+| Endpoint | A cosa serve | Chi lo usa | Va inviato ad AgID? |
+|---|---|---|:---:|
+| `/Saml2IDP/metadata` | Metadata IdP di SATOSA verso il **frontoffice** | Il frontoffice (SP interno) per sapere dove inviare le richieste SAML | ❌ No |
+| `/spidSaml2/metadata` | Metadata **SP di SATOSA verso SPID** | Gli IdP SPID/CIE (Poste, Aruba...) per identificare SATOSA come SP | ✅ **Sì** |
+| `/static/disco.html` | Pagina di discovery (scelta IdP) | Browser utente | ❌ No |
+
+**Esempi URL locali:**
+```
+https://localhost:9445/Saml2IDP/metadata      ← uso interno
+https://localhost:9445/spidSaml2/metadata     ← da inviare ad AgID
+https://localhost:9445/static/disco.html      ← pagina discovery
+```
+
+> [!WARNING]
+> L'endpoint `/spSaml2/metadata` (senza "id") **non esiste** e restituisce errore 302.
+> Il path corretto è `/spidSaml2/metadata`.
+
+**Per la validazione AgID** usa sempre `/spidSaml2/metadata`.
+Esempio produzione: `https://pagopa-prx.comune.montesilvano.pe.it/spidSaml2/metadata`
 
 ### Dove si configurano i file
 
