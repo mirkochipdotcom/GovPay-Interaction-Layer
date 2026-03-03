@@ -294,6 +294,10 @@ services:
       - SSL=${SSL:-on}
       - NGINX_HOST=${IAM_PROXY_HOSTNAME:-satosa-nginx}
       - TZ=${TZ:-Europe/Rome}
+    env_file:
+      # Permette a nginx di leggere SATOSA_UNKNOW_ERROR_REDIRECT_PAGE
+      # per configurare il redirect su errori 403 (es. annullamento login SPID/CIE)
+      - .env.iam-proxy
     volumes:
       - ./iam-proxy/nginx/conf.d:/satosa_config_templates:ro
       - ./iam-proxy/nginx/html:/usr/share/nginx/html:ro

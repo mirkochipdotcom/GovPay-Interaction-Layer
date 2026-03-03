@@ -29,4 +29,8 @@ else
     find /etc/nginx/conf.d -name "*.conf" -type f -exec sed -i "s|#PROTO_MARKER#|http|g" {} \;
 fi
 
-echo "[nginx-setup] Substituted NGINX_HOST=${NGINX_HOST} and SSL macros in config files"
+# Sostituisce l'URL di redirect per errori (es. 403 su annullamento login SPID/CIE)
+ERROR_REDIRECT_URL="${SATOSA_UNKNOW_ERROR_REDIRECT_PAGE:-/}"
+find /etc/nginx/conf.d -name "*.conf" -type f -exec sed -i "s|#ERROR_REDIRECT_URL#|${ERROR_REDIRECT_URL}|g" {} \;
+
+echo "[nginx-setup] Substituted NGINX_HOST=${NGINX_HOST}, SSL macros and ERROR_REDIRECT_URL=${ERROR_REDIRECT_URL} in config files"
