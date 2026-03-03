@@ -14,8 +14,8 @@
   <link href="/static/css/ita.min.css" rel="stylesheet">
   <link type="text/css" rel="stylesheet" href="/static/spid/spid-sp-access-button.css">
 
-  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-  <script src="js/bootstrap-italia.bundle.min.js"></script>
+  <script src="/static/js/jquery-3.7.0.min.js"></script>
+  <script src="/static/js/bootstrap-italia.bundle.min.js"></script>
 
   <style>
     html, body {
@@ -127,9 +127,20 @@
   <div class="it-header-slim-wrapper bg-primary">
     <div class="container">
       <div class="it-header-slim-wrapper-content d-flex justify-content-between align-items-center">
-        <span class="d-none d-lg-block navbar-brand text-white">
-          <strong>Nome della Regione</strong>
-        </span>
+        <a href="${APP_ENTITY_URL}" class="d-none d-lg-flex align-items-center text-white text-decoration-none">
+          <script>
+            const logoSrc = "${APP_LOGO_SRC}";
+            if(logoSrc && logoSrc !== "") {
+              const fullLogoSrc = logoSrc.startsWith('/') && "${FRONTOFFICE_PUBLIC_BASE_URL}" !== "" ? "${FRONTOFFICE_PUBLIC_BASE_URL}" + logoSrc : logoSrc;
+              document.write('<img src="' + fullLogoSrc + '" alt="Logo Ente" style="height: 48px; margin-right: 15px;" onerror="this.onerror=null; this.src=\'/static/svg/it-pa.svg\';">');
+            } else {
+              document.write('<img src="/static/svg/it-pa.svg" alt="Logo PA" style="height: 48px; margin-right: 15px;">');
+            }
+          </script>
+          <span style="font-weight: 600; font-size: 1.2rem;">
+            <span id="organization-name">${APP_ENTITY_NAME}</span>
+          </span>
+        </a>
       </div>
     </div>
   </div>
@@ -139,7 +150,7 @@
         <svg class="icon icon-lg me-2" aria-hidden="true">
           <use xlink:href="/static/svg/sprites.svg#it-code-circle"></use>
         </svg>
-        <h2>Accedi</h2>
+        <h2>Accedi ai servizi di ${APP_ENTITY_NAME}</h2>
       </div>
     </div>
   </div>
@@ -161,7 +172,7 @@
     </div>
 
     <div id="spid-idp-button-xlarge-post" class="spid-idp-button spid-idp-button-tip spid-idp-button-relative spid-idp-button-scroll">
-      <ul id="spid-idp-list-xlarge-root-post" class="spid-idp-button-menu">
+      <ul id="spid-idp-list-xlarge-root-post" class="spid-idp-button-menu" style="max-height: 400px; overflow-y: auto;">
         <!-- SPID_DEMO_START -->
         <li class="spid-idp-button-link">
           <a class="disco-idp-link" data-entity-id="https://demo.spid.gov.it">
@@ -253,9 +264,9 @@
 <footer>
   <div class="container h-100 d-flex align-items-center">
     <div class="d-flex flex-wrap justify-content-start">
-      <a href="" class="text-white me-4 mb-2" target="_blank" rel="noopener">Note legali</a>
-      <a href="" class="text-white me-4 mb-2" target="_blank" rel="noopener">Privacy policy</a>
-      <a href="" class="text-white mb-2" target="_blank" rel="noopener">Accessibilità</a>
+      <a href="${SATOSA_UI_LEGAL_URL_IT}" class="text-white me-4 mb-2" target="_blank" rel="noopener">Note legali</a>
+      <a href="${SATOSA_UI_PRIVACY_URL_IT}" class="text-white me-4 mb-2" target="_blank" rel="noopener">Privacy policy</a>
+      <a href="${SATOSA_UI_ACCESSIBILITY_URL_IT}" class="text-white mb-2" target="_blank" rel="noopener" id="footer-accessibility">Accessibilità</a>
     </div>
   </div>
 </footer>
@@ -264,12 +275,20 @@
   (function applyDiscoLinks() {
     const urlParams = new URLSearchParams(window.location.search);
     const servicePath = urlParams.get('return');
-    if (!servicePath) return;
+    if (!servicePath) {
+      // Fallback: se siamo arrivati senza ?return=, non possiamo costruire l'href
+      console.warn('[disco] Parametro ?return= mancante nell\'URL. La pagina è stata aperta direttamente invece che tramite SATOSA.');
+      return;
+    }
+
+    // Determina il separatore corretto per appending entityID
+    // (SAML2 DS protocol: return_url?entityID=selectedIDP oppure return_url&entityID=...)
+    const sep = servicePath.includes('?') ? '&' : '?';
 
     document.querySelectorAll('.disco-idp-link').forEach((link) => {
       const entityId = link.getAttribute('data-entity-id');
       if (!entityId) return;
-      link.setAttribute('href', `${servicePath}?entityID=${encodeURIComponent(entityId)}&return=${encodeURIComponent(servicePath)}`);
+      link.setAttribute('href', servicePath + sep + 'entityID=' + encodeURIComponent(entityId));
     });
   })();
 </script>

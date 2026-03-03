@@ -1,33 +1,37 @@
 services:
   # Servizio di utility che genera i metadata SP al primo avvio
   init-spid-cert:
-    image: italia/spid-compliant-certificates:latest
+    image: alpine:latest
     container_name: govpay-init-spid-cert
-    user: "0:0"
     volumes:
       - ./iam-proxy/spid-certs:/certs
+      - ./scripts:/scripts:ro
     entrypoint: [ "/bin/sh", "-c" ]
     command:
       - |
-        if [ -f /certs/sp-signing.key ] && [ -f /certs/sp-signing.crt ]; then
+        if [ -f /certs/privkey.pem ] && [ -f /certs/cert.pem ]; then
           echo "[INFO] SPID cert già presente, skip generazione";
           exit 0;
         fi
-        spid-compliant-certificates generator \
-          --key-size "$${SPID_CERT_KEY_SIZE:-3072}" \
-          --common-name "$${SPID_CERT_COMMON_NAME:-$${APP_ENTITY_NAME:-GovPay}}" \
-          --days "$${SPID_CERT_DAYS:-365}" \
-          --entity-id "$${SPID_CERT_ENTITY_ID:-$${FRONTOFFICE_PUBLIC_BASE_URL:-https://127.0.0.1:8444}/saml/sp}" \
-          --locality-name "$${SPID_CERT_LOCALITY_NAME:-Roma}" \
-          --org-id "$${SPID_CERT_ORG_ID:-PA:IT-$${APP_ENTITY_IPA_CODE:-c_x000}}" \
-          --org-name "$${SPID_CERT_ORG_NAME:-$${APP_ENTITY_NAME:-GovPay}}" \
-          --sector "$${SPID_CERT_SECTOR:-public}" \
-          --key-out /certs/sp-signing.key \
-          --csr-out /certs/sp-signing.csr \
-          --crt-out /certs/sp-signing.crt
-        # Crea symlink con naming SATOSA-compatibile (cert.pem, privkey.pem)
-        cp /certs/sp-signing.crt /certs/cert.pem
-        cp /certs/sp-signing.key /certs/privkey.pem
+        apk add --no-cache bash openssl curl jq
+        export COMMON_NAME="$${SPID_CERT_COMMON_NAME:-$${APP_ENTITY_NAME:-GovPay}}"
+        export DAYS="$${SPID_CERT_DAYS:-365}"
+        export ENTITY_ID="$${SPID_CERT_ENTITY_ID:-$${FRONTOFFICE_PUBLIC_BASE_URL:-https://127.0.0.1:8444}/saml/sp}"
+        export KEY_LEN="$${SPID_CERT_KEY_SIZE:-3072}"
+        export LOCALITY_NAME="$${SPID_CERT_LOCALITY_NAME:-Roma}"
+        export ORGANIZATION_IDENTIFIER="$${SPID_CERT_ORG_ID:-PA:IT-$${APP_ENTITY_IPA_CODE:-c_x000}}"
+        export ORGANIZATION_NAME="$${SPID_CERT_ORG_NAME:-$${APP_ENTITY_NAME:-GovPay}}"
+        export MD_ALG="sha256"
+
+        cd /certs
+        bash /scripts/spid-gencert-public.sh
+        # Crea symlink o copia con naming SATOSA-compatibile (cert.pem, privkey.pem)
+        cp /certs/crt.pem /certs/cert.pem
+        cp /certs/key.pem /certs/privkey.pem
+        # Fix permessi chiave privata poichè openssl genera con permessi 600 di default (root) e uwsgi in IAM non può leggerla
+        chmod 644 /certs/*.pem
+        # Opzionale: pulizia dei file temporanei
+        rm -f /certs/crt.pem /certs/key.pem /certs/csr.pem
     env_file:
       - .env
     profiles:
@@ -45,14 +49,18 @@ services:
       - FRONTOFFICE_PUBLIC_BASE_URL=${FRONTOFFICE_PUBLIC_BASE_URL}
       - APP_ENTITY_NAME=${APP_ENTITY_NAME}
       - APP_ENTITY_IPA_CODE=${APP_ENTITY_IPA_CODE}
+      - ID_DOMINIO=${ID_DOMINIO}
+      - APP_SUPPORT_PHONE=${APP_SUPPORT_PHONE}
       - IAM_PROXY_SAML2_IDP_METADATA_URL_INTERNAL=${IAM_PROXY_SAML2_IDP_METADATA_URL_INTERNAL:-https://satosa-nginx:443/Saml2IDP/metadata}
+      - FRONTOFFICE_SAML_SP_X509CERT=/var/www/html/spid-certs/cert.pem
+      - FRONTOFFICE_SAML_SP_PRIVATEKEY=/var/www/html/spid-certs/privkey.pem
     depends_on:
       init-spid-cert:
         condition: service_completed_successfully
     entrypoint: [ "/bin/sh", "-c" ]
     command:
       - |
-        sh /scripts/ensure-sp-metadata.sh || exit 0
+        sh /scripts/ensure-sp-metadata.sh --force || exit 0
     profiles:
       - iam-proxy
 
@@ -205,6 +213,10 @@ services:
     container_name: sync-iam-proxy
     environment:
       - APP_ENTITY_NAME=${APP_ENTITY_NAME}
+      - APP_ENTITY_URL=${APP_ENTITY_URL}
+      - APP_LOGO_SRC=${APP_LOGO_SRC}
+      - APP_LOGO_TYPE=${APP_LOGO_TYPE}
+      - FRONTOFFICE_PUBLIC_BASE_URL=${FRONTOFFICE_PUBLIC_BASE_URL}
     env_file:
       - .env.iam-proxy
     volumes:
@@ -227,6 +239,11 @@ services:
       - /bin/bash
       - -c
       - |
+        if [ -f /satosa_proxy/patch_saml2.py ]; then
+          echo "[INFO] Applying SAML2 patch..."
+          python /satosa_proxy/patch_saml2.py
+        fi
+
         if [ -f /satosa_proxy/entrypoint.sh ]; then
           exec /bin/bash /satosa_proxy/entrypoint.sh
         else
@@ -235,6 +252,7 @@ services:
         fi
     volumes:
       - ./iam-proxy/iam-proxy-italia-project:/satosa_proxy
+      - ./iam-proxy/patch_saml2.py:/satosa_proxy/patch_saml2.py:ro
       - ./iam-proxy/metadata-sp:/satosa_proxy/metadata/sp:ro
       - ./iam-proxy/spid-certs:/satosa_proxy/pki # certificati SPID-compliant generati da init-spid-cert
     profiles:

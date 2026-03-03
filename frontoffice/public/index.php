@@ -639,6 +639,11 @@ if (!function_exists('frontoffice_satosa_saml_auth')) {
         ];
 
         try {
+            if (str_starts_with($frontofficeBaseUrl, 'https://')) {
+                \OneLogin\Saml2\Utils::setProxyVars(true);
+                $_SERVER['HTTPS'] = 'on';
+                $_SERVER['SERVER_PORT'] = '443';
+            }
             return new SamlAuth($settings);
         } catch (\Throwable $e) {
             Logger::getInstance()->warning('Impossibile inizializzare SAML Auth', ['error' => $e->getMessage()]);

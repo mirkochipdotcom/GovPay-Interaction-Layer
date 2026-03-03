@@ -131,6 +131,9 @@ if (!class_exists('OneLogin\Saml2\Settings')) {
         $domain = preg_replace('/[^a-z0-9]+/', '', strtolower($orgName)) ?: 'ente';
         $supportEmail = 'support@' . $domain . '.it';
     }
+    $supportPhone = getenv('APP_SUPPORT_PHONE') ?: '+390000000000';
+    $fiscalCode = getenv('ID_DOMINIO') ?: '00000000000';
+    $ipaCode = getenv('APP_ENTITY_IPA_CODE') ?: 'c_x000';
     
     $metadata = <<<XML
 <?xml version="1.0"?>
@@ -164,8 +167,13 @@ if (!class_exists('OneLogin\Saml2\Settings')) {
         <md:OrganizationURL xml:lang="en">$orgUrl</md:OrganizationURL>
     </md:Organization>
     <md:ContactPerson contactType="other">
-        <md:GivenName>$orgName</md:GivenName>
+        <md:Extensions>
+            <spid:IPACode>$ipaCode</spid:IPACode>
+            <spid:Public/>
+            <spid:FiscalCode>$fiscalCode</spid:FiscalCode>
+        </md:Extensions>
         <md:EmailAddress>$supportEmail</md:EmailAddress>
+        <md:TelephoneNumber>$supportPhone</md:TelephoneNumber>
     </md:ContactPerson>
 </md:EntityDescriptor>
 XML;
@@ -187,6 +195,9 @@ if (!$supportEmail) {
     $domain = preg_replace('/[^a-z0-9]+/', '', strtolower($orgName)) ?: 'ente';
     $supportEmail = 'support@' . $domain . '.it';
 }
+$supportPhone = getenv('APP_SUPPORT_PHONE') ?: '+390000000000';
+$fiscalCode = getenv('ID_DOMINIO') ?: '00000000000';
+
 $ipaCode = getenv('APP_ENTITY_IPA_CODE');
 if (!$ipaCode) {
     $ipaCode = getenv('SATOSA_CONTACT_PERSON_IPA_CODE');
@@ -250,14 +261,26 @@ $settings = [
         'x509cert' => $spCert,
         'privateKey' => $spKey,
         'attributeConsumingService' => [
-            'serviceName' => $orgDisplay,
-            'serviceDescription' => $orgDisplay,
+            'serviceName' => 'Set 0',
+            'serviceDescription' => 'Set 0',
             'requestedAttributes' => [
-                ['name' => 'spidCode', 'friendlyName' => 'spidCode', 'nameFormat' => 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic', 'isRequired' => true],
-                ['name' => 'name', 'friendlyName' => 'name', 'nameFormat' => 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic', 'isRequired' => true],
-                ['name' => 'familyName', 'friendlyName' => 'familyName', 'nameFormat' => 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic', 'isRequired' => true],
-                ['name' => 'fiscalNumber', 'friendlyName' => 'fiscalNumber', 'nameFormat' => 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic', 'isRequired' => true],
-                ['name' => 'email', 'friendlyName' => 'email', 'nameFormat' => 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic', 'isRequired' => true],
+                ['name' => 'gender', 'nameFormat' => 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic', 'isRequired' => false],
+                ['name' => 'companyName', 'nameFormat' => 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic', 'isRequired' => false],
+                ['name' => 'registeredOffice', 'nameFormat' => 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic', 'isRequired' => false],
+                ['name' => 'fiscalNumber', 'nameFormat' => 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic', 'isRequired' => false],
+                ['name' => 'ivaCode', 'nameFormat' => 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic', 'isRequired' => false],
+                ['name' => 'idCard', 'nameFormat' => 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic', 'isRequired' => false],
+                ['name' => 'spidCode', 'nameFormat' => 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic', 'isRequired' => false],
+                ['name' => 'name', 'nameFormat' => 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic', 'isRequired' => false],
+                ['name' => 'familyName', 'nameFormat' => 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic', 'isRequired' => false],
+                ['name' => 'placeOfBirth', 'nameFormat' => 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic', 'isRequired' => false],
+                ['name' => 'countyOfBirth', 'nameFormat' => 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic', 'isRequired' => false],
+                ['name' => 'dateOfBirth', 'nameFormat' => 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic', 'isRequired' => false],
+                ['name' => 'mobilePhone', 'nameFormat' => 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic', 'isRequired' => false],
+                ['name' => 'email', 'nameFormat' => 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic', 'isRequired' => false],
+                ['name' => 'address', 'nameFormat' => 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic', 'isRequired' => false],
+                ['name' => 'expirationDate', 'nameFormat' => 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic', 'isRequired' => false],
+                ['name' => 'digitalAddress', 'nameFormat' => 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic', 'isRequired' => false],
             ],
         ],
     ],
@@ -315,9 +338,45 @@ try {
     if (strpos($metadata, 'xmlns:spid=') === false) {
         $metadata = preg_replace('/<md:EntityDescriptor\b/', '<md:EntityDescriptor xmlns:spid="https://spid.gov.it/saml-extensions"', $metadata, 1);
     }
-    $metadata = preg_replace('/(<md:ContactPerson[^>]*contactType="other"[^>]*>)/', '$1' . "\n        <md:Extensions>\n            <spid:IPACode>{$ipaCode}</spid:IPACode>\n            <spid:Public />\n        </md:Extensions>", $metadata, 1);
-    $metadata = preg_replace('/<md:AssertionConsumerService([^>]*?)index=\"\d+\"([^>]*?)\/>/', '<md:AssertionConsumerService$1index="0"$2 isDefault="true" />', $metadata);
-    $metadata = preg_replace('/<md:AttributeConsumingService index=\"\d+\"/', '<md:AttributeConsumingService index="0"', $metadata);
+    $metadata = preg_replace('/(<md:ContactPerson[^>]*contactType="other"[^>]*>)/', '$1' . "\n        <md:Extensions>\n            <spid:IPACode>{$ipaCode}</spid:IPACode>\n            <spid:Public />\n            <spid:FiscalCode>{$fiscalCode}</spid:FiscalCode>\n        </md:Extensions>", $metadata, 1);
+    
+    // Replace telephone if valid
+    if ($supportPhone && $supportPhone !== '+390000000000') {
+         $metadata = preg_replace('/<\/md:ContactPerson>/', "\n        <md:TelephoneNumber>{$supportPhone}</md:TelephoneNumber>\n    </md:ContactPerson>", $metadata, 1);
+    }
+    
+    $metadata = preg_replace('/<md:AssertionConsumerService([^>]*?)index=\"\d+\"([^>]*?)\/>/', '<md:AssertionConsumerService$1index="0"$2 isDefault="true" />' . "\n        " . '<md:AssertionConsumerService$1index="1"$2 />' . "\n        " . '<md:AssertionConsumerService$1index="2"$2 />', $metadata);
+    $metadata = preg_replace('/<md:AttributeConsumingService index=\"\d+\">/', '<md:AttributeConsumingService index="0">', $metadata);
+
+    // Append sets 1 and 2
+    $sets1and2 = <<<XML
+        <md:AttributeConsumingService index="1">
+            <md:ServiceName xml:lang="it">Set 1</md:ServiceName>       
+            <md:RequestedAttribute Name="fiscalNumber"/>
+            <md:RequestedAttribute Name="spidCode"/>
+        </md:AttributeConsumingService>
+        <md:AttributeConsumingService index="2">
+            <md:ServiceName xml:lang="it">Set 2</md:ServiceName>       
+            <md:RequestedAttribute Name="gender"/>
+            <md:RequestedAttribute Name="companyName"/>
+            <md:RequestedAttribute Name="registeredOffice"/>
+            <md:RequestedAttribute Name="fiscalNumber"/>
+            <md:RequestedAttribute Name="ivaCode"/>
+            <md:RequestedAttribute Name="idCard"/>
+            <md:RequestedAttribute Name="spidCode"/>
+            <md:RequestedAttribute Name="name"/>
+            <md:RequestedAttribute Name="familyName"/>
+            <md:RequestedAttribute Name="placeOfBirth"/>
+            <md:RequestedAttribute Name="countyOfBirth"/>
+            <md:RequestedAttribute Name="dateOfBirth"/>
+            <md:RequestedAttribute Name="mobilePhone"/>
+            <md:RequestedAttribute Name="email"/>
+            <md:RequestedAttribute Name="address"/>
+            <md:RequestedAttribute Name="expirationDate"/>
+            <md:RequestedAttribute Name="digitalAddress"/>
+        </md:AttributeConsumingService>
+XML;
+    $metadata = preg_replace('/(<\/md:AttributeConsumingService>)/', "$1\n$sets1and2", $metadata, 1);
     if ($signMetadata) {
         $metadata = \OneLogin\Saml2\Metadata::addX509KeyDescriptors($metadata, $spCert, false);
         $metadata = \OneLogin\Saml2\Metadata::signMetadata(
