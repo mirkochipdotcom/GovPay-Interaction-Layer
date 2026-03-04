@@ -10,6 +10,10 @@
     body { display: flex; flex-direction: column; min-height: 100vh; background: #f5f7fa; font-family: 'Titillium Web', sans-serif; }
     .it-header-slim-wrapper { background: #0072CE; padding: 0.75rem 0; }
     .it-header-slim-wrapper a { color: #fff; text-decoration: none; font-weight: 600; font-size: 1rem; }
+    .it-header-center-wrapper { background: #F2F7FC; padding: 0.75rem 0; border-bottom: 1px solid #e0e6ed; }
+    .it-header-center-wrapper .header-inner { display: flex; align-items: center; gap: 12px; }
+    .it-header-center-wrapper img { height: 48px; }
+    .it-header-center-wrapper .org-display-name { font-size: 1.1rem; font-weight: 600; color: #17324d; }
     main { flex: 1; display: flex; align-items: center; justify-content: center; padding: 3rem 1rem; }
     .error-card { background: #fff; border-radius: 6px; box-shadow: 0 2px 16px rgba(0,0,0,0.09); max-width: 580px; width: 100%; padding: 3rem 2.5rem; text-align: center; }
     .error-code { font-size: 5rem; font-weight: 900; color: #e0e6ed; line-height: 1; margin-bottom: 0; }
@@ -29,6 +33,14 @@
   <div class="it-header-slim-wrapper">
     <div class="container">
       <a href="#ORG_URL#">#ORG_NAME#</a>
+    </div>
+  </div>
+  <div class="it-header-center-wrapper">
+    <div class="container">
+      <div class="header-inner">
+        <img src="#ORG_LOGO#" alt="#ORG_NAME#" onerror="this.style.display='none'">
+        <span class="org-display-name">#ORG_DISPLAY_NAME#</span>
+      </div>
     </div>
   </div>
 

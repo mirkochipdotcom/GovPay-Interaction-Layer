@@ -33,6 +33,7 @@ fi
 # Le pagine vengono scritte in /tmp/errors/ (percorso scrivibile) e servite da nginx
 mkdir -p /tmp/errors
 ORG_NAME="${SATOSA_ORGANIZATION_NAME_IT:-Servizio di Autenticazione}"
+ORG_DISPLAY_NAME="${SATOSA_ORGANIZATION_DISPLAY_NAME_IT:-${SATOSA_ORGANIZATION_NAME_IT:-Servizio di Autenticazione}}"
 ORG_LOGO="${SATOSA_UI_LOGO_URL:-}"
 ORG_URL="${SATOSA_ORGANIZATION_URL_IT:-/}"
 SERVICE_URL="${SATOSA_UNKNOW_ERROR_REDIRECT_PAGE:-/}"
@@ -45,6 +46,7 @@ for tmpl in /usr/share/nginx/html/errors/*.html; do
   fname="$(basename "$tmpl")"
   sed \
     -e "s|#ORG_NAME#|${ORG_NAME}|g" \
+    -e "s|#ORG_DISPLAY_NAME#|${ORG_DISPLAY_NAME}|g" \
     -e "s|#ORG_LOGO#|${ORG_LOGO}|g" \
     -e "s|#ORG_URL#|${ORG_URL}|g" \
     -e "s|#SERVICE_URL#|${SERVICE_URL}|g" \

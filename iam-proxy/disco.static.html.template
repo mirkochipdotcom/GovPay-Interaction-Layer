@@ -148,7 +148,7 @@
             }
           })();
         </script>
-        <h2 style="margin:0;">Accedi ai servizi di ${APP_ENTITY_NAME}</h2>
+        <h2 style="margin:0;">Accedi ai servizi di ${SATOSA_ORGANIZATION_DISPLAY_NAME_IT}</h2>
       </div>
     </div>
   </div>
