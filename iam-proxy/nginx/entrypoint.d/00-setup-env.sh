@@ -29,8 +29,31 @@ else
     find /etc/nginx/conf.d -name "*.conf" -type f -exec sed -i "s|#PROTO_MARKER#|http|g" {} \;
 fi
 
-# Sostituisce l'URL di redirect per errori (es. 403 su annullamento login SPID/CIE)
-ERROR_REDIRECT_URL="${SATOSA_UNKNOW_ERROR_REDIRECT_PAGE:-/}"
-find /etc/nginx/conf.d -name "*.conf" -type f -exec sed -i "s|#ERROR_REDIRECT_URL#|${ERROR_REDIRECT_URL}|g" {} \;
+# Genera le pagine di errore a partire dai template, sostituendo le variabili dell'organizzazione
+# Le pagine vengono scritte in /tmp/errors/ (percorso scrivibile) e servite da nginx
+mkdir -p /tmp/errors
+ORG_NAME="${SATOSA_ORGANIZATION_NAME_IT:-Servizio di Autenticazione}"
+ORG_LOGO="${SATOSA_UI_LOGO_URL:-}"
+ORG_URL="${SATOSA_ORGANIZATION_URL_IT:-/}"
+SERVICE_URL="${SATOSA_UNKNOW_ERROR_REDIRECT_PAGE:-/}"
+FRONTOFFICE_URL="${SATOSA_FRONTOFFICE_URL:-${SATOSA_UNKNOW_ERROR_REDIRECT_PAGE:-/}}"
+LEGAL_URL="${SATOSA_UI_LEGAL_URL_IT:-#}"
+PRIVACY_URL="${SATOSA_UI_PRIVACY_URL_IT:-#}"
+ACCESSIBILITY_URL="${SATOSA_UI_ACCESSIBILITY_URL_IT:-#}"
 
-echo "[nginx-setup] Substituted NGINX_HOST=${NGINX_HOST}, SSL macros and ERROR_REDIRECT_URL=${ERROR_REDIRECT_URL} in config files"
+for tmpl in /usr/share/nginx/html/errors/*.html; do
+  fname="$(basename "$tmpl")"
+  sed \
+    -e "s|#ORG_NAME#|${ORG_NAME}|g" \
+    -e "s|#ORG_LOGO#|${ORG_LOGO}|g" \
+    -e "s|#ORG_URL#|${ORG_URL}|g" \
+    -e "s|#SERVICE_URL#|${SERVICE_URL}|g" \
+    -e "s|#FRONTOFFICE_URL#|${FRONTOFFICE_URL}|g" \
+    -e "s|#LEGAL_URL#|${LEGAL_URL}|g" \
+    -e "s|#PRIVACY_URL#|${PRIVACY_URL}|g" \
+    -e "s|#ACCESSIBILITY_URL#|${ACCESSIBILITY_URL}|g" \
+    "$tmpl" > "/tmp/errors/$fname"
+done
+echo "[nginx-setup] Error pages generated in /tmp/errors/ for org: ${ORG_NAME}"
+
+echo "[nginx-setup] Substituted NGINX_HOST=${NGINX_HOST} and SSL macros in config files"

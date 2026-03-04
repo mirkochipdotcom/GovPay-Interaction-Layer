@@ -127,19 +127,8 @@
   <div class="it-header-slim-wrapper bg-primary">
     <div class="container">
       <div class="it-header-slim-wrapper-content d-flex justify-content-between align-items-center">
-        <a href="${APP_ENTITY_URL}" class="d-none d-lg-flex align-items-center text-white text-decoration-none">
-          <script>
-            const logoSrc = "${APP_LOGO_SRC}";
-            if(logoSrc && logoSrc !== "") {
-              const fullLogoSrc = logoSrc.startsWith('/') && "${FRONTOFFICE_PUBLIC_BASE_URL}" !== "" ? "${FRONTOFFICE_PUBLIC_BASE_URL}" + logoSrc : logoSrc;
-              document.write('<img src="' + fullLogoSrc + '" alt="Logo Ente" style="height: 48px; margin-right: 15px;" onerror="this.onerror=null; this.src=\'/static/svg/it-pa.svg\';">');
-            } else {
-              document.write('<img src="/static/svg/it-pa.svg" alt="Logo PA" style="height: 48px; margin-right: 15px;">');
-            }
-          </script>
-          <span style="font-weight: 600; font-size: 1.2rem;">
-            <span id="organization-name">${APP_ENTITY_NAME}</span>
-          </span>
+        <a href="${APP_ENTITY_URL}" class="d-flex align-items-center text-white text-decoration-none" style="font-weight:600; font-size:1.1rem;">
+          ${APP_ENTITY_NAME}
         </a>
       </div>
     </div>
@@ -147,10 +136,19 @@
   <div style="background-color: #F2F7FC;">
     <div class="container py-3">
       <div class="d-flex align-items-center">
-        <svg class="icon icon-lg me-2" aria-hidden="true">
-          <use xlink:href="/static/svg/sprites.svg#it-code-circle"></use>
-        </svg>
-        <h2>Accedi ai servizi di ${APP_ENTITY_NAME}</h2>
+        <script>
+          (function(){
+            var src = "${APP_LOGO_SRC}";
+            var base = "${FRONTOFFICE_PUBLIC_BASE_URL}";
+            if(src && src !== "") {
+              var fullSrc = src.startsWith('/') && base !== "" ? base + src : src;
+              document.write('<img src="' + fullSrc + '" alt="${APP_ENTITY_NAME}" style="height:48px; margin-right:12px;" onerror="this.style.display=\'none\'">');
+            } else {
+              document.write('<img src="/static/svg/it-pa.svg" alt="Logo PA" style="height:48px; margin-right:12px;">');
+            }
+          })();
+        </script>
+        <h2 style="margin:0;">Accedi ai servizi di ${APP_ENTITY_NAME}</h2>
       </div>
     </div>
   </div>
