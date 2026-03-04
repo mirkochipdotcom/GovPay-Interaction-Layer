@@ -304,6 +304,8 @@ services:
       - ./iam-proxy/nginx/entrypoint.d:/docker-entrypoint.d:ro
       # Mount SATOSA static files for serving by nginx
       - ./iam-proxy/iam-proxy-italia-project/static:/usr/share/nginx/html/static:ro
+      # Versione applicazione per footer pagine errore
+      - ./VERSION:/VERSION:ro
       # Cert per TLS (riuso di ssl/ locale)
       - ./ssl:/etc/nginx/certs
     restart: unless-stopped

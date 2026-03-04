@@ -32,6 +32,7 @@ fi
 # Genera le pagine di errore a partire dai template, sostituendo le variabili dell'organizzazione
 # Le pagine vengono scritte in /tmp/errors/ (percorso scrivibile) e servite da nginx
 mkdir -p /tmp/errors
+APP_VERSION="$(cat /VERSION 2>/dev/null | tr -d '[:space:]')"
 ORG_NAME="${SATOSA_ORGANIZATION_NAME_IT:-Servizio di Autenticazione}"
 ORG_DISPLAY_NAME="${SATOSA_ORGANIZATION_DISPLAY_NAME_IT:-${SATOSA_ORGANIZATION_NAME_IT:-Servizio di Autenticazione}}"
 ORG_LOGO="${SATOSA_UI_LOGO_URL:-}"
@@ -54,6 +55,7 @@ for tmpl in /usr/share/nginx/html/errors/*.html; do
     -e "s|#LEGAL_URL#|${LEGAL_URL}|g" \
     -e "s|#PRIVACY_URL#|${PRIVACY_URL}|g" \
     -e "s|#ACCESSIBILITY_URL#|${ACCESSIBILITY_URL}|g" \
+    -e "s|#APP_VERSION#|${APP_VERSION}|g" \
     "$tmpl" > "/tmp/errors/$fname"
 done
 echo "[nginx-setup] Error pages generated in /tmp/errors/ for org: ${ORG_NAME}"
