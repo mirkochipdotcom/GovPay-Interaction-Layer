@@ -253,7 +253,7 @@
             <!-- AGID - SPID IDP BUTTON MEDIUM "ENTRA CON SPID" * end * -->
 
           </div>
-          <img id="spid-agid" class="img-fluid mx-auto mt-3" src="/static/spid/spid_icon.svg" onerror="this.src='/static/spid/spid-agid-logo-lb.png'; this.onerror=null;" alt="Logo SPID - AGID" style="max-height: 40px; width: auto;">
+          <img id="spid-agid" class="img-fluid mx-auto mt-3" src="/static/spid/spid-agid-logo-lb.png" alt="Logo SPID - AGID - Agenzia per l'Italia Digitale" style="max-height: 50px; width: auto;">
         </div>
       </div>
       <!-- SPID_BLOCK_END -->
@@ -300,13 +300,13 @@
       <div class="d-flex flex-wrap align-items-center">
         <a href="${SATOSA_UI_LEGAL_URL_IT}" class="text-white me-4 mb-2" target="_blank" rel="noopener">Note legali</a>
         <a href="${SATOSA_UI_PRIVACY_URL_IT}" class="text-white me-4 mb-2" target="_blank" rel="noopener">Privacy policy</a>
-        <span class="text-white me-4 mb-2" style="opacity:0.4;">|</span>
-        <a href="https://www.spid.gov.it/" class="text-white me-4 mb-2" target="_blank" rel="noopener">Maggiori informazioni su SPID</a>
-        <a href="https://www.spid.gov.it/richiedi-spid" class="text-white me-4 mb-2" target="_blank" rel="noopener">Non hai SPID?</a>
-        <a href="https://www.spid.gov.it/serve-aiuto" class="text-white mb-2" target="_blank" rel="noopener">Serve aiuto?</a>
       </div>
       <div class="d-flex align-items-center gap-3">
-        <img src="/static/spid/spid-agid-logo-lb.png" alt="SPID - Sistema Pubblico di Identità Digitale - AgID" style="height:36px;">
+        <a href="https://github.com/mirkochipdotcom/GovPay-Interaction-Layer/releases/tag/${APP_VERSION}"
+           target="_blank" rel="noopener noreferrer"
+           class="text-white text-decoration-none" style="font-size:0.8rem; opacity:0.75;">
+          IAMProxy@GovPayInteractionLayer ${APP_VERSION}
+        </a>
       </div>
     </div>
   </div>
