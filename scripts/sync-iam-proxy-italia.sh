@@ -17,6 +17,12 @@ PROJECT_DST="$REPO_ROOT/iam-proxy/iam-proxy-italia-project"
 REPO_URL="${IAM_PROXY_REPO_URL:-https://github.com/italia/iam-proxy-italia.git}"
 REF="${IAM_PROXY_REF:-master}"
 
+# Read APP_VERSION from VERSION file if not already set
+if [ -z "${APP_VERSION:-}" ] && [ -f "$REPO_ROOT/VERSION" ]; then
+  APP_VERSION="$(cat "$REPO_ROOT/VERSION" | tr -d '[:space:]')"
+fi
+export APP_VERSION="${APP_VERSION:-}"
+
 echo "[sync-iam-proxy] Syncing IAM Proxy Italia from $REPO_URL (ref: $REF)"
 
 # Create temp directory
