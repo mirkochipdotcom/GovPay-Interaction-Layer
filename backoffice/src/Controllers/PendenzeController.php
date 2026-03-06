@@ -434,8 +434,135 @@ class PendenzeController
                     $_SESSION['flash'][] = ['type' => 'warning', 'text' => $w];
                 }
             }
-            $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Pendenza creata con successo'];
+            
             $newId = $sendResult['idPendenza'] ?? null;
+            
+            // Invio email automatico al cittadino se presente
+            if ($newId && !empty($email) && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                try {
+                    $mailer = \App\Services\MailerService::forSuite('backoffice');
+                    $pendenzaDataForEmail = [
+                        'idPendenza' => $newId,
+                        'causale' => $causale,
+                        'importo' => $importo,
+                    ];
+                    if (!empty($params['dataScadenza'])) {
+                        $pendenzaDataForEmail['dataScadenza'] = $params['dataScadenza'];
+                    }
+                    
+                    // Costruisci gli URL del frontoffice per PDF e pagamento
+                    $frontofficeUrl = rtrim((string)(getenv('FRONTOFFICE_PUBLIC_BASE_URL') ?: ''), '/');
+                    $idDominio = getenv('ID_DOMINIO') ?: '';
+                    $pdfUrl = '';
+                    $paymentUrl = '';
+                    $logoPath = '';
+                    
+                    // URL pagamento (sempre disponibile con idPendenza)
+                    if ($frontofficeUrl !== '') {
+                        $paymentUrl = $frontofficeUrl . '/pagamento-spontaneo/checkout?idPendenza=' . rawurlencode($newId);
+                        
+                        // URL PDF (solo se abbiamo numeroAvviso dalla risposta di GovPay)
+                        if (!empty($sendResult['response']['numeroAvviso']) && $idDominio !== '') {
+                            $numeroAvviso = (string)$sendResult['response']['numeroAvviso'];
+                            $pdfUrl = $frontofficeUrl . '/avvisi/' . rawurlencode($idDominio) . '/' . rawurlencode($numeroAvviso);
+                        }
+                        
+                        // Percorso del logo (cerca in /img o nella root pubblica)
+                        $possibleLogos = [
+                            __DIR__ . '/../../public/img/logo.png',
+                            __DIR__ . '/../../public/logo.png',
+                            __DIR__ . '/../../../img/logo.png',
+                        ];
+                        foreach ($possibleLogos as $path) {
+                            if (file_exists($path)) {
+                                $logoPath = $path;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    $appName = (string)(getenv('APP_ENTITY_NAME') ?: 'GIL');
+                    $notificationResult = $mailer->sendPendenzaCreatedNotification(
+                        $email,
+                        $anagrafica,
+                        $pendenzaDataForEmail,
+                        $appName,
+                        $pdfUrl,
+                        $paymentUrl,
+                        $logoPath
+                    );
+                    
+                    // Aggiorna i datiAllegati della pendenza con le informazioni della notifica
+                    if ($notificationResult['esito'] === 'OK') {
+                        $this->addNotificationToPendenza($newId, $notificationResult);
+                        $_SESSION['flash'][] = ['type' => 'info', 'text' => 'Email di notifica inviata al cittadino'];
+                    } else {
+                        Logger::getInstance()->warning('Errore invio email notifica pendenza', [
+                            'idPendenza' => $newId,
+                            'email' => $email,
+                            'errore' => $notificationResult['errore'] ?? 'sconosciuto'
+                        ]);
+                        $_SESSION['flash'][] = ['type' => 'warning', 'text' => 'Email non inviata: ' . ($notificationResult['errore'] ?? 'errore sconosciuto')];
+                    }
+                } catch (\Throwable $e) {
+                    Logger::getInstance()->error('Eccezione durante invio email notifica pendenza', [
+                        'idPendenza' => $newId,
+                        'email' => $email,
+                        'exception' => $e->getMessage()
+                    ]);
+                    $_SESSION['flash'][] = ['type' => 'warning', 'text' => 'Impossibile inviare email di notifica'];
+                }
+            }
+
+            // Invio messaggio App IO se codice fiscale disponibile e servizio IO configurato
+            if ($newId && $identificativo !== '' && $tipoSog === 'F') {
+                try {
+                    $ioRepo = new \App\Database\IoServiceRepository();
+                    // Prova a trovare il servizio associato alla tipologia, altrimenti quello predefinito
+                    $ioService = $ioRepo->getTipologiaService($idTipo) ?? $ioRepo->findDefault();
+                    
+                    if ($ioService) {
+                        $ioSvc = new \App\Services\AppIoService();
+                        $subject = 'Avviso di pagamento: ' . substr($causale, 0, 100);
+                        
+                        // Costruisci il contenuto markdown
+                        $markdown = "## Avviso di pagamento\n\n";
+                        $markdown .= "**Causale**: " . $causale . "\n\n";
+                        $markdown .= "**Importo**: € " . number_format($importo, 2, ',', '.') . "\n\n";
+                        if (!empty($params['dataScadenza'])) {
+                            $markdown .= "**Scadenza**: " . $params['dataScadenza'] . "\n\n";
+                        }
+                        $markdown .= "Clicca sul link sottostante per effettuare il pagamento.\n";
+                        
+                        $result = $ioSvc->sendMessage(
+                            $ioService['api_key_primaria'],
+                            $identificativo,
+                            $subject,
+                            $markdown,
+                            $params['dataScadenza'] ?? null
+                        );
+                        
+                        if ($result['esito'] === 'OK') {
+                            $_SESSION['flash'][] = ['type' => 'info', 'text' => 'Messaggio App IO inviato al cittadino'];
+                        } else {
+                            Logger::getInstance()->warning('Errore invio messaggio IO', [
+                                'idPendenza' => $newId,
+                                'identificativo' => substr($identificativo, -4),
+                                'errore' => $result['errore'] ?? 'sconosciuto'
+                            ]);
+                            $_SESSION['flash'][] = ['type' => 'warning', 'text' => 'Messaggio App IO non inviato: ' . ($result['errore'] ?? 'errore sconosciuto')];
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    Logger::getInstance()->error('Eccezione durante invio messaggio IO', [
+                        'idPendenza' => $newId,
+                        'exception' => $e->getMessage()
+                    ]);
+                    $_SESSION['flash'][] = ['type' => 'warning', 'text' => 'Impossibile inviare messaggio App IO'];
+                }
+            }
+            
+            $_SESSION['flash'][] = ['type' => 'success', 'text' => 'Pendenza creata con successo'];
             if ($newId) {
                 $base = '/pendenze/dettaglio/' . rawurlencode((string)$newId);
                 $query = ['from' => 'insert'];
@@ -3362,6 +3489,77 @@ class PendenzeController
         }
 
         return $form;
+    }
+
+    /**
+     * Aggiunge i dati di una notifica ai datiAllegati della pendenza.
+     * 
+     * @param string $idPendenza ID della pendenza
+     * @param array $notificationData Dati della notifica (timestamp, esito, destinatario, canale)
+     * @return bool True se l'aggiornamento è riuscito
+     */
+    private function addNotificationToPendenza(string $idPendenza, array $notificationData): bool
+    {
+        $backofficeUrl = getenv('GOVPAY_BACKOFFICE_URL') ?: '';
+        $idA2A = getenv('ID_A2A') ?: '';
+        
+        if ($backofficeUrl === '' || $idA2A === '') {
+            return false;
+        }
+        
+        try {
+            // 1) Recupera la pendenza corrente
+            $http = $this->makeHttpClient();
+            $getUrl = rtrim($backofficeUrl, '/') . '/pendenze/' . rawurlencode($idA2A) . '/' . rawurlencode($idPendenza);
+            $resp = $http->request('GET', $getUrl, ['headers' => ['Accept' => 'application/json']]);
+            $pendenza = json_decode((string)$resp->getBody(), true);
+            
+            if (!is_array($pendenza)) {
+                return false;
+            }
+            
+            // 2) Prepara il payload per il PUT
+            $allowedKeys = [
+                'numeroAvviso','tassonomia','dataValidita','datiAllegati','tassonomiaAvviso','importo','dataScadenza',
+                'dataPromemoriaScadenza','idUnitaOperativa','idDominio','allegati','dataCaricamento','annoRiferimento',
+                'divisione','nome','causale','soggettoPagatore','dataNotificaAvviso','cartellaPagamento','documento',
+                'proprieta','direzione','idTipoPendenza','voci'
+            ];
+            $put = array_intersect_key($pendenza, array_flip($allowedKeys));
+            
+            // 3) Aggiorna datiAllegati con le informazioni della notifica
+            $put['datiAllegati'] = $put['datiAllegati'] ?? [];
+            if (!isset($put['datiAllegati']['notifiche']) || !is_array($put['datiAllegati']['notifiche'])) {
+                $put['datiAllegati']['notifiche'] = [];
+            }
+            
+            $put['datiAllegati']['notifiche'][] = [
+                'timestamp' => $notificationData['timestamp'] ?? date('Y-m-d H:i:s'),
+                'tipo' => 'creazione_pendenza',
+                'canale' => $notificationData['canale'] ?? 'email',
+                'destinatario' => $notificationData['destinatario'] ?? '',
+                'esito' => $notificationData['esito'] ?? 'OK',
+            ];
+            
+            // 4) Rimuovi campi non consentiti nel body
+            unset($put['idPendenza'], $put['idA2A']);
+            
+            // 5) Assicura che idDominio sia presente (obbligatorio)
+            if (empty($put['idDominio'])) {
+                $put['idDominio'] = getenv('ID_DOMINIO') ?: '';
+            }
+            
+            // 6) Invia il PUT
+            $result = $this->sendPendenzaToBackoffice($put, $idPendenza);
+            return $result['success'] ?? false;
+            
+        } catch (\Throwable $e) {
+            Logger::getInstance()->error('Errore aggiornamento datiAllegati per notifica', [
+                'idPendenza' => $idPendenza,
+                'exception' => $e->getMessage()
+            ]);
+            return false;
+        }
     }
 }
 
