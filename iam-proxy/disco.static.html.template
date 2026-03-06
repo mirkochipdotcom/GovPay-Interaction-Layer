@@ -87,6 +87,15 @@
       overflow-y: auto;
     }
 
+    /* Cap IDP logo size inside dropdown */
+    #spid-idp-list-medium-root-get .spid-idp-button-link img {
+      max-width: 130px;
+      max-height: 36px;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+    }
+
     @media (max-width: 576px) {
       .login-form-lg {
         padding: 1rem;
@@ -238,22 +247,13 @@
                     <img style="box-sizing: content-box;" src="/static/spid/spid-idp-teamsystemid.svg" onerror="this.src='/static/spid/spid-idp-teamsystemid.png'; this.onerror=null;" alt="TeamSystem ID">
                   </a>
                 </li>
-                <li class="spid-idp-button-link" data-idp="etnaid">
-                  <a class="disco-idp-link" data-entity-id="https://id.ehtid.it">
-                    <img style="box-sizing: content-box;" src="/static/spid/spid-idp-etnaid.svg" onerror="this.src='/static/spid/spid-idp-etnaid.png'; this.onerror=null;" alt="EtnaHitech S.C.p.A.">
-                  </a>
-                </li>
-                <li class="spid-idp-button-link" data-idp="infocamereid">
-                  <a class="disco-idp-link" data-entity-id="https://loginspid.infocamere.it">
-                    <img style="box-sizing: content-box;" src="/static/spid/spid-idp-infocamereid.svg" onerror="this.src='/static/spid/spid-idp-infocamereid.png'; this.onerror=null;" alt="InfoCamere S.C.p.A.">
-                  </a>
-                </li>
+
               </ul>
             </div>
             <!-- AGID - SPID IDP BUTTON MEDIUM "ENTRA CON SPID" * end * -->
 
           </div>
-          <img id="spid-agid" class="img-fluid mx-auto mt-3" src="/static/spid/spid-agid-logo-lb.png" alt="Logo SPID - AGID - Agenzia per l'Italia Digitale">
+          <img id="spid-agid" class="img-fluid mx-auto mt-3" src="/static/spid/spid_icon.svg" onerror="this.src='/static/spid/spid-agid-logo-lb.png'; this.onerror=null;" alt="Logo SPID - AGID" style="max-height: 40px; width: auto;">
         </div>
       </div>
       <!-- SPID_BLOCK_END -->
