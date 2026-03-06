@@ -286,6 +286,17 @@
         {% endif %}
         {% set elenco = entrate.risultati|default([]) %}
         {% if elenco and elenco|length > 0 %}
+          {% if current_user and current_user.role == 'superadmin' and io_services|default([])|length > 0 %}
+          <form method="post" action="/configurazione/tipologie/io-service/bulk-save" id="formBulkIoService">
+          <div class="d-flex flex-wrap gap-2 align-items-center mb-3 p-2 bg-light rounded border">
+            <div class="flex-grow-1 small text-muted">
+              <i class="fas fa-mobile-alt me-1"></i> Associazioni <strong>App IO</strong>: modifica le selezioni nelle tipologie e premi <strong>Salva configurazioni IO</strong> per aggiornare tutte in un colpo solo.
+            </div>
+            <button type="submit" class="btn btn-sm btn-success">
+              <i class="fas fa-save me-1"></i> Salva configurazioni IO
+            </button>
+          </div>
+          {% endif %}
           <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
             <div class="flex-grow-1">
               <input id="entrateSearch" type="search" class="form-control form-control-sm" placeholder="Cerca per descrizione, IBAN, codice o ID" aria-label="Cerca tipologie di entrata">
@@ -490,24 +501,23 @@
                       </div>
                       <div class="d-flex flex-column gap-3 mt-3">
                         <div class="d-flex align-items-start gap-2 flex-wrap">
-                          <form method="post" action="/configurazione/tipologie/{{ idEnt }}/io-service" class="d-flex align-items-start gap-2 flex-wrap m-0">
-                            <div class="flex-grow-1" style="min-width:260px">
-                              <label for="ioservice_{{ eid }}" class="text-muted">Servizio App IO associato</label>
-                              <select id="ioservice_{{ eid }}" name="io_service_id" class="form-select form-select-sm">
-                                <option value="">-- Nessuno (usa predefinito) --</option>
-                                {% for svc in io_services|default([]) %}
-                                  <option value="{{ svc.id }}" {% if (io_services_tipologie[idEnt].id|default(null)) == svc.id %}selected{% endif %}>
-                                    {{ svc.nome }}
-                                    {% if svc.is_default %}<span class="badge bg-success ms-1 py-0">Predefinito</span>{% endif %}
-                                  </option>
-                                {% endfor %}
-                              </select>
-                              <div class="form-text">Solo per soggetti di tipo Persona Fisica (F) durante la creazione pendenza.</div>
-                            </div>
-                            <div class="pt-4">
-                              <button type="submit" class="btn btn-sm btn-primary">Salva</button>
-                            </div>
-                          </form>
+                          {% if current_user and current_user.role == 'superadmin' and io_services|default([])|length > 0 %}
+                          <div class="flex-grow-1" style="min-width:260px">
+                            <label for="ioservice_{{ eid }}" class="text-muted"><i class="fas fa-mobile-alt me-1"></i>Servizio App IO associato</label>
+                            <select id="ioservice_{{ eid }}" name="io_service_id[{{ idEnt }}]" class="form-select form-select-sm"
+                              {% if not (current_user and current_user.role == 'superadmin') %}disabled{% endif %}>
+                              <option value="">-- Nessuno (usa predefinito) --</option>
+                              {% for svc in io_services|default([]) %}
+                                <option value="{{ svc.id }}" {% if (io_services_tipologie[idEnt].id|default(null)) == svc.id %}selected{% endif %}>
+                                  {{ svc.nome }}{% if svc.is_default %} ★{% endif %}
+                                </option>
+                              {% endfor %}
+                            </select>
+                            <div class="form-text">Solo per soggetti di tipo Persona Fisica (F) durante la creazione pendenza.</div>
+                          </div>
+                          {% elseif current_user and current_user.role == 'superadmin' %}
+                          <div class="text-muted small"><i class="fas fa-mobile-alt me-1"></i>Nessun servizio App IO configurato. <a href="/configurazione?tab=servizi_io">Aggiungi un servizio</a>.</div>
+                          {% endif %}
                         </div>
                       </div>
                     {% endif %}
@@ -516,6 +526,9 @@
               </div>
             {% endfor %}
           </div>
+          {% if current_user and current_user.role == 'superadmin' and io_services|default([])|length > 0 %}
+          </form>{# fine formBulkIoService #}
+          {% endif %}
           <p id="noEntrateResults" class="text-muted small mt-2 d-none">Nessun risultato corrispondente al filtro.</p>
           <script>
             (function(){

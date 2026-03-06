@@ -1905,6 +1905,63 @@ class ConfigurazioneController
         return $this->redirectToTab($response, 'tipologie');
     }
 
+    /**
+     * Salvataggio massivo delle associazioni tipologia-servizio IO.
+     * Riceve un array io_service_id[idEntrata] => id_servizio_io|''
+     */
+    public function bulkSetTipologieIoService(Request $request, Response $response): Response
+    {
+        if (!$this->isSuperadmin()) {
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Accesso negato'];
+            return $this->redirectToTab($response, 'tipologie');
+        }
+
+        $params = (array)($request->getParsedBody() ?? []);
+        $ioServiceMap = isset($params['io_service_id']) && is_array($params['io_service_id'])
+            ? $params['io_service_id']
+            : [];
+
+        $ok = 0;
+        $ko = 0;
+
+        try {
+            $ioRepo = new \App\Database\IoServiceRepository();
+            $pdo = \App\Database\Connection::getPDO();
+            $pdo->beginTransaction();
+            try {
+                foreach ($ioServiceMap as $idEntrata => $ioServiceId) {
+                    $idEntrata = (string)$idEntrata;
+                    if ($idEntrata === '') {
+                        continue;
+                    }
+                    $serviceId = ($ioServiceId !== '' && $ioServiceId !== null)
+                        ? (int)$ioServiceId
+                        : null;
+                    $ioRepo->setTipologiaService($idEntrata, $serviceId);
+                    $ok++;
+                }
+                $pdo->commit();
+            } catch (\Throwable $e) {
+                $pdo->rollBack();
+                throw $e;
+            }
+
+            if ($ok > 0) {
+                $_SESSION['flash'][] = ['type' => 'success', 'text' => "Configurazioni salvate: $ok tipologie aggiornate"];
+            } else {
+                $_SESSION['flash'][] = ['type' => 'info', 'text' => 'Nessuna configurazione da salvare'];
+            }
+        } catch (\Throwable $e) {
+            Logger::getInstance()->error('Errore salvataggio massivo associazioni IO tipologie', [
+                'error' => $e->getMessage(),
+                'user_id' => $_SESSION['user']['id'] ?? null,
+            ]);
+            $_SESSION['flash'][] = ['type' => 'error', 'text' => 'Errore salvataggio: ' . $e->getMessage()];
+        }
+
+        return $this->redirectToTab($response, 'tipologie');
+    }
+
     private function redirectToTab(Response $response, string $tab): Response
     {
         return $response->withHeader('Location', '/configurazione?tab=' . $tab)->withStatus(302);

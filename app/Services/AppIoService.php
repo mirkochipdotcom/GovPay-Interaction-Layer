@@ -45,6 +45,8 @@ class AppIoService
      * @param string $subject Oggetto del messaggio (max ~120 char)
      * @param string $markdown Contenuto in markdown (max ~3000 char)
      * @param ?string $dueDate Data di scadenza in formato ISO8601 (es: "2025-12-31")
+     * @param ?array $paymentData Dati pagamento: ['noticeNumber' => '...', 'amount' => centesimi, 'invalidAfterDueDate' => bool]
+     * @param ?string $ctaLink URL per CTA primaria (es. checkout immediato)
      * 
      * @return array{esito: string, id: ?string, errore: ?string}
      *   - esito: 'OK' se inviato, 'KO' se errore
@@ -56,7 +58,9 @@ class AppIoService
         string $fiscalCode,
         string $subject,
         string $markdown,
-        ?string $dueDate = null
+        ?string $dueDate = null,
+        ?array $paymentData = null,
+        ?string $ctaLink = null
     ): array {
         try {
             // Costruisci il body JSON
@@ -72,6 +76,28 @@ class AppIoService
             // Aggiungi dueDate se presente (deve essere ISO8601)
             if ($dueDate !== null && $dueDate !== '') {
                 $body['content']['due_date'] = $dueDate;
+            }
+
+            // Aggiungi payment_data se presente (IUV/notice_number + importo in centesimi)
+            if ($paymentData !== null && isset($paymentData['noticeNumber'], $paymentData['amount'])) {
+                $body['content']['payment_data'] = [
+                    'notice_number' => (string)$paymentData['noticeNumber'],
+                    'amount' => (int)$paymentData['amount'],
+                    'invalid_after_due_date' => (bool)($paymentData['invalidAfterDueDate'] ?? false),
+                ];
+                // Con payment_data il feature_level deve essere ADVANCED per abilitare la CTA "Paga ora"
+                $body['feature_level_type'] = 'ADVANCED';
+            }
+
+            // Aggiungi CTA link se presente (es. checkout immediato)
+            if ($ctaLink !== null && $ctaLink !== '') {
+                $body['content']['third_party_data'] = [
+                    'id' => hash('sha256', $ctaLink),
+                    'original_sender' => (string)(getenv('APP_ENTITY_NAME') ?: 'GIL'),
+                    'original_receipt_date' => date('Y-m-d\TH:i:s\Z'),
+                    'has_attachments' => false,
+                    'summary' => 'Avviso di pagamento',
+                ];
             }
 
             // Effettua la richiesta

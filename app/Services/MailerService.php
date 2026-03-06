@@ -128,7 +128,7 @@ class MailerService
             $email = (new Email())
                 ->from($this->from)
                 ->to(new Address($toEmail, $toName))
-                ->subject("[$appName] $causale")
+                ->subject("Pendenza Pagopa - \"$causale\"")
                 ->html($htmlBody)
                 ->text($textBody);
             
@@ -257,7 +257,7 @@ class MailerService
         $safeAppName = htmlspecialchars($appName, ENT_QUOTES, 'UTF-8');
         $causale     = htmlspecialchars($pendenzaData['causale'] ?? 'Nuova posizione debitoria', ENT_QUOTES, 'UTF-8');
         $importo     = number_format((float)($pendenzaData['importo'] ?? 0.0), 2, ',', '.');
-        $idPendenza  = htmlspecialchars($pendenzaData['idPendenza'] ?? 'N/A', ENT_QUOTES, 'UTF-8');
+        $iuv         = htmlspecialchars((string)($pendenzaData['iuv'] ?? $pendenzaData['numeroAvviso'] ?? ''), ENT_QUOTES, 'UTF-8');
         $dataScadenza = '';
         if (!empty($pendenzaData['dataScadenza'])) {
             $dataScadenza = htmlspecialchars($pendenzaData['dataScadenza'], ENT_QUOTES, 'UTF-8');
@@ -270,7 +270,7 @@ class MailerService
             $safePdfUrl = htmlspecialchars($pdfUrl, ENT_QUOTES, 'UTF-8');
             $safePaymentUrl = htmlspecialchars($paymentUrl, ENT_QUOTES, 'UTF-8');
             
-            $pdfButton = $pdfUrl !== '' ? "<a href=\"{$safePdfUrl}\" class=\"btn btn-secondary\" style=\"background:#6c757d; margin-right:8px;\">Scarica PDF</a>" : '';
+            $pdfButton = $pdfUrl !== '' ? "<a href=\"{$safePdfUrl}\" class=\"btn btn-secondary\" style=\"background:#6c757d; margin-right:8px;\">Scarica PDF avviso</a>" : '';
             $payButton = $paymentUrl !== '' ? "<a href=\"{$safePaymentUrl}\" class=\"btn\">Paga ora</a>" : '';
             
             $actionButtons = <<<HTML
@@ -285,19 +285,24 @@ HTML;
             $scadenzaInfo = "<p><strong>Data scadenza:</strong> {$dataScadenza}</p>";
         }
 
+        $iuvInfo = $iuv !== '' ? "<p><strong>IUV:</strong> {$iuv}</p>" : '';
+
+        // Logo: usa cid:logo se disponibile, altrimenti nessuna immagine
+        $logoHtml = '<h1 style="margin:0; color:#fff; font-size:20px; font-weight:600;">' . $safeAppName . '</h1>';
+
         return <<<HTML
         <!DOCTYPE html>
         <html lang="it">
         <head>
           <meta charset="UTF-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>{$causale} - {$safeAppName}</title>
+          <title>Pendenza Pagopa - {$causale}</title>
           <style>
             body { margin:0; padding:0; background:#f4f7fa; font-family: 'Helvetica Neue', Arial, sans-serif; color:#333; }
             .wrapper { max-width:560px; margin:40px auto; background:#fff; border-radius:8px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,.08); }
             .header { background:#0b3d91; padding:28px 32px; text-align:center; }
             .header h1 { margin:0; color:#fff; font-size:20px; font-weight:600; letter-spacing:.5px; }
-            .header img { max-width:120px; height:auto; margin-bottom:12px; }
+            .header img { max-width:120px; height:auto; margin-bottom:12px; display:block; margin-left:auto; margin-right:auto; }
             .body { padding:32px; }
             .body p { line-height:1.6; margin:0 0 16px; }
             .info-box { background:#f8f9fa; border-left:4px solid #0b3d91; padding:16px; margin:16px 0; border-radius:4px; }
@@ -310,8 +315,7 @@ HTML;
         <body>
           <div class="wrapper">
             <div class="header">
-              <img src="cid:logo" alt="{$safeAppName}" />
-              <h1>{$safeAppName}</h1>
+              {$logoHtml}
             </div>
             <div class="body">
               <p>{$greeting}</p>
@@ -319,7 +323,7 @@ HTML;
               <div class="info-box">
                 <p><strong>Causale:</strong> {$causale}</p>
                 <p><strong>Importo:</strong> € {$importo}</p>
-                <p><strong>ID Pendenza:</strong> {$idPendenza}</p>
+                {$iuvInfo}
                 {$scadenzaInfo}
               </div>
               {$actionButtons}
@@ -344,10 +348,11 @@ HTML;
         $greeting = $toName !== '' ? "Gentile $toName," : "Gentile Interessato,";
         $causale = $pendenzaData['causale'] ?? 'Nuova posizione debitoria';
         $importo = number_format((float)($pendenzaData['importo'] ?? 0.0), 2, ',', '.');
-        $idPendenza = $pendenzaData['idPendenza'] ?? 'N/A';
+        $iuv = (string)($pendenzaData['iuv'] ?? $pendenzaData['numeroAvviso'] ?? '');
         $dataScadenza = $pendenzaData['dataScadenza'] ?? '';
         
         $scadenzaLine = $dataScadenza !== '' ? "\nData scadenza: $dataScadenza" : '';
+        $iuvLine = $iuv !== '' ? "\nIUV: $iuv" : '';
         $pdfLine = $pdfUrl !== '' ? "\n\nScarica PDF avviso:\n$pdfUrl" : '';
         $paymentLine = $paymentUrl !== '' ? "\n\nPaga ora:\n$paymentUrl" : '';
         
@@ -357,8 +362,7 @@ HTML;
         è stata creata una nuova posizione debitoria a tuo carico. Di seguito i dettagli:
 
         Causale: {$causale}
-        Importo: € {$importo}
-        ID Pendenza: {$idPendenza}{$scadenzaLine}{$pdfLine}{$paymentLine}
+        Importo: € {$importo}{$iuvLine}{$scadenzaLine}{$pdfLine}{$paymentLine}
 
         Utilizza i link qui sopra per scaricare l'avviso o procedere direttamente al pagamento online.
 
