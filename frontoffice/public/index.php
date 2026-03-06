@@ -2104,9 +2104,9 @@ if (!function_exists('frontoffice_sign_link')) {
     /**
      * Genera un array di query params da aggiungere all'URL: ['expires' => ..., 'sig' => ...]
      * $params: array associativo con i parametri payload da firmare (es. ['cf' => ..., 'iuv' => ...])
-     * $ttlSeconds: durata validità (default 2 anni)
+     * $ttlSeconds: durata validità (default 2 anni = 63072000 secondi)
      */
-    function frontoffice_sign_link(array $params, int $ttlSeconds = 63072000): array
+    function frontoffice_sign_link(array $params, int $ttlSeconds = 63072000 /* 60*60*24*365*2 = 2 anni */): array
     {
         $expires = time() + $ttlSeconds;
         $params['expires'] = (string)$expires;

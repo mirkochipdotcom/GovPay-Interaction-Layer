@@ -3598,8 +3598,9 @@ class PendenzeController
     /**
      * Genera parametri per un link firmato stateless (HMAC-SHA256) con scadenza 2 anni.
      * Usa la variabile d'ambiente FRONTOFFICE_LINK_SIGNING_KEY come secret.
+     * @param int $ttlSeconds Durata validità in secondi (default: 63072000 = 2 anni)
      */
-    private function buildSignedLinkParams(array $params, int $ttlSeconds = 63072000): array
+    private function buildSignedLinkParams(array $params, int $ttlSeconds = 63072000 /* 60*60*24*365*2 = 2 anni */): array
     {
         $signingKey = (string)(getenv('FRONTOFFICE_LINK_SIGNING_KEY') ?: '');
         if ($signingKey === '') {
