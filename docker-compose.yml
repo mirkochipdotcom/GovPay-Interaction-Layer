@@ -61,6 +61,8 @@ services:
       - ADMIN_EMAIL=${ADMIN_EMAIL}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       - APP_ENCRYPTION_KEY=${APP_ENCRYPTION_KEY}
+      - PORTAINER_URL=${PORTAINER_URL:-}
+      - PORTAINER_API_TOKEN=${PORTAINER_API_TOKEN:-}
       # env_file_ rimosso per sicurezza (isolamento esplicito)
       # - .env.backoffice (rimosso: mantenere solo .env locale)
     depends_on:

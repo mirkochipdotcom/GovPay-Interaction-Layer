@@ -650,6 +650,14 @@ return function (App $app, Twig $twig): void {
         return $controller->doReset($request, $response);
     });
 
+    // API: stato container Portainer (JSON, autenticati)
+    $app->get('/api/portainer/status', function(Request $request, Response $response): Response {
+        $service = new \App\Services\PortainerService();
+        $status  = $service->getStatus();
+        $response->getBody()->write((string)json_encode($status, JSON_UNESCAPED_UNICODE));
+        return $response->withHeader('Content-Type', 'application/json');
+    });
+
     $appDebugRaw = getenv('APP_DEBUG');
     $displayErrorDetails = $appDebugRaw !== false && in_array(strtolower($appDebugRaw), ['1','true','yes','on'], true);
     // Espone un flag globale a Twig per consentire controlli condizionali lato template
