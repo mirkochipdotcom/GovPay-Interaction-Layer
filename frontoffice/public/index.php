@@ -6,6 +6,7 @@ declare(strict_types=1);
 // Stesso motivo per cui backoffice/src/bootstrap/app.php lo fa in testa.
 ini_set('display_errors', '0');
 
+use App\Database\EntrateRepository;
 use App\Logger;
 use App\Services\ValidationService;
 use GuzzleHttp\Client;
@@ -184,7 +185,7 @@ if (!function_exists('frontoffice_backoffice_api')) {
      * @param string $method  GET | POST | PUT | DELETE
      * @param string $path    Es. '/api/frontoffice/tipologie'
      * @param array  $data    Dati query (GET) o body JSON (POST/PUT)
-     * @return array{success:bool,data:mixed,message:string,error_status:int}
+     * @return array{success:bool,data:mixed,message:string,error_status:int,_raw?:array<mixed>}
      */
     function frontoffice_backoffice_api(string $method, string $path, array $data = []): array
     {
@@ -1765,6 +1766,7 @@ if (!function_exists('frontoffice_build_avviso_preview')) {
 
         // Marca da bollo: GovPay non genera PDF avviso (422). Usa template HTML /avviso-bollo.
         $isBolloPreview = frontoffice_is_bollo_detail($pendenza);
+        $cf = '';
         if ($isBolloPreview && $numeroAvviso !== '' && $idDominio !== '') {
             $cf = frontoffice_extract_pendenza_debtor_cf($pendenza);
             $importoCentsPreview = is_numeric($importo) ? (int)round((float)$importo * 100) : 0;
@@ -3370,7 +3372,7 @@ $routes = [
             ],
         ];
     },
-    '/login' => static function () use ($env, $spidCallbackUrl, $frontofficeBaseUrl): array {
+    '/login' => static function () use ($env, $frontofficeBaseUrl): array {
         if (!frontoffice_spid_enabled()) {
             http_response_code(404);
             return [
@@ -3723,7 +3725,7 @@ $routes = [
         header('Location: ' . $returnTo, true, 302);
         exit;
     },
-    '/pagamento-spontaneo' => static function () use ($method, $serviceCatalog, $serviceInternalOptions, $serviceExternalOptions, $env): array {
+    '/pagamento-spontaneo' => static function () use ($method, $serviceCatalog, $serviceInternalOptions, $env): array {
         $defaultYear = (int) date('Y');
         $payPortalUrl = $env('FRONTOFFICE_PAGOPA_CHECKOUT_URL', 'https://checkout.pagopa.it/');
         $selectedId = $method === 'POST'
@@ -3969,7 +3971,7 @@ $routes = [
             ],
         ];
     },
-    '/pendenze' => static function () use ($method, $env): array {
+    '/pendenze' => static function () use ($method): array {
         if (!frontoffice_spid_enabled()) {
             http_response_code(404);
             return [
