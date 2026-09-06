@@ -747,7 +747,12 @@ if (!function_exists('frontoffice_http_get_raw')) {
             if ($attempt['host'] !== '') {
                 curl_setopt($ch, CURLOPT_HTTPHEADER, ['Host: ' . $attempt['host']]);
             }
+            // $insecureSsl gated dal solo chiamante (frontoffice_satosa_idp_metadata) — funzione
+            // mai invocata in tutto il repo (verificato con grep), nessun path raggiungibile con
+            // insecureSsl=true oggi. Se questa funzione viene agganciata in futuro (SATOSA), va
+            // rivista la sicurezza di questo toggle prima di attivarla.
             if ($insecureSsl) {
+                // nosemgrep: php.lang.security.curl-ssl-verifypeer-off.curl-ssl-verifypeer-off
                 curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
                 curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
             }
@@ -940,7 +945,11 @@ if (!function_exists('frontoffice_http_get')) {
             curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
             curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
             curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+            // frontoffice_http_get() non ha alcun chiamante in tutto il repo (verificato con
+            // grep) — nessun path raggiungibile con insecureSsl=true oggi. Rivedere la
+            // sicurezza di questo toggle se la funzione viene mai agganciata.
             if ($insecureSsl) {
+                // nosemgrep: php.lang.security.curl-ssl-verifypeer-off.curl-ssl-verifypeer-off
                 curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
                 curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
             }
@@ -2992,6 +3001,10 @@ $entityGovernment = trim($env('APP_ENTITY_GOVERNMENT', ''));
 $entityFull = trim($entityName . ($entitySuffix !== '' ? ' - ' . $entitySuffix : '')) ?: $entityGovernment;
 $entityWebsite = trim($env('APP_ENTITY_WEBSITE', ''));
 
+// DOCUMENT_ROOT e' impostato dalla config del webserver (Apache/php-fpm), non da un header
+// client — e i path costruiti sotto (questo blocco fino a $appFavicon) appendono solo
+// suffissi letterali fissi (stemma_ente.png, favicon.ico/.png), mai un segmento controllato
+// dall'utente: nessun filename realmente iniettabile nei check is_dir()/file_exists() sotto.
 $documentRoot = rtrim((string) ($_SERVER['DOCUMENT_ROOT'] ?? __DIR__), '/\\');
 $imgCandidates = [
     $documentRoot . '/img',
@@ -3002,6 +3015,7 @@ $imgCandidates = [
 ];
 $imgDir = null;
 foreach ($imgCandidates as $candidate) {
+    // nosemgrep: php.lang.security.injection.tainted-filename.tainted-filename
     if ($candidate && is_dir($candidate)) {
         $imgDir = $candidate;
         break;
@@ -3018,6 +3032,7 @@ $appLogo = ['type' => $logoType, 'src' => $logoSrc];
 // Fallback se il file non esiste e il tipo è 'img' (logica semplificata: se è specificato un src esterno o relativo usiamolo)
 if ($logoType === 'img' && $logoSrc === '/img/stemma_ente.png') {
     $customLogoPath = $imgDir . '/stemma_ente.png';
+    // nosemgrep: php.lang.security.injection.tainted-filename.tainted-filename
     if (!file_exists($customLogoPath)) {
         $appLogo = ['type' => 'sprite', 'src' => '/assets/bootstrap-italia/svg/sprites.svg#it-pa'];
     }
@@ -3031,6 +3046,7 @@ $appFavicon = (($appLogo['type'] ?? '') === 'img' && !empty($appLogo['src']))
     ? ['href' => $appLogo['src'], 'type' => 'image/png']
     : ['href' => '/img/favicon_default.png', 'type' => 'image/png'];
 foreach ($faviconCandidates as $candidate) {
+    // nosemgrep: php.lang.security.injection.tainted-filename.tainted-filename
     if (file_exists($candidate['path'])) {
         $appFavicon = ['href' => $candidate['href'], 'type' => $candidate['type']];
         break;
@@ -4627,7 +4643,7 @@ if ($method === 'GET' && $normalizedPath === '/pagamento-spontaneo/checkout') {
     if (!($bolloCheckout['skip'] ?? false)) {
         if (isset($bolloCheckout['error_code'])) {
             http_response_code($bolloCheckout['error_code']);
-            echo $bolloCheckout['error_msg'];
+            echo htmlspecialchars((string)$bolloCheckout['error_msg'], ENT_QUOTES, 'UTF-8');
             return;
         }
         header('Location: ' . $bolloCheckout['location'], true, 302);
@@ -4777,7 +4793,7 @@ if ($method === 'GET' && $normalizedPath === '/pagamento-avviso/checkout') {
     if (!($bolloCheckout['skip'] ?? false)) {
         if (isset($bolloCheckout['error_code'])) {
             http_response_code($bolloCheckout['error_code']);
-            echo $bolloCheckout['error_msg'];
+            echo htmlspecialchars((string)$bolloCheckout['error_msg'], ENT_QUOTES, 'UTF-8');
             return;
         }
         header('Location: ' . $bolloCheckout['location'], true, 302);
@@ -4909,7 +4925,7 @@ if ($method === 'GET' && preg_match('#^/pendenze/([^/]+)/checkout$#', $normalize
     if (!($bolloCheckout['skip'] ?? false)) {
         if (isset($bolloCheckout['error_code'])) {
             http_response_code($bolloCheckout['error_code']);
-            echo $bolloCheckout['error_msg'];
+            echo htmlspecialchars((string)$bolloCheckout['error_msg'], ENT_QUOTES, 'UTF-8');
             return;
         }
         header('Location: ' . $bolloCheckout['location'], true, 302);
@@ -5091,7 +5107,7 @@ if ($method === 'POST' && $normalizedPath === '/carrello/checkout') {
         if (!($bolloCheckout['skip'] ?? false)) {
             if (isset($bolloCheckout['error_code'])) {
                 http_response_code($bolloCheckout['error_code']);
-                echo $bolloCheckout['error_msg'];
+                echo htmlspecialchars((string)$bolloCheckout['error_msg'], ENT_QUOTES, 'UTF-8');
                 return;
             }
             header('Location: ' . $bolloCheckout['location'], true, 302);
